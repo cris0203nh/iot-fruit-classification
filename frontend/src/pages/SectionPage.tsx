@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 
-type SectionKey = 'evaluacion' | 'historial' | 'trazabilidad' | 'estadisticas' | 'lotes' | 'mantenimiento'
+type SectionKey = 'evaluacion' | 'historial' | 'trazabilidad' | 'estadisticas' | 'mantenimiento'
 
 const sections: Record<SectionKey, { title: string; description: string; upcoming: string[] }> = {
   evaluacion: {
@@ -23,11 +23,6 @@ const sections: Record<SectionKey, { title: string; description: string; upcomin
     title: 'Estadísticas',
     description: 'Resumen operativo basado únicamente en registros reales y verificables.',
     upcoming: ['Establecer filtros y denominadores', 'Diferenciar piezas, intentos e imágenes', 'Mostrar indicadores solo cuando existan datos válidos'],
-  },
-  lotes: {
-    title: 'Lotes',
-    description: 'Gestión de lotes y asociación de cada evaluación a su lote correspondiente.',
-    upcoming: ['Registrar y seleccionar lotes', 'Identificar piezas individualmente', 'Consultar el estado de cada lote'],
   },
   mantenimiento: {
     title: 'Mantenimiento',

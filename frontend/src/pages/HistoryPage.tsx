@@ -192,7 +192,10 @@ function HistoryDetailContent({ evaluationId }: { evaluationId: string }) {
         <h1>Detalle de evaluación</h1>
         <p>Consulta la evidencia asociada a una pieza previamente registrada.</p>
       </div>
-      <Link className="text-link history-back" to="/historial">← Volver al historial</Link>
+      <div className="traceability-history-links">
+        <Link className="text-link history-back" to="/historial">← Volver al historial</Link>
+        <Link className="text-link" to={`/trazabilidad/${encodeURIComponent(evaluationId)}`}>Consultar trazabilidad <Icon name="arrow-right" size={16} /></Link>
+      </div>
       <section className="panel" aria-label="Detalle de evaluación">
         {state.kind === 'loading' && <p role="status">Consultando detalle…</p>}
         {state.kind === 'unavailable' && <HistoryStateMessage kind="unavailable" title="Detalle no disponible" explanation="Todavía no existe un servicio conectado para recuperar esta evaluación. No es posible confirmar su existencia." />}

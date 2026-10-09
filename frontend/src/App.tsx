@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
 import { EvaluationPage } from './pages/EvaluationPage'
 import { HomePage } from './pages/HomePage'
+import { HistoryDetailPage, HistoryPage } from './pages/HistoryPage'
 import { LotsPage } from './pages/LotsPage'
 import { NotFoundPage, SectionPage } from './pages/SectionPage'
 import './App.css'
@@ -13,7 +14,8 @@ function App() {
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
           <Route path="evaluacion" element={<EvaluationPage />} />
-          <Route path="historial" element={<SectionPage section="historial" />} />
+          <Route path="historial" element={<HistoryPage />} />
+          <Route path="historial/:evaluationId" element={<HistoryDetailPage />} />
           <Route path="trazabilidad" element={<SectionPage section="trazabilidad" />} />
           <Route path="estadisticas" element={<SectionPage section="estadisticas" />} />
           <Route path="lotes" element={<LotsPage />} />

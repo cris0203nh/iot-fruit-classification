@@ -1,0 +1,41 @@
+.evaluation-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; gap: 14px; }
+.evaluation-form, .evaluation-acquisition { display: grid; gap: 20px; }
+.evaluation-section-heading { display: flex; align-items: flex-start; gap: 11px; }
+.evaluation-section-heading h2 { margin: 0 0 5px; color: var(--color-ink); font-size: 17px; }
+.evaluation-section-heading p { margin: 0; font-size: 12px; color: var(--color-muted); line-height: 1.6; }
+.evaluation-step { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #e3f5ea; color: #087645; font-weight: 750; flex-shrink: 0; }
+.evaluation-step--muted { background: #eef2f7; color: #61778c; }
+.evaluation-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.evaluation-fieldset legend, .evaluation-field label { display: block; margin-bottom: 9px; color: #34485c; font-size: 13px; font-weight: 700; }
+.evaluation-fieldset legend span, .evaluation-field label span { color: #b35431; }
+.evaluation-products { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.evaluation-product { display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 7px; min-height: 130px; padding: 15px 10px; border: 1px solid var(--color-border); border-radius: 11px; background: #fff; color: #43566d; transition: border-color 150ms, background-color 150ms; }
+.evaluation-product:hover { border-color: #6abf96; background: #f5fbf8; }
+.evaluation-product--selected { border: 2px solid var(--color-green); background: #effaf3; padding: 14px 9px; }
+.evaluation-product__symbol { font-size: 34px; line-height: 1.25; }
+.evaluation-product__label { color: #20384a; font-weight: 750; font-size: 14px; }
+.evaluation-product__hint { font-size: 11px; color: var(--color-muted); }
+.evaluation-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.evaluation-field input { width: 100%; border: 1px solid #cdd9e2; border-radius: 8px; padding: 12px 11px; background: #fff; color: var(--color-ink); min-height: 44px; font-size: 13px; }
+.evaluation-field input:focus { border-color: var(--color-green); }
+.evaluation-field input[aria-invalid="true"] { border-color: #c24949; background: #fffafa; }
+.evaluation-help { font-size: 11px; line-height: 1.5; color: var(--color-muted); margin: 7px 0 0; }
+.evaluation-error { font-size: 11px; line-height: 1.45; color: #ad3434; margin: 8px 0 0; }
+.evaluation-form__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.evaluation-form__actions .action-button { cursor: pointer; }
+.evaluation-preparation { border: 1px solid #dfebee; border-radius: 10px; padding: 14px 15px; background: #f5f9fb; font-size: 12px; line-height: 1.6; min-height: 98px; }
+.evaluation-preparation strong { display: block; color: #31566b; font-size: 13px; }
+.evaluation-preparation p { margin: 5px 0; overflow-wrap: anywhere; color: #435e73; }
+.evaluation-preparation span { color: #637b8e; }
+.evaluation-acquisition__card { border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; background: #fbfcfe; }
+.evaluation-acquisition__top { display: flex; align-items: center; gap: 8px; color: #405c70; font-size: 13px; }
+.evaluation-acquisition__top svg { color: #67859a; }
+.evaluation-unknown { display: block; margin: 15px 0 9px; font-size: 18px; color: #6a7e8c; font-weight: 700; }
+.evaluation-acquisition__card p { margin: 10px 0 0; color: var(--color-muted); font-size: 11px; line-height: 1.55; }
+.evaluation-camera-empty { margin-top: 12px; min-height: 118px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 1px dashed #cddce5; border-radius: 9px; background: #f3f7fa; color: #8ba0ae; font-size: 12px; }
+.evaluation-disabled-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.evaluation-disabled-actions button:disabled { opacity: .57; cursor: not-allowed; }
+.evaluation-next p { font-size: 12px; line-height: 1.75; color: #5b6f86; margin: 0 0 8px; }
+@media (max-width: 1100px) { .evaluation-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .evaluation-inputs, .evaluation-products, .evaluation-disabled-actions { grid-template-columns: 1fr; } .evaluation-form__actions > button { flex: 1 1 130px; } .evaluation-product { min-height: 98px; } }
+@media (prefers-reduced-motion: reduce) { .evaluation-product { transition: none; } }

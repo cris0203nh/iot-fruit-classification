@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
+import { EvaluationPage } from './pages/EvaluationPage'
 import { HomePage } from './pages/HomePage'
 import { NotFoundPage, SectionPage } from './pages/SectionPage'
 import './App.css'
@@ -10,7 +11,7 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
-          <Route path="evaluacion" element={<SectionPage section="evaluacion" />} />
+          <Route path="evaluacion" element={<EvaluationPage />} />
           <Route path="historial" element={<SectionPage section="historial" />} />
           <Route path="trazabilidad" element={<SectionPage section="trazabilidad" />} />
           <Route path="estadisticas" element={<SectionPage section="estadisticas" />} />

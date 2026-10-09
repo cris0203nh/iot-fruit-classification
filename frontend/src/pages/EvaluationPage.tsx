@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { isValidReference, readLotDraftState } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
 import './EvaluationPage.css'
 
@@ -12,12 +13,6 @@ type Draft = {
 }
 
 const EMPTY_DRAFT: Draft = { product: '', lot: '', piece: '' }
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/
-
-function validateReference(value: string): boolean {
-  return ID_PATTERN.test(value.trim())
-}
-
 function ProductOption({
   value,
   label,
@@ -44,12 +39,16 @@ function ProductOption({
 }
 
 export function EvaluationPage() {
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
+  const location = useLocation()
+  const [draft, setDraft] = useState<Draft>(() => {
+    const lotDraft = readLotDraftState(location.state)
+    return lotDraft ? { ...EMPTY_DRAFT, product: lotDraft.product, lot: lotDraft.lot } : EMPTY_DRAFT
+  })
   const [attempted, setAttempted] = useState(false)
   const [prepared, setPrepared] = useState<Draft | null>(null)
 
-  const lotValid = validateReference(draft.lot)
-  const pieceValid = validateReference(draft.piece)
+  const lotValid = isValidReference(draft.lot)
+  const pieceValid = isValidReference(draft.piece)
   const isValid = draft.product !== '' && lotValid && pieceValid
 
   function updateDraft(next: Draft) {

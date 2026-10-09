@@ -47,3 +47,5 @@
 .history-evidence li span { color: var(--color-muted); font-size: 11px; }
 @media (max-width: 1090px) { .history-filters { grid-template-columns: repeat(2, minmax(0,1fr)); } .history-reset { width: fit-content; } }
 @media (max-width: 600px) { .history-filters { grid-template-columns: 1fr; } .history-reset { width: 100%; } .history-detail__grid { grid-template-columns: 1fr; } .history-panel { padding: 15px; } }
+
+.traceability-history-links { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; }

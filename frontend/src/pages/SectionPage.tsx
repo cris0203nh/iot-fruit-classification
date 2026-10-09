@@ -1,18 +1,13 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 
-type SectionKey = 'evaluacion' | 'historial' | 'trazabilidad' | 'estadisticas' | 'mantenimiento'
+type SectionKey = 'evaluacion' | 'trazabilidad' | 'estadisticas' | 'mantenimiento'
 
 const sections: Record<SectionKey, { title: string; description: string; upcoming: string[] }> = {
   evaluacion: {
     title: 'Evaluación',
     description: 'Flujo semiautomatizado de evaluación externa de mango y tomate.',
     upcoming: ['Seleccionar lote y pieza', 'Verificar pesaje y captura RGB', 'Guardar la evaluación antes de retirar la muestra'],
-  },
-  historial: {
-    title: 'Historial',
-    description: 'Consulta de evaluaciones registradas por lote, producto y pieza.',
-    upcoming: ['Buscar y filtrar evaluaciones', 'Consultar peso e imágenes persistidos', 'Distinguir estados vacíos de errores'],
   },
   trazabilidad: {
     title: 'Trazabilidad',

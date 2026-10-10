@@ -36,6 +36,13 @@ class Evaluation(Base):
     calibration_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     rules_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    weight_pre_g: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_pre_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    weight_post_g: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_post_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    boot_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     lot: Mapped[Lot] = relationship()
@@ -75,3 +82,5 @@ class Measurement(Base):
     __table_args__ = (
         UniqueConstraint("device_id", "boot_id", "seq", name="uq_measurement_seq"),
     )
+
+

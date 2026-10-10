@@ -10,8 +10,8 @@ class Lot(Base):
     __tablename__ = "lots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    product_type: Mapped[str] = mapped_column(String(20))  # mango | tomato
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    product: Mapped[str] = mapped_column(String(20))  # mango | tomate
     status: Mapped[str] = mapped_column(String(20), default="open")  # open | closed
     responsible: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(

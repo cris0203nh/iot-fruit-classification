@@ -48,3 +48,12 @@ class EvaluationDetailOut(EvaluationSummaryOut):
     evidence: list[EvidenceOut]
     visualCategory: str | None
     reviewNote: str | None
+
+
+    failureReason: str | None = None
+
+class WeightStepOut(BaseModel):
+    stage: Literal["pre", "post"]
+    weightG: float
+    deviceId: str
+    receivedAt: str

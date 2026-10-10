@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -57,3 +57,21 @@ class Review(Base):
     performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     evaluation: Mapped[Evaluation] = relationship(back_populates="reviews")
+
+
+
+class Measurement(Base):
+    __tablename__ = "measurements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    boot_id: Mapped[str] = mapped_column(String(64))
+    seq: Mapped[int] = mapped_column(Integer)
+    weight_g: Mapped[float] = mapped_column(Float)
+    stable: Mapped[bool] = mapped_column(Boolean)
+    calibration_version: Mapped[str] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("device_id", "boot_id", "seq", name="uq_measurement_seq"),
+    )

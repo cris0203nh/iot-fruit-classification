@@ -27,12 +27,33 @@ class Evaluation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"), index=True)
     piece_id: Mapped[str] = mapped_column(String(64), index=True)
-    product: Mapped[str] = mapped_column(String(20))  # copiado del lote
+    product: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="processing")
     weight_grams: Mapped[float | None] = mapped_column(Float, nullable=True)
     image_count: Mapped[int] = mapped_column(Integer, default=0)
-    visual_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    visual_category: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ORIGINAL, no se modifica
     review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    calibration_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    rules_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     lot: Mapped[Lot] = relationship()
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="evaluation", order_by="Review.id"
+    )
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evaluation_id: Mapped[int] = mapped_column(ForeignKey("evaluations.id"), index=True)
+    type: Mapped[str] = mapped_column(String(20))  # review | cancellation
+    actor_id: Mapped[str] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(500))
+    previous_value: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    updated_value: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    evaluation: Mapped[Evaluation] = relationship(back_populates="reviews")

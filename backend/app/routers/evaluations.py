@@ -11,8 +11,10 @@ from ..evaluation_schemas import (
     EvaluationCreate,
     EvaluationDetailOut,
     EvaluationSummaryOut,
+    WeightStepOut,
 )
-from ..models import Evaluation, Lot, Review
+from ..models import Evaluation, Lot, Measurement, Review
+
 from ..review_schemas import (
     CancelCreate,
     ReviewCreate,
@@ -57,6 +59,7 @@ def detail(ev: Evaluation) -> dict:
         "evidence": [],
         "visualCategory": ev.visual_category,
         "reviewNote": ev.review_note,
+        "failureReason": ev.failure_reason,
     }
 
 
@@ -181,3 +184,99 @@ def cancel_evaluation(evaluation_id: str, payload: CancelCreate, db: Session = D
     db.commit()
     db.refresh(event)
     return review_out(event)
+
+
+FRESH_SECONDS = 10       # una lectura es vigente si llegó hace menos de esto
+TOLERANCE_G = 5.0        # diferencia máxima entre peso inicial y de confirmación
+TIMEOUT_SECONDS = 180    # tiempo máximo de una evaluación en proceso
+
+
+def aware(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def fail(db: Session, ev: Evaluation, reason: str):
+    ev.status = "error"
+    ev.failure_reason = reason
+    db.commit()
+    raise HTTPException(status_code=409, detail=reason)
+
+
+def ensure_active(db: Session, ev: Evaluation) -> None:
+    if ev.status != "processing":
+        raise HTTPException(status_code=409, detail="La evaluación ya no está en proceso.")
+    age = (datetime.now(timezone.utc) - aware(ev.created_at)).total_seconds()
+    if age > TIMEOUT_SECONDS:
+        fail(db, ev, "Tiempo de espera agotado sin completar la medición de peso.")
+
+
+def latest_ready(db: Session, after: datetime) -> Measurement | None:
+    """Última lectura recibida: debe ser estable, vigente y posterior a 'after'."""
+    last = db.scalar(select(Measurement).order_by(Measurement.id.desc()).limit(1))
+    if last is None or not last.stable:
+        return None
+    received = aware(last.received_at)
+    age = (datetime.now(timezone.utc) - received).total_seconds()
+    if age > FRESH_SECONDS or received <= after:
+        return None
+    return last
+
+
+def weight_step(stage: str, m: Measurement) -> dict:
+    return {
+        "stage": stage,
+        "weightG": m.weight_g,
+        "deviceId": m.device_id,
+        "receivedAt": iso(m.received_at),
+    }
+
+
+@router.post("/{evaluation_id}/weight/pre", response_model=WeightStepOut)
+def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
+    ev = get_or_404(db, evaluation_id)
+    ensure_active(db, ev)
+    if ev.weight_pre_g is not None:
+        raise HTTPException(status_code=409, detail="El peso inicial ya fue registrado.")
+
+    m = latest_ready(db, after=aware(ev.created_at))
+    if m is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Esperando una lectura estable posterior al inicio de la evaluación.",
+        )
+
+    ev.weight_pre_g = m.weight_g
+    ev.weight_pre_at = m.received_at
+    ev.device_id = m.device_id
+    ev.boot_id = m.boot_id
+    ev.calibration_reference = m.calibration_version
+    db.commit()
+    return weight_step("pre", m)
+
+
+@router.post("/{evaluation_id}/weight/post", response_model=WeightStepOut)
+def weight_post(evaluation_id: str, db: Session = Depends(get_db)):
+    ev = get_or_404(db, evaluation_id)
+    ensure_active(db, ev)
+    if ev.weight_pre_g is None:
+        raise HTTPException(status_code=409, detail="Falta registrar el peso inicial.")
+    if ev.weight_post_g is not None:
+        raise HTTPException(status_code=409, detail="El peso de confirmación ya fue registrado.")
+
+    m = latest_ready(db, after=aware(ev.weight_pre_at))
+    if m is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Esperando otra lectura estable posterior a la captura.",
+        )
+
+    if m.device_id != ev.device_id or m.boot_id != ev.boot_id:
+        fail(db, ev, "El sensor se reinició o cambió durante la evaluación.")
+    if abs(m.weight_g - ev.weight_pre_g) > TOLERANCE_G:
+        fail(db, ev, "El peso cambió durante la captura: posible movimiento o cambio de pieza.")
+
+    ev.weight_post_g = m.weight_g
+    ev.weight_post_at = m.received_at
+    ev.weight_grams = m.weight_g
+    db.commit()
+    return weight_step("post", m)

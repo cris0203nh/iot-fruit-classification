@@ -33,6 +33,7 @@ class Evaluation(Base):
     image_count: Mapped[int] = mapped_column(Integer, default=0)
     visual_category: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ORIGINAL, no se modifica
     review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    images: Mapped[list["Image"]] = relationship(order_by="Image.id")
     calibration_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     rules_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -83,4 +84,14 @@ class Measurement(Base):
         UniqueConstraint("device_id", "boot_id", "seq", name="uq_measurement_seq"),
     )
 
+class Image(Base):
+    __tablename__ = "images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evaluation_id: Mapped[int] = mapped_column(ForeignKey("evaluations.id"), index=True)
+    view: Mapped[str] = mapped_column(String(30))  # ej. vista-1, vista-2
+    relative_path: Mapped[str] = mapped_column(String(300))  # ruta relativa a data/
+    content_type: Mapped[str] = mapped_column(String(30))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

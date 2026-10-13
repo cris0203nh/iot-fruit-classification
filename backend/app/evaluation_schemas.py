@@ -57,3 +57,8 @@ class WeightStepOut(BaseModel):
     weightG: float
     deviceId: str
     receivedAt: str
+
+class ImageOut(BaseModel):
+    id: str
+    view: str
+    imageUrl: str

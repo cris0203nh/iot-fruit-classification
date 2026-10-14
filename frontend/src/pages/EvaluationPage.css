@@ -39,3 +39,23 @@
 @media (max-width: 1100px) { .evaluation-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .evaluation-inputs, .evaluation-products, .evaluation-disabled-actions { grid-template-columns: 1fr; } .evaluation-form__actions > button { flex: 1 1 130px; } .evaluation-product { min-height: 98px; } }
 @media (prefers-reduced-motion: reduce) { .evaluation-product { transition: none; } }
+
+/* Módulo 09: selección de lote persistido y confirmación de registro. */
+.evaluation-field select { width: 100%; border: 1px solid #cdd9e2; border-radius: 8px; padding: 12px 11px; background: #fff; color: var(--color-ink); min-height: 44px; font-size: 13px; }
+.evaluation-field select:focus { border-color: var(--color-green); }
+.evaluation-field select[aria-invalid="true"] { border-color: #c24949; }
+.evaluation-field select:disabled, .evaluation-field input:disabled { background: #f1f5f7; color: #526a7b; }
+.evaluation-products button:disabled { cursor: not-allowed; }
+.evaluation-lots-feedback, .evaluation-submit-error { border: 1px solid #f2cfcf; background: #fff8f8; border-radius: 9px; padding: 12px 14px; font-size: 12px; color: #9e3333; line-height: 1.6; }
+.evaluation-lots-feedback p { margin: 4px 0 11px; }
+.evaluation-lots-feedback button { width: fit-content; }
+.evaluation-submit-error .text-link { display: flex; width: fit-content; margin-top: 9px; }
+.evaluation-preparation--confirmed { background: #eff9f3; border-color: #a9dec0; }
+.evaluation-preparation--confirmed strong { color: #087645; }
+.evaluation-record-links { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
+.evaluation-record-links .action-button { padding: 10px 14px; }
+.evaluation-form__actions .action-button:disabled { opacity: .6; cursor: not-allowed; }
+
+.evaluation-lot-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: #5b6f86; font-size: 11px; }
+.evaluation-lot-tools .action-button { padding: 9px 13px; min-height: 38px; }
+.evaluation-lot-tools .action-button:disabled { opacity: .55; cursor: not-allowed; }

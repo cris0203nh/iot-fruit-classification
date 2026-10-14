@@ -30,3 +30,13 @@
 .lots-guide > p { font-size: 11px; color: var(--color-muted); }
 @media (max-width: 1050px) { .lots-grid { grid-template-columns: 1fr; } }
 @media (max-width: 550px) { .lots-product-options { grid-template-columns: 1fr 1fr; } .lots-actions button { flex: 1 1 150px; } .lots-continue { width: 100%; } }
+
+.lots-records { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.lots-record { display: flex; gap: 12px; justify-content: space-between; align-items: center; border: 1px solid var(--color-border); border-radius: 9px; padding: 10px; min-width: 0; }
+.lots-record > div { min-width: 0; display: grid; gap: 4px; }
+.lots-record strong { color: var(--color-ink); font-size: 13px; overflow-wrap: anywhere; }
+.lots-record span { font-size: 11px; color: var(--color-muted); }
+.lots-record button { flex-shrink: 0; }
+@media (max-width: 420px) { .lots-record { align-items: stretch; flex-direction: column; } }
+
+.lots-refresh { margin-left: auto; }

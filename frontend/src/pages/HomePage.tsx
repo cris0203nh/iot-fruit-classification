@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
+import { getBackendHealth } from '../services/agroscanApi'
 
 const indicators = [
-  { label: 'Guardadas', value: 'Sin registros', icon: 'clipboard' as const, tone: 'green' },
-  { label: 'Por revisar', value: 'Sin registros', icon: 'clock' as const, tone: 'blue' },
+  { label: 'Guardadas', value: 'Sin consultar', icon: 'clipboard' as const, tone: 'green' },
+  { label: 'Por revisar', value: 'Sin consultar', icon: 'clock' as const, tone: 'blue' },
   { label: 'Lote activo', value: 'No seleccionado', icon: 'boxes' as const, tone: 'purple' },
   { label: 'Estación', value: 'No verificada', icon: 'settings' as const, tone: 'red' },
 ]
@@ -16,6 +18,18 @@ const devices = [
 ]
 
 export function HomePage() {
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  const [retry, setRetry] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    getBackendHealth().then(
+      () => { if (active) setApiStatus('online') },
+      () => { if (active) setApiStatus('offline') },
+    )
+    return () => { active = false }
+  }, [retry])
+
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -26,7 +40,10 @@ export function HomePage() {
 
       <div className="notice notice--warning" role="status">
         <Icon name="alert" size={19} />
-        <span><strong>Sin registros:</strong> la aplicación no está conectada a servicios ni sensores. Los estados de esta pantalla son informativos.</span>
+        <span><strong>{apiStatus === 'online' ? 'Backend disponible' : apiStatus === 'checking' ? 'Comprobando backend' : 'Backend no disponible'}:</strong> {apiStatus === 'online'
+          ? 'La API respondió correctamente. Esto no confirma sensores conectados ni evaluaciones guardadas.'
+          : apiStatus === 'checking' ? 'Verificando la API local…' : 'Inicia FastAPI para poder consultar y crear lotes.'}
+          {apiStatus === 'offline' && <button type="button" className="action-button action-button--secondary" onClick={() => { setApiStatus('checking'); setRetry((n) => n + 1) }}>Reintentar</button>}</span>
       </div>
 
       <section className="summary-grid" aria-label="Resumen de estación">
@@ -47,7 +64,7 @@ export function HomePage() {
             <span className="round-icon round-icon--green"><Icon name="clipboard" size={20} /></span>
             <h2>Última evaluación</h2>
           </div>
-          <p className="panel-copy">Todavía no hay evaluaciones guardadas. Cuando se implemente la integración con el backend, aquí se mostrarán los datos persistidos de una pieza, nunca lecturas anteriores como si fueran actuales.</p>
+          <p className="panel-copy">Esta pantalla todavía no consulta las evaluaciones. El historial podrá mostrar los datos confirmados por el backend cuando se conecte su servicio.</p>
           <div className="empty-evidence"><Icon name="camera" size={20} /> Sin captura vinculada</div>
         </article>
 
@@ -57,6 +74,7 @@ export function HomePage() {
             <h2>Disponibilidad de la estación</h2>
           </div>
           <ul className="device-list">
+            <li><Icon name="network" size={18}/><span>API local: {apiStatus === 'online' ? 'disponible' : apiStatus === 'checking' ? 'verificando' : 'no disponible'}</span></li>
             {devices.map((device) => (
               <li key={device.text}><Icon name={device.icon} size={18} /><span>{device.text}</span></li>
             ))}

@@ -200,3 +200,18 @@ export function resolveEvidenceUrl(path: string): string | null {
   if (!/^\/api\/images\/I-\d{1,9}$/.test(path)) return null
   return `${API_BASE}${path}`
 }
+
+/** POST confirmado en backend/app/routers/evaluations.py. Solo inicia una evaluación; no la completa. */
+export async function createEvaluation(input: { lotId: string; pieceId: string }): Promise<EvaluationDetail> {
+  const lotId = input.lotId.trim()
+  const pieceId = input.pieceId.trim()
+  const body = await request('/api/evaluations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lotId, pieceId }),
+  })
+  if (!isEvaluationDetail(body) || body.lotId !== lotId || body.pieceId !== pieceId || body.status !== 'processing') {
+    throw new ApiDataError()
+  }
+  return body
+}

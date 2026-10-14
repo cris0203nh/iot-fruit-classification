@@ -158,7 +158,7 @@ export function LotsPage() {
               <>
                 <strong>Lote confirmado por el backend</strong>
                 <p>{selectedLot.product === 'mango' ? 'Mango' : 'Tomate'} · {selectedLot.code} · ID interno: {selectedLot.id}</p>
-                <span>El lote existe en la base de datos. La pantalla de Evaluación todavía requiere integrar la creación y adquisición de evaluaciones.</span>
+                <span>El lote existe en la base de datos. Puedes iniciar una evaluación real desde React. El pesaje y la captura aún requieren integrar los dispositivos.</span>
                 <Link className="action-button action-button--primary lots-continue" to="/evaluacion" state={{ lotDraft: selectedDraft }}>
                   Continuar a Evaluación <Icon name="arrow-right" size={17} />
                 </Link>
@@ -215,7 +215,7 @@ export function LotsPage() {
               <li>Elegir la pieza en Evaluación.</li>
               <li>Integrar pesaje e imágenes después de verificar los sensores.</li>
             </ol>
-            <p>El registro del lote es real; la evaluación todavía no guarda datos.</p>
+            <p>Lotes y el inicio de evaluaciones se guardan en SQLite; el pesaje y las imágenes aún no están conectados.</p>
           </section>
         </div>
       </div>

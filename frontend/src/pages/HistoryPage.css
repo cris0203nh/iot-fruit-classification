@@ -49,3 +49,6 @@
 @media (max-width: 600px) { .history-filters { grid-template-columns: 1fr; } .history-reset { width: 100%; } .history-detail__grid { grid-template-columns: 1fr; } .history-panel { padding: 15px; } }
 
 .traceability-history-links { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; }
+
+.history-status--processing { color: #276494; background: #e9f4ff; }
+.history-evidence__image { width: min(100%, 420px); max-height: 280px; height: auto; object-fit: contain; border-radius: 6px; background: #f5f8fa; }

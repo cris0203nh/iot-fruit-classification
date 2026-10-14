@@ -37,3 +37,6 @@
 .trace-timeline__entry time { color: var(--color-muted); margin-top: 4px; }
 .trace-timeline__entry p { color: #50687e; font-size: 12px; margin: 7px 0 0; overflow-wrap: anywhere; }
 @media (max-width: 690px) { .trace-overview, .trace-data-grid { grid-template-columns: 1fr; } .trace-form { display: grid; } .trace-form button { width: 100%; } }
+
+.trace-evidence-list li > div { width: 100%; min-width: 0; }
+.trace-evidence__image { display: block; max-width: 100%; width: min(100%, 420px); max-height: 280px; height: auto; object-fit: contain; border-radius: 7px; margin-top: 10px; background: #f5f8fa; }

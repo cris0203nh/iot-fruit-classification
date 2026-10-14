@@ -1,9 +1,7 @@
 import type { EvaluationDetail } from '../history/historyService'
+import { getEvaluationTraceability } from '../../services/agroscanApi.ts'
 
-/**
- * Contrato provisional para consulta de trazabilidad, pendiente de acordar
- * con Backend. No representa endpoints existentes ni datos persistidos.
- */
+/** Contrato de lectura alineado con TraceabilityOut de FastAPI. */
 export type ReviewEvent = {
   id: string
   performedAt: string // ISO-8601
@@ -33,27 +31,19 @@ export type TimelineEntry = {
   updatedValue: string | null
 }
 
-export class TraceabilityNotConnectedError extends Error {
-  constructor() {
-    super('No hay una API de trazabilidad conectada.')
-    this.name = 'TraceabilityNotConnectedError'
-  }
-}
-
 export interface TraceabilityService {
   getByEvaluationId(evaluationId: string): Promise<TraceabilityRecord | null>
 }
 
+/** No habilita POST de revisiones ni anulaciones: requieren autorización real. */
 export const traceabilityService: TraceabilityService = {
-  async getByEvaluationId() {
-    throw new TraceabilityNotConnectedError()
-  },
+  getByEvaluationId: getEvaluationTraceability,
 }
 
-/** Solo referencias opacas sin separadores de ruta ni espacios. */
+/** Identificador publicado por FastAPI (backend/app/routers/evaluations.py). */
 export function validateEvaluationId(input: string): string | null {
   const id = input.trim()
-  return /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(id) ? id : null
+  return /^E-\d{1,9}$/.test(id) ? id : null
 }
 
 /**

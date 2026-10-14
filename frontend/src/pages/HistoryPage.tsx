@@ -6,18 +6,19 @@ import {
   formatDate,
   formatWeight,
   HISTORY_STATUS_LABELS,
-  HistoryNotConnectedError,
   historyService,
   type EvaluationDetail,
   type EvaluationStatus,
   type EvaluationSummary,
   type HistoryFilters,
 } from '../features/history/historyService'
+import { ApiConnectionError, ApiResponseError, resolveEvidenceUrl } from '../services/agroscanApi'
 import './HistoryPage.css'
 
 type LoadState<T> =
   | { kind: 'loading' }
   | { kind: 'unavailable' }
+  | { kind: 'restricted' }
   | { kind: 'error' }
   | { kind: 'ready'; data: T }
 
@@ -34,7 +35,7 @@ function useHistoryList(): { state: LoadState<EvaluationSummary[]>; refresh: () 
         if (current) setState({ kind: 'ready', data: records })
       },
       (error: unknown) => {
-        if (current) setState({ kind: error instanceof HistoryNotConnectedError ? 'unavailable' : 'error' })
+        if (current) setState({ kind: error instanceof ApiConnectionError ? 'unavailable' : error instanceof ApiResponseError && (error.status === 401 || error.status === 403) ? 'restricted' : 'error' })
       },
     )
     return () => { current = false }
@@ -48,7 +49,7 @@ function useHistoryList(): { state: LoadState<EvaluationSummary[]>; refresh: () 
   return { state, refresh }
 }
 
-function HistoryStateMessage({ title, explanation, kind }: { title: string; explanation: string; kind: 'unavailable' | 'empty' | 'error' }) {
+function HistoryStateMessage({ title, explanation, kind }: { title: string; explanation: string; kind: 'unavailable' | 'empty' | 'error' | 'restricted' }) {
   return (
     <div className={`history-state history-state--${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
       <span className="round-icon round-icon--blue"><Icon name={kind === 'error' ? 'alert' : 'database'} size={24} /></span>
@@ -80,7 +81,7 @@ export function HistoryPage() {
       {state.kind === 'unavailable' && (
         <div className="notice notice--warning" role="status">
           <Icon name="alert" size={19} />
-          <span><strong>Sin conexión al historial:</strong> todavía no existe un servicio de consulta integrado. No podemos afirmar que la base de datos esté vacía ni mostrar evaluaciones reales.</span>
+          <span><strong>Sin conexión con FastAPI:</strong> no se pudo consultar el historial. Los registros pueden seguir almacenados en SQLite; inicia el servidor y reintenta.</span>
         </div>
       )}
 
@@ -89,7 +90,7 @@ export function HistoryPage() {
           <span className="round-icon round-icon--green"><Icon name="history" size={20} /></span>
           <div>
             <h2 id="history-list-heading">Evaluaciones registradas</h2>
-            <p>El historial mostrará únicamente registros confirmados por el backend.</p>
+            <p>Registros consultados desde FastAPI y almacenados en SQLite.</p>
           </div>
         </div>
 
@@ -123,7 +124,7 @@ export function HistoryPage() {
         </div>
 
         <div className="history-results-bar" aria-live="polite">
-          <span>{state.kind === 'ready' ? `${filteredRecords.length} ${filteredRecords.length === 1 ? 'evaluación' : 'evaluaciones'} encontradas` : 'Consulta aún no disponible'}</span>
+          <span>{state.kind === 'ready' ? `${filteredRecords.length} ${filteredRecords.length === 1 ? 'evaluación' : 'evaluaciones'} encontradas` : state.kind === 'loading' ? 'Consultando backend…' : 'Consulta no disponible'}</span>
           <span>Datos persistidos, no simulados</span>
         </div>
 
@@ -147,7 +148,8 @@ export function HistoryPage() {
         </div>
 
         {state.kind === 'loading' && <div className="history-state" role="status">Consultando historial…</div>}
-        {state.kind === 'unavailable' && <HistoryStateMessage kind="unavailable" title="Historial no conectado" explanation="La API de consulta todavía está pendiente. La ausencia de filas no significa que no existan evaluaciones guardadas." />}
+        {state.kind === 'unavailable' && <div className="history-state"><HistoryStateMessage kind="unavailable" title="FastAPI no disponible" explanation="No fue posible contactar con el backend. La ausencia de filas no significa que no existan evaluaciones guardadas." /><button type="button" className="action-button action-button--secondary" onClick={refresh}>Reintentar consulta</button></div>}
+        {state.kind === 'restricted' && <HistoryStateMessage kind="restricted" title="Acceso no autorizado" explanation="El backend ha denegado esta consulta (401/403). No se mostrarán datos de evaluaciones." />}
         {state.kind === 'error' && (
           <div className="history-state">
             <HistoryStateMessage kind="error" title="No se pudo consultar el historial" explanation="Se produjo un error al obtener los registros. El historial no se ha actualizado." />
@@ -160,7 +162,7 @@ export function HistoryPage() {
 
       <section className="panel history-guide" aria-labelledby="history-guide-title">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="history-guide-title">Información que se conservará</h2></div>
-        <p>El diseño contempla identificar la pieza y el lote, conservar el peso y las imágenes asociadas, y separar el estado de evaluación de la decisión comercial del operador. Las revisiones deberán mantener la evidencia original.</p>
+        <p>Las consultas muestran los registros existentes. Las evaluaciones en proceso pueden no tener peso ni imágenes. Esta interfaz no modifica resultados; el historial de revisiones se consulta en Trazabilidad.</p>
         <Link className="text-link" to="/evaluacion">Ir a Evaluación <Icon name="arrow-right" size={16} /></Link>
       </section>
     </div>
@@ -180,7 +182,7 @@ function HistoryDetailContent({ evaluationId }: { evaluationId: string }) {
     let current = true
     historyService.getById(evaluationId).then(
       (data) => { if (current) setState({ kind: 'ready', data }) },
-      (error: unknown) => { if (current) setState({ kind: error instanceof HistoryNotConnectedError ? 'unavailable' : 'error' }) },
+      (error: unknown) => { if (current) setState({ kind: error instanceof ApiConnectionError ? 'unavailable' : error instanceof ApiResponseError && (error.status === 401 || error.status === 403) ? 'restricted' : 'error' }) },
     )
     return () => { current = false }
   }, [evaluationId])
@@ -198,7 +200,8 @@ function HistoryDetailContent({ evaluationId }: { evaluationId: string }) {
       </div>
       <section className="panel" aria-label="Detalle de evaluación">
         {state.kind === 'loading' && <p role="status">Consultando detalle…</p>}
-        {state.kind === 'unavailable' && <HistoryStateMessage kind="unavailable" title="Detalle no disponible" explanation="Todavía no existe un servicio conectado para recuperar esta evaluación. No es posible confirmar su existencia." />}
+        {state.kind === 'unavailable' && <HistoryStateMessage kind="unavailable" title="Backend desconectado" explanation="No se puede consultar este detalle porque FastAPI no responde. No significa que el registro no exista." />}
+        {state.kind === 'restricted' && <HistoryStateMessage kind="restricted" title="Acceso denegado" explanation="La API denegó el acceso a este detalle (401/403)." />}
         {state.kind === 'error' && <HistoryStateMessage kind="error" title="Error al consultar el detalle" explanation="No se pudo recuperar la información. Vuelve al historial y prueba nuevamente." />}
         {state.kind === 'ready' && state.data === null && <HistoryStateMessage kind="empty" title="Evaluación no encontrada" explanation="El servicio no tiene un registro asociado a este identificador." />}
         {state.kind === 'ready' && state.data !== null && (
@@ -216,11 +219,12 @@ function HistoryDetailContent({ evaluationId }: { evaluationId: string }) {
               <div><dt>Imágenes asociadas</dt><dd>{state.data.evidence.length}</dd></div>
               <div><dt>Categoría visual</dt><dd>{state.data.visualCategory ?? 'No disponible'}</dd></div>
               <div><dt>Observación de revisión</dt><dd>{state.data.reviewNote ?? 'Sin observaciones registradas'}</dd></div>
+              {state.data.failureReason && <div><dt>Motivo del error</dt><dd>{state.data.failureReason}</dd></div>}
             </dl>
             <h3>Evidencia visual</h3>
             {state.data.evidence.length === 0 ? <p>Sin imágenes vinculadas.</p> : (
               <ul className="history-evidence">
-                {state.data.evidence.map((item) => <li key={item.id}><strong>{item.view}</strong><span>Imagen asociada. Su visualización requerirá la API de archivos autorizada.</span></li>)}
+                {state.data.evidence.map((item) => <li key={item.id}><strong>{item.view} · {item.id}</strong>{resolveEvidenceUrl(item.imageUrl) ? <img className="history-evidence__image" src={resolveEvidenceUrl(item.imageUrl)!} alt={`Evidencia ${item.view}`} loading="lazy" /> : <span>Referencia de imagen no reconocida.</span>}</li>)}
               </ul>
             )}
           </div>

@@ -42,7 +42,7 @@ export function HomePage() {
         <Icon name="alert" size={19} />
         <span><strong>{apiStatus === 'online' ? 'Backend disponible' : apiStatus === 'checking' ? 'Comprobando backend' : 'Backend no disponible'}:</strong> {apiStatus === 'online'
           ? 'La API respondió correctamente. Esto no confirma sensores conectados ni evaluaciones guardadas.'
-          : apiStatus === 'checking' ? 'Verificando la API local…' : 'Inicia FastAPI para poder consultar y crear lotes.'}
+          : apiStatus === 'checking' ? 'Verificando la API local…' : 'Inicia FastAPI para poder consultar y registrar lotes y evaluaciones.'}
           {apiStatus === 'offline' && <button type="button" className="action-button action-button--secondary" onClick={() => { setApiStatus('checking'); setRetry((n) => n + 1) }}>Reintentar</button>}</span>
       </div>
 
@@ -64,7 +64,7 @@ export function HomePage() {
             <span className="round-icon round-icon--green"><Icon name="clipboard" size={20} /></span>
             <h2>Última evaluación</h2>
           </div>
-          <p className="panel-copy">Esta pantalla todavía no consulta las evaluaciones. El historial podrá mostrar los datos confirmados por el backend cuando se conecte su servicio.</p>
+          <p className="panel-copy">Esta tarjeta todavía no consulta las evaluaciones. Puedes ver los registros confirmados por FastAPI desde el módulo Historial.</p>
           <div className="empty-evidence"><Icon name="camera" size={20} /> Sin captura vinculada</div>
         </article>
 

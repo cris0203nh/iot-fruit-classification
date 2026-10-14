@@ -1,4 +1,4 @@
-/** Datos transitorios para la navegación local: no representan un lote guardado. */
+/** El state de navegación transporta referencias: solo una consulta a la API confirma que el lote existe y está abierto. */
 export type FruitProduct = 'mango' | 'tomate'
 
 export type LotDraft = {

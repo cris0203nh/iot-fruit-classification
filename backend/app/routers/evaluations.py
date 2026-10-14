@@ -56,7 +56,10 @@ def summary(ev: Evaluation) -> dict:
 def detail(ev: Evaluation) -> dict:
     return {
         **summary(ev),
-        "evidence": [],
+        "evidence": [
+            {"id": f"I-{i.id:06d}", "view": i.view, "imageUrl": f"/api/images/I-{i.id:06d}"}
+            for i in ev.images
+        ],
         "visualCategory": ev.visual_category,
         "reviewNote": ev.review_note,
         "failureReason": ev.failure_reason,

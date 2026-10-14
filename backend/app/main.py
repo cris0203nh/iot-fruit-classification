@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import evaluations, iot, lots
+from .routers import evaluations, images, iot, lots
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,6 +19,7 @@ app.add_middleware(
 app.include_router(lots.router)
 app.include_router(evaluations.router)
 app.include_router(iot.router)
+app.include_router(images.router)
 
 @app.get("/api/health")
 def health():

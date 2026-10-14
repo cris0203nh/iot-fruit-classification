@@ -5,15 +5,16 @@ import { formatDate, formatWeight } from '../features/history/historyService'
 import {
   buildTraceabilityTimeline,
   traceabilityService,
-  TraceabilityNotConnectedError,
   validateEvaluationId,
   type TraceabilityRecord,
 } from '../features/traceability/traceabilityService'
+import { ApiConnectionError, ApiResponseError, resolveEvidenceUrl } from '../services/agroscanApi'
 import './TraceabilityPage.css'
 
 type TraceabilityState =
   | { kind: 'loading' }
   | { kind: 'unavailable' }
+  | { kind: 'restricted' }
   | { kind: 'error' }
   | { kind: 'not-found' }
   | { kind: 'ready'; record: TraceabilityRecord }
@@ -37,9 +38,9 @@ export function TraceabilityPage() {
         <h1>Trazabilidad de evaluaciones</h1>
         <p>Consulta las evidencias y revisiones vinculadas a una pieza. El registro original debe conservarse sin modificaciones.</p>
       </div>
-      <div className="notice notice--warning" role="status">
-        <Icon name="alert" size={19} />
-        <span><strong>Consulta no conectada:</strong> la API de trazabilidad aún no está integrada. Es posible preparar una búsqueda, pero no recuperar resultados reales.</span>
+      <div className="notice" role="status">
+        <Icon name="info" size={19} />
+        <span><strong>Consulta conectada:</strong> la información se solicita a FastAPI. Las operaciones de revisión y anulación permanecen deshabilitadas hasta contar con autorización verificable.</span>
       </div>
 
       <section className="panel trace-search" aria-labelledby="trace-search-heading">
@@ -47,7 +48,7 @@ export function TraceabilityPage() {
           <span className="round-icon round-icon--green"><Icon name="network" size={20} /></span>
           <div>
             <h2 id="trace-search-heading">Consultar una evaluación</h2>
-            <p>Ingresa el identificador de una evaluación ya registrada. No se comprobará su existencia hasta conectar la API.</p>
+            <p>Ingresa el identificador asignado por el backend. La consulta verificará si existe en SQLite.</p>
           </div>
         </div>
         <form onSubmit={handleSubmit} noValidate className="trace-form">
@@ -57,14 +58,14 @@ export function TraceabilityPage() {
               id="trace-evaluation-id"
               value={reference}
               onChange={(event) => { setReference(event.target.value); setSubmitted(false) }}
-              maxLength={80}
+              maxLength={11}
               aria-invalid={submitted && !validId}
               aria-describedby={submitted && !validId ? 'trace-evaluation-error' : 'trace-evaluation-help'}
-              placeholder="Ej.: EVAL-001"
+              placeholder="Ej.: E-000001"
               autoComplete="off"
             />
             {submitted && !validId
-              ? <p className="trace-error" role="alert" id="trace-evaluation-error">Introduce entre 1 y 80 caracteres: letras, números, guion, punto o guion bajo; debe comenzar con una letra o número.</p>
+              ? <p className="trace-error" role="alert" id="trace-evaluation-error">Utiliza el formato emitido por FastAPI: E- seguido de 1 a 9 dígitos (ej.: E-000001).</p>
               : <p id="trace-evaluation-help">Referencia de evaluación, no número de lote ni de pieza.</p>}
           </div>
           <button type="submit" className="action-button action-button--primary">Consultar referencia <Icon name="arrow-right" size={16} /></button>
@@ -72,7 +73,7 @@ export function TraceabilityPage() {
         <Link className="text-link" to="/historial">Ver historial de evaluaciones <Icon name="arrow-right" size={16} /></Link>
       </section>
 
-      <section className="trace-overview" aria-label="Información prevista para la trazabilidad">
+      <section className="trace-overview" aria-label="Información sobre la trazabilidad">
         <article className="panel trace-overview__card">
           <div className="panel-heading"><span className="round-icon round-icon--blue"><Icon name="database" size={21} /></span><h2>Evidencia vinculada</h2></div>
           <p>La consulta mostrará pieza, lote, producto, peso, vistas RGB, calibración y versiones de reglas o modelo, solo cuando estos datos estén confirmados.</p>
@@ -108,7 +109,7 @@ function TraceabilityDetailContent({ evaluationId }: { evaluationId: string }) {
     let active = true
     traceabilityService.getByEvaluationId(evaluationId).then(
       (record) => { if (active) setState(record ? { kind: 'ready', record } : { kind: 'not-found' }) },
-      (error: unknown) => { if (active) setState({ kind: error instanceof TraceabilityNotConnectedError ? 'unavailable' : 'error' }) },
+      (error: unknown) => { if (active) setState({ kind: error instanceof ApiConnectionError ? 'unavailable' : error instanceof ApiResponseError && (error.status === 401 || error.status === 403) ? 'restricted' : 'error' }) },
     )
     return () => { active = false }
   }, [evaluationId, revision])
@@ -138,10 +139,12 @@ function TraceabilityDetailContent({ evaluationId }: { evaluationId: string }) {
         {state.kind === 'unavailable' && (
           <div className="trace-message" role="status">
             <Icon name="database" size={28} />
-            <h3>Trazabilidad no conectada</h3>
-            <p>No podemos verificar si esta evaluación existe ni consultar sus evidencias o revisiones. La API todavía no está integrada.</p>
+            <h3>Backend desconectado</h3>
+            <p>FastAPI no responde. No podemos verificar si esta evaluación existe; sus registros no se han modificado.</p>
+            <button type="button" className="action-button action-button--secondary" onClick={retry}>Reintentar</button>
           </div>
         )}
+        {state.kind === 'restricted' && <div className="trace-message trace-message--error" role="alert"><Icon name="alert" size={26}/><h3>Acceso denegado</h3><p>FastAPI rechazó la consulta (401/403). No hay datos que mostrar.</p></div>}
         {state.kind === 'not-found' && (
           <div className="trace-message" role="status">
             <Icon name="info" size={26} /><h3>Evaluación no encontrada</h3>
@@ -167,6 +170,8 @@ function TraceabilityRecordContent({ record }: { record: TraceabilityRecord }) {
   return (
     <div className="trace-record">
       <dl className="trace-data-grid">
+        <div><dt>Estado de la evaluación</dt><dd>{evaluation.status === 'processing' ? 'En proceso' : evaluation.status === 'completed' ? 'Completada' : evaluation.status === 'pending_review' ? 'Por revisar' : evaluation.status === 'cancelled' ? 'Anulada' : 'Error'}</dd></div>
+        {evaluation.failureReason && <div><dt>Motivo del error</dt><dd>{evaluation.failureReason}</dd></div>}
         <div><dt>Lote</dt><dd>{evaluation.lotId}</dd></div>
         <div><dt>Pieza</dt><dd>{evaluation.pieceId}</dd></div>
         <div><dt>Producto</dt><dd>{evaluation.product === 'mango' ? 'Mango' : 'Tomate'}</dd></div>
@@ -180,8 +185,8 @@ function TraceabilityRecordContent({ record }: { record: TraceabilityRecord }) {
         <h3>Evidencias visuales ({evaluation.evidence.length})</h3>
         {evaluation.evidence.length === 0
           ? <p>No se registraron imágenes asociadas.</p>
-          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><Icon name="camera" size={18}/><div><strong>{item.view}</strong><span>Referencia: {item.id}</span></div></li>)}</ul>}
-        <p>Las imágenes solo podrán mostrarse cuando el backend habilite una consulta autorizada de archivos.</p>
+          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <img className="trace-evidence__image" src={resolveEvidenceUrl(item.imageUrl)!} alt={`Evidencia ${item.view} de ${evaluation.id}`} loading="lazy" /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
+          <p>Las imágenes se consultan desde la API local. El acceso a evidencias aún no tiene autenticación y no debe exponerse públicamente.</p>
       </section>
       <section className="trace-record__section" aria-labelledby="trace-timeline-title">
         <h3 id="trace-timeline-title">Historial de versiones y revisiones</h3>

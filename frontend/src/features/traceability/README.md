@@ -1,22 +1,13 @@
-# Contrato provisional de trazabilidad
+# Integración de trazabilidad — contrato vigente
 
-El frontend todavía **no está conectado** a la API. `traceabilityService.getByEvaluationId()` devuelve un error explícito de indisponibilidad, nunca registros ficticios.
+La consulta de trazabilidad está conectada con `GET /api/evaluations/{id}/traceability` de FastAPI.
 
-Pendiente de acordar con Backend (Josmely):
+- Los identificadores publicados por el backend tienen el formato `E-000001` (hasta nueve dígitos).
+- `GET /api/evaluations` y `GET /api/evaluations/{id}` alimentan Historial y Detalle.
+- La cronología comienza por el resultado original y añade revisiones ordenadas por fecha, sin modificar los datos recibidos.
+- Las imágenes usan exclusivamente rutas locales comprobadas `/api/images/I-{id}`, servidas por FastAPI.
+- La UI diferencia 404 (no encontrado), 401/403 (denegado), caída de FastAPI y respuesta JSON inesperada.
+- No se han habilitado acciones de modificación, anulación o revisión. El backend actual acepta `actorId` de entrada pero aún no autentica identidades; **no exponerlo a redes públicas**.
+- Una evaluación en `processing` puede no contener peso, categoría visual, imágenes ni revisiones. No se inventan datos.
 
-- Ruta y autorización para consultar una evaluación individual, vinculada a lote y pieza.
-- Recuperación de identificadores y metadatos de evidencias RGB sin exponer archivos de forma insegura.
-- Conservación del resultado original, versiones de calibración/modelo/reglas y registro inmutable de revisiones.
-- Revisión autorizada con autor, fecha, motivo, valor anterior y valor nuevo, sin reemplazar el original.
-- Distinción entre **no encontrado** (404), **sin autorización** (401/403), errores y servicio no conectado.
-- Semántica de estados como pendiente de revisión, completado, anulado, y su relación con la clasificación visual.
-
-`TraceabilityRecord` es un **modelo provisional de la interfaz**. No se debe asumir que la estructura coincide con el backend hasta acordar el contrato.
-
-## Pruebas
-
-```sh
-npm test
-```
-
-Se ejecutan pruebas del servicio desconectado, validación de referencias y orden/inmutabilidad de la cronología (con fixtures de prueba, nunca registros operativos).
+Ejecutar `npm test`, `npm run lint` y `npm run build` desde `frontend/` antes del PR.

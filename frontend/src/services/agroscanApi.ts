@@ -1,3 +1,6 @@
+import type { EvaluationDetail, EvaluationSummary } from '../features/history/historyService'
+import type { TraceabilityRecord } from '../features/traceability/traceabilityService'
+
 /** Cliente HTTP del frontend. Los endpoints corresponden al backend incluido en main. */
 export type FruitProduct = 'mango' | 'tomate'
 
@@ -98,4 +101,102 @@ export async function createLot(input: { code: string; product: FruitProduct }):
   })
   if (!isLotRecord(body)) throw new ApiDataError()
   return body
+}
+
+/** Contratos de lectura confirmados en backend/app/evaluation_schemas.py y review_schemas.py. */
+const EVALUATION_ID_PATTERN = /^E-\d{1,9}$/
+const IMAGE_ID_PATTERN = /^I-\d{1,9}$/
+const REVIEW_ID_PATTERN = /^R-\d{1,9}$/
+const STATUSES = new Set(['processing', 'completed', 'pending_review', 'error', 'cancelled'])
+
+function object(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function nullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isEvidence(value: unknown): boolean {
+  if (!object(value)) return false
+  return typeof value.id === 'string' && IMAGE_ID_PATTERN.test(value.id)
+    && typeof value.view === 'string'
+    && value.imageUrl === `/api/images/${value.id}`
+}
+
+function isEvaluationSummary(value: unknown): value is EvaluationSummary {
+  if (!object(value)) return false
+  return typeof value.id === 'string' && EVALUATION_ID_PATTERN.test(value.id)
+    && typeof value.lotId === 'string' && typeof value.pieceId === 'string'
+    && (value.product === 'mango' || value.product === 'tomate')
+    && typeof value.registeredAt === 'string' && Number.isFinite(Date.parse(value.registeredAt))
+    && typeof value.status === 'string' && STATUSES.has(value.status)
+    && (value.weightGrams === null || (typeof value.weightGrams === 'number' && Number.isFinite(value.weightGrams) && value.weightGrams >= 0))
+    && typeof value.imageCount === 'number' && Number.isInteger(value.imageCount) && value.imageCount >= 0
+}
+
+function isEvaluationDetail(value: unknown): value is EvaluationDetail {
+  if (!isEvaluationSummary(value)) return false
+
+  return 'evidence' in value
+    && Array.isArray(value.evidence)
+    && value.evidence.every(isEvidence)
+    && 'visualCategory' in value
+    && nullableString(value.visualCategory)
+    && 'reviewNote' in value
+    && nullableString(value.reviewNote)
+    && 'failureReason' in value
+    && nullableString(value.failureReason)
+}
+
+function isTraceability(value: unknown): value is TraceabilityRecord {
+  if (!object(value) || !isEvaluationDetail(value.evaluation)) return false
+  if (!nullableString(value.calibrationReference) || !nullableString(value.modelVersion) || !nullableString(value.rulesVersion)) return false
+  if (!Array.isArray(value.reviews)) return false
+  return value.reviews.every((review: unknown) => object(review)
+    && typeof review.id === 'string' && REVIEW_ID_PATTERN.test(review.id)
+    && typeof review.performedAt === 'string' && Number.isFinite(Date.parse(review.performedAt))
+    && typeof review.actorId === 'string' && typeof review.reason === 'string'
+    && (review.type === 'review' || review.type === 'cancellation')
+    && nullableString(review.previousValue) && nullableString(review.updatedValue))
+}
+
+function validEvaluationId(id: string): boolean {
+  return EVALUATION_ID_PATTERN.test(id)
+}
+
+export async function listEvaluations(): Promise<EvaluationSummary[]> {
+  const body = await request('/api/evaluations')
+  if (!Array.isArray(body) || !body.every(isEvaluationSummary)) throw new ApiDataError()
+  return body
+}
+
+export async function getEvaluationById(id: string): Promise<EvaluationDetail | null> {
+  if (!validEvaluationId(id)) return null
+  try {
+    const body = await request(`/api/evaluations/${encodeURIComponent(id)}`)
+    if (!isEvaluationDetail(body)) throw new ApiDataError()
+    return body
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function getEvaluationTraceability(id: string): Promise<TraceabilityRecord | null> {
+  if (!validEvaluationId(id)) return null
+  try {
+    const body = await request(`/api/evaluations/${encodeURIComponent(id)}/traceability`)
+    if (!isTraceability(body)) throw new ApiDataError()
+    return body
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.status === 404) return null
+    throw error
+  }
+}
+
+/** Solo permite rutas de imágenes emitidas por el backend de AgroScan. */
+export function resolveEvidenceUrl(path: string): string | null {
+  if (!/^\/api\/images\/I-\d{1,9}$/.test(path)) return null
+  return `${API_BASE}${path}`
 }

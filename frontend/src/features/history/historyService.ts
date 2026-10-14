@@ -1,9 +1,8 @@
-/**
- * Modelo interno del frontend. Contrato PROVISIONAL: debe acordarse con Backend
- * antes de implementar una API o persistir resultados.
- */
+import { getEvaluationById, listEvaluations } from '../../services/agroscanApi.ts'
+
+/** Modelo de consulta, alineado con EvaluationSummaryOut/EvaluationDetailOut de FastAPI. */
 export type EvaluatedProduct = 'mango' | 'tomate'
-export type EvaluationStatus = 'completed' | 'pending_review' | 'error' | 'cancelled'
+export type EvaluationStatus = 'processing' | 'completed' | 'pending_review' | 'error' | 'cancelled'
 
 export type EvaluationSummary = {
   id: string
@@ -17,10 +16,10 @@ export type EvaluationSummary = {
 }
 
 export type EvaluationDetail = EvaluationSummary & {
-  // Las URLs o identificadores de evidencia deberán resolverse desde la API real.
   evidence: Array<{ id: string; view: string; imageUrl: string }>
   visualCategory: string | null
   reviewNote: string | null
+  failureReason: string | null
 }
 
 export type HistoryService = {
@@ -28,27 +27,14 @@ export type HistoryService = {
   getById: (id: string) => Promise<EvaluationDetail | null>
 }
 
-export class HistoryNotConnectedError extends Error {
-  constructor() {
-    super('El historial todavía no dispone de un servicio conectado.')
-    this.name = 'HistoryNotConnectedError'
-  }
-}
-
-/**
- * Sin datos falsos ni llamadas a endpoints no acordados.
- * Josmely podrá sustituir estos métodos cuando se defina el contrato API.
- */
+/** Operaciones de solo lectura; ninguna modifica evaluaciones o revisiones. */
 export const historyService: HistoryService = {
-  async list() {
-    throw new HistoryNotConnectedError()
-  },
-  async getById() {
-    throw new HistoryNotConnectedError()
-  },
+  list: listEvaluations,
+  getById: getEvaluationById,
 }
 
 export const HISTORY_STATUS_LABELS: Record<EvaluationStatus, string> = {
+  processing: 'En proceso',
   completed: 'Completada',
   pending_review: 'Por revisar',
   error: 'Error',

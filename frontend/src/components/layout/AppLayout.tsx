@@ -63,7 +63,7 @@ export function AppLayout() {
           </nav>
           <div className="sidebar-disclaimer">
             <Icon name="info" size={17} />
-            <span>Interfaz en desarrollo<br />Sin datos operativos</span>
+            <span>Integración por módulos<br />Hardware sin verificar</span>
           </div>
         </div>
       </aside>
@@ -84,7 +84,7 @@ export function AppLayout() {
             <span className="topbar__badge" aria-hidden="true"><Icon name="leaf" size={15} /></span>
             <span>Plataforma de evaluación externa</span>
           </div>
-          <span className="topbar__context">Prototipo de interfaz</span>
+          <span className="topbar__context">Integración en desarrollo</span>
         </header>
         <main id="main-content" className="page-content">
           <Outlet />

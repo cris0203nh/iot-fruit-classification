@@ -1,0 +1,38 @@
+name: Pesaje ESP32 y pruebas de software
+on:
+  push:
+    paths: ['firmware/agroscan_scale/**', 'firmware/tools/**', 'tests/test_scale_core.cpp', 'tests/test_serial_bridge.py', 'tests/test_weight_simulator.py', 'tests/test_iot_firmware_integration.py', 'firmware/weight_simulator.py', 'backend/**', '.github/workflows/pesaje.yml']
+  pull_request:
+    paths: ['firmware/agroscan_scale/**', 'firmware/tools/**', 'tests/test_scale_core.cpp', 'tests/test_serial_bridge.py', 'tests/test_weight_simulator.py', 'tests/test_iot_firmware_integration.py', 'firmware/weight_simulator.py', 'backend/**', '.github/workflows/pesaje.yml']
+permissions:
+  contents: read
+jobs:
+  software:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias del backend
+        run: python -m pip install -r backend/requirements.txt httpx==0.28.1
+      - name: Probar núcleo de pesaje
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -pedantic tests/test_scale_core.cpp -o /tmp/test_scale_core
+          /tmp/test_scale_core
+      - name: Probar puente serial y HTTP local
+        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
+  compile-esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Instalar plataforma y librería
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install 'HX711 Arduino Library@0.7.5'
+      - name: Compilar simulación
+        run: arduino-cli compile --fqbn esp32:esp32:nodemcu-32s firmware/agroscan_scale
+      - name: Compilar sensor real
+        run: arduino-cli compile --fqbn esp32:esp32:nodemcu-32s --build-property 'compiler.cpp.extra_flags=-DAGROSCAN_SIMULATION=0' firmware/agroscan_scale

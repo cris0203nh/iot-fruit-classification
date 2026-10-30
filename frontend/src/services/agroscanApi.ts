@@ -87,6 +87,36 @@ export async function getBackendHealth(): Promise<void> {
   if (typeof body !== 'object' || body === null || !('status' in body) || body.status !== 'ok') throw new ApiDataError()
 }
 
+/** Estado instantáneo de la última lectura recibida por la API (NO implica pesaje físico verificado). */
+export type IotStatus = {
+  online: boolean
+  deviceId: string | null
+  weightG: number | null
+  stable: boolean | null
+  receivedAt: string | null
+  ageSeconds: number | null
+}
+
+function isIotStatus(value: unknown): value is IotStatus {
+  if (!object(value)) return false
+  if (typeof value.online !== 'boolean') return false
+  if (!(value.deviceId === null || (typeof value.deviceId === 'string' && value.deviceId.length > 0))) return false
+  if (!(value.weightG === null || (typeof value.weightG === 'number' && Number.isFinite(value.weightG) && value.weightG >= 0 && value.weightG <= 5000))) return false
+  if (!(value.stable === null || typeof value.stable === 'boolean')) return false
+  if (!(value.receivedAt === null || (typeof value.receivedAt === 'string' && Number.isFinite(Date.parse(value.receivedAt))))) return false
+  if (!(value.ageSeconds === null || (typeof value.ageSeconds === 'number' && Number.isFinite(value.ageSeconds) && value.ageSeconds >= 0))) return false
+  // El backend nunca debe publicar una masa "actual" con el dispositivo fuera de línea.
+  if (!value.online) return value.weightG === null && value.stable === null
+  return value.deviceId !== null && value.weightG !== null && value.stable !== null
+    && value.receivedAt !== null && value.ageSeconds !== null
+}
+
+export async function getIotStatus(): Promise<IotStatus> {
+  const body = await request('/api/iot/status')
+  if (!isIotStatus(body)) throw new ApiDataError()
+  return body
+}
+
 export async function listLots(): Promise<LotRecord[]> {
   const body = await request('/api/lots')
   if (!Array.isArray(body) || !body.every(isLotRecord)) throw new ApiDataError()

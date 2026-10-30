@@ -1,0 +1,13 @@
+.weight-card__state { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0 4px; }
+.weight-card__value { font-size: clamp(24px, 3vw, 33px); font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: #243d52; }
+.weight-card__badge { border-radius: 100px; padding: 5px 11px; background: #eaf0f4; color: #4d6674; font-size: 11px; font-weight: 750; }
+.weight-card__state--stable .weight-card__badge { background: #ddf4e6; color: #106c43; }
+.weight-card__state--unstable .weight-card__badge, .weight-card__state--stale .weight-card__badge { background: #fff0d8; color: #88520a; }
+.weight-card__state--error .weight-card__badge { background: #ffe4e5; color: #972d39; }
+.weight-card__meta { display: grid; gap: 8px; margin: 12px 0 0; font-size: 11px; }
+.weight-card__meta div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+.weight-card__meta dt { color: #677e90; }
+.weight-card__meta dd { margin: 0; color: #2c475b; font-weight: 650; overflow-wrap: anywhere; }
+.weight-card .weight-card__description { margin-top: 7px; }
+.weight-card .weight-card__notice { margin-top: 12px; padding: 8px 10px; background: #f0f5f8; border-radius: 8px; color: #3d596b; }
+.weight-card .weight-card__origin { padding-top: 9px; border-top: 1px solid #dbe5eb; color: #60798b; }

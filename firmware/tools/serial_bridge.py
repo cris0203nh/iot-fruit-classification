@@ -12,7 +12,16 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-FIELDS = {'schema_version', 'device_id', 'boot_id', 'seq', 'weight_g', 'stable', 'calibration_version'}
+FIELDS = {
+    'schema_version',
+    'device_id',
+    'boot_id',
+    'seq',
+    'weight_g',
+    'stable',
+    'zero_confirmed',
+    'calibration_version'
+}
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -41,6 +50,8 @@ def extract_measurement(envelope, allow_simulated=False):
     if type(m['stable']) is not bool:
         raise ValueError('stable debe ser booleano')
     w = m['weight_g']
+    if type(m['zero_confirmed']) is not bool:
+        raise ValueError('zero_confirmed debe ser booleano')
     if type(w) not in (int, float) or not math.isfinite(w) or not 0 <= w <= 5000:
         raise ValueError('Peso inválido')
     for field in ('device_id', 'boot_id', 'calibration_version'):

@@ -39,8 +39,11 @@ class ScaleCore {
         || std::abs(c.counts_per_gram) < 1e-6 || c.revision == 0) {
       calibration_ = Calibration{};
     }
-    zero_ = false; // Operator must establish zero after every restart.
     clearWindow();
+  }
+
+  bool zeroConfirmed() const {
+    return zero_;
   }
   const Calibration& calibration() const { return calibration_; }
   void fault() { healthy_ = false; clearWindow(); }

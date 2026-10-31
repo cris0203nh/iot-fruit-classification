@@ -42,6 +42,7 @@ def receive_measurement(payload: MeasurementCreate, db: Session = Depends(get_db
         seq=payload.seq,
         weight_g=payload.weight_g,
         stable=payload.stable,
+        zero_confirmed=payload.zero_confirmed,
         calibration_version=payload.calibration_version,
     )
     db.add(m)

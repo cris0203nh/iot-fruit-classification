@@ -30,8 +30,14 @@ class BackendIntegrationTests(unittest.TestCase):
         self.addCleanup(self.engine.dispose);self.addCleanup(self.client.close)
     def payload(self):
         env={'type':'telemetry','simulated':False,'status':'stable','measurement':{
-            'schema_version':1,'device_id':'esp32-test','boot_id':'test-boot','seq':1,
-            'weight_g':250.0,'stable':True,'calibration_version':'cal-test-1'}}
+            'schema_version':1,
+            'device_id':'esp32-test',
+            'boot_id':'test-boot',
+            'seq':1,
+            'weight_g':250.0,
+            'stable':True,
+            'zero_confirmed':True,
+            'calibration_version':'cal-test-1'}}
         return extract_measurement(env)
     def test_firmware_payload_received_and_duplicate_not_refreshed(self):
         first=self.client.post('/api/iot/measurements',json=self.payload())

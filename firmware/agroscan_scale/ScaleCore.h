@@ -39,10 +39,11 @@ class ScaleCore {
         || std::abs(c.counts_per_gram) < 1e-6 || c.revision == 0) {
       calibration_ = Calibration{};
     }
-    bool zeroConfirmed() const {
-    return zero_;
-}
     clearWindow();
+  }
+
+  bool zeroConfirmed() const {
+    return zero_;
   }
   const Calibration& calibration() const { return calibration_; }
   void fault() { healthy_ = false; clearWindow(); }

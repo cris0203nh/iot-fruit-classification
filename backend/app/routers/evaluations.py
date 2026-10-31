@@ -213,16 +213,69 @@ def ensure_active(db: Session, ev: Evaluation) -> None:
         fail(db, ev, "Tiempo de espera agotado sin completar la medición de peso.")
 
 
-def latest_ready(db: Session, after: datetime) -> Measurement | None:
-    """Última lectura recibida: debe ser estable, vigente y posterior a 'after'."""
-    last = db.scalar(select(Measurement).order_by(Measurement.id.desc()).limit(1))
-    if last is None or not last.stable:
-        return None
+
+def latest_ready(db: Session, after: datetime) -> Measurement:
+    """Obtiene una lectura válida y devuelve un error específico si no lo es."""
+
+    last = db.scalar(
+        select(Measurement).order_by(Measurement.id.desc()).limit(1)
+    )
+
+    if last is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SENSOR_DISCONNECTED",
+                "message": "No se recibió ninguna lectura del sensor.",
+                "action": "Revise la conexión del ESP32 y espere una nueva lectura."
+            }
+        )
+
     received = aware(last.received_at)
     age = (datetime.now(timezone.utc) - received).total_seconds()
-    if age > FRESH_SECONDS or received <= after:
-        return None
+
+    if age > FRESH_SECONDS:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SENSOR_DISCONNECTED",
+                "message": "La lectura del sensor está vencida.",
+                "action": "Restablezca la comunicación y espere una lectura actualizada."
+            }
+        )
+
+    if not last.stable:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "WEIGHT_UNSTABLE",
+                "message": "El peso registrado no está estable.",
+                "action": "Mantenga la pieza quieta y espere a que el peso se estabilice."
+            }
+        )
+
+    if not last.zero_confirmed:
+        raise HTTPException(
+        status_code=409,
+        detail={
+            "code": "ZERO_NOT_CONFIRMED",
+            "message": "No se confirmó el cero de la balanza.",
+            "action": "Retire la carga y realice la puesta a cero (TARE)."
+            }
+        )
+
+    if received <= after:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "WAITING_FOR_NEW_READING",
+                "message": "La lectura no es posterior al inicio de esta etapa.",
+                "action": "Espere una nueva lectura del sensor e intente nuevamente."
+            }
+        )
+
     return last
+
 
 
 def weight_step(stage: str, m: Measurement) -> dict:
@@ -242,11 +295,7 @@ def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="El peso inicial ya fue registrado.")
 
     m = latest_ready(db, after=aware(ev.created_at))
-    if m is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Esperando una lectura estable posterior al inicio de la evaluación.",
-        )
+
 
     ev.weight_pre_g = m.weight_g
     ev.weight_pre_at = m.received_at
@@ -267,11 +316,7 @@ def weight_post(evaluation_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="El peso de confirmación ya fue registrado.")
 
     m = latest_ready(db, after=aware(ev.weight_pre_at))
-    if m is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Esperando otra lectura estable posterior a la captura.",
-        )
+
 
     if m.device_id != ev.device_id or m.boot_id != ev.boot_id:
         fail(db, ev, "El sensor se reinició o cambió durante la evaluación.")

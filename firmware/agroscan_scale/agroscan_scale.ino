@@ -79,7 +79,19 @@ void report(uint32_t now) {
   if (!r.valid || seq == UINT32_MAX) Serial.print("null");
   else {
     ++seq;
-    Serial.printf("{\"schema_version\":1,\"device_id\":\"%s\",\"boot_id\":\"%s\",\"seq\":%lu,\"weight_g\":%.3f,\"stable\":%s,\"calibration_version\":\"%s%s-%lu\"}",deviceId,bootId,(unsigned long)seq,r.weight_g,r.stable?"true":"false",SIMULATION?"simulated-":"cal-",bootId,(unsigned long)c.revision);
+
+Serial.printf(
+    "{\"schema_version\":1,\"device_id\":\"%s\",\"boot_id\":\"%s\",\"seq\":%lu,\"weight_g\":%.3f,\"stable\":%s,\"zero_confirmed\":%s,\"calibration_version\":\"%s%s-%lu\"}",
+    deviceId,
+    bootId,
+    (unsigned long)seq,
+    r.weight_g,
+    r.stable ? "true" : "false",
+    scale.zeroConfirmed() ? "true" : "false",
+    SIMULATION ? "simulated-" : "cal-",
+    bootId,
+    (unsigned long)c.revision
+);
   }
   Serial.println("}");
 }

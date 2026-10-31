@@ -79,6 +79,9 @@ class Measurement(Base):
     stable: Mapped[bool] = mapped_column(Boolean)
     calibration_version: Mapped[str] = mapped_column(String(64))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    zero_confirmed: Mapped[bool] = mapped_column(
+    Boolean, default=False, nullable=False
+)
 
     __table_args__ = (
         UniqueConstraint("device_id", "boot_id", "seq", name="uq_measurement_seq"),

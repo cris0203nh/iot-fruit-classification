@@ -13,7 +13,7 @@ bridge=importlib.util.module_from_spec(spec);spec.loader.exec_module(bridge)
 def envelope(sim=False):
     return {'type':'telemetry','simulated':sim,'uptime_ms':2000,'status':'stable',
             'measurement':{'schema_version':1,'device_id':'simulator-test' if sim else 'esp32-test',
-            'boot_id':'boot-test','seq':1,'weight_g':250.0,'stable':True,
+            'boot_id':'boot-test','seq':1,'weight_g':250.0,'stable':True,'zero_confirmed':True,
             'calibration_version':'simulated-test-1' if sim else 'cal-test-1'}}
 
 class BridgeTests(unittest.TestCase):
@@ -21,23 +21,27 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(bridge.extract_measurement(envelope())['weight_g'],250)
         self.assertIsNone(bridge.extract_measurement({'type':'event','status':'sensor_unavailable'}))
         x=envelope();x['measurement']=None;self.assertIsNone(bridge.extract_measurement(x))
+
     def test_simulation_gate(self):
         with self.assertRaises(ValueError):bridge.extract_measurement(envelope(True))
         self.assertTrue(bridge.extract_measurement(envelope(True),True)['device_id'].startswith('simulator-'))
         x=envelope(True);x['simulated']=False
         with self.assertRaises(ValueError):bridge.extract_measurement(x,True)
+
     def test_invalid_weights(self):
         for w in [True,-1,5001,float('nan'),float('inf'),'250',None]:
             x=envelope();x['measurement']['weight_g']=w
             with self.subTest(weight=w),self.assertRaises(ValueError):bridge.extract_measurement(x)
+
     def test_schema_types_and_status(self):
-        for key,value in [('schema_version',True),('seq',True),('seq',0),('stable',1),('boot_id',''),('device_id','x'*65)]:
+        for key,value in [('schema_version',True),('seq',True),('seq',0),('stable',1),('zero_confirmed',1),('boot_id',''),('device_id','x'*65)]:
             x=envelope();x['measurement'][key]=value
             with self.subTest(key=key,value=value),self.assertRaises(ValueError):bridge.extract_measurement(x)
         x=envelope();x['measurement']['extra']=1
         with self.assertRaises(ValueError):bridge.extract_measurement(x)
         x=envelope();x['status']='sensor_unavailable'
         with self.assertRaises(ValueError):bridge.extract_measurement(x)
+
     def test_unstable_forwarded_as_unstable(self):
         x=envelope();x['status']='unstable';x['measurement']['stable']=False
         self.assertFalse(bridge.extract_measurement(x)['stable'])

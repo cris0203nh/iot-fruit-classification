@@ -45,17 +45,23 @@ async def upload_image(
         raise HTTPException(status_code=404, detail="Evaluación no encontrada.")
     if ev.status != "processing":
         raise HTTPException(status_code=409, detail="La evaluación ya no está en proceso.")
-    if ev.weight_pre_g is None:
-        raise HTTPException(status_code=409, detail="Primero se debe registrar el peso inicial.")
+    # AGROP-26: la evidencia RGB puede asociarse a una evaluación en proceso
+    # sin exigir una medición física previa. La validación de peso continúa
+    # siendo responsabilidad de sus propios endpoints y del cierre del flujo.
     if file.content_type not in ALLOWED:
         raise HTTPException(status_code=422, detail="Solo se aceptan imágenes JPG o PNG.")
 
     view = view.strip()[:30] or "vista-1"
-    content = await file.read()
+    content = await file.read(MAX_BYTES + 1)
     if len(content) == 0:
         raise HTTPException(status_code=422, detail="La imagen está vacía.")
     if len(content) > MAX_BYTES:
         raise HTTPException(status_code=422, detail="La imagen supera los 5 MB.")
+    # No confiar exclusivamente en el Content-Type declarado por el cliente.
+    is_png = content.startswith(b"\x89PNG\r\n\x1a\n") and content[-12:-8] == b"\x00\x00\x00\x00" and content[-8:-4] == b"IEND"
+    is_jpeg = content.startswith(b"\xff\xd8\xff") and content.endswith(b"\xff\xd9")
+    if (file.content_type == "image/png" and not is_png) or (file.content_type == "image/jpeg" and not is_jpeg):
+        raise HTTPException(status_code=422, detail="El archivo no coincide con un JPG o PNG válido.")
 
     folder = IMAGES_DIR / f"E-{ev.id:06d}"
     folder.mkdir(exist_ok=True)

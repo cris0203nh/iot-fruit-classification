@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test tests/traceability.test.mjs tests/api.test.mjs tests/history-api.test.mjs tests/evaluation-api.test.mjs tests/iot-status.test.mjs"
+    "test": "node --experimental-strip-types --test tests/traceability.test.mjs tests/api.test.mjs tests/history-api.test.mjs tests/evaluation-api.test.mjs tests/iot-status.test.mjs tests/capture-api.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

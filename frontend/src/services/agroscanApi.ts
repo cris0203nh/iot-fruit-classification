@@ -129,7 +129,9 @@ export async function createLot(input: { code: string; product: FruitProduct }):
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code: input.code, product: input.product, responsible: '' }),
   })
-  if (!isLotRecord(body)) throw new ApiDataError()
+  if (!isLotRecord(body) || body.code !== input.code.trim() || body.product !== input.product || body.status !== 'open') {
+    throw new ApiDataError()
+  }
   return body
 }
 

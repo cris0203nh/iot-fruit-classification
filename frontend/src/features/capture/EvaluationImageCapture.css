@@ -1,0 +1,11 @@
+.capture { display: grid; gap: 11px; margin-top: 12px; }
+.capture__reference, .capture__hint { margin: 0 !important; font-size: 12px !important; line-height: 1.5; }
+.capture__reference { overflow-wrap: anywhere; }
+.capture__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.capture__placeholder { min-height: 110px; border: 1px dashed #cddce5; border-radius: 9px; display: grid; place-items: center; color: #637b8e; font-size: 12px; background: #f3f7fa; }
+.capture__result { display: grid; gap: 7px; }
+.capture__result img { display: block; width: 100%; max-height: 275px; object-fit: contain; border-radius: 9px; background: #f3f7fa; }
+.capture__result p { margin: 0 !important; overflow-wrap: anywhere; }
+.capture__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.capture__actions .action-button { flex: 1 1 130px; min-height: 42px; justify-content: center; }
+.capture__error { margin: 0 !important; color: #a12f2f !important; background: #fff6f6; border: 1px solid #efcaca; border-radius: 8px; padding: 9px; }

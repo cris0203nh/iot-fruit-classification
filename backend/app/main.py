@@ -1,11 +1,9 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401
-from .database import Base, engine
 from .routers import evaluations, images, iot, lots
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AgroScan API")
 
@@ -20,6 +18,7 @@ app.include_router(lots.router)
 app.include_router(evaluations.router)
 app.include_router(iot.router)
 app.include_router(images.router)
+
 
 @app.get("/api/health")
 def health():

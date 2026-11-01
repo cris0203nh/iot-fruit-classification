@@ -1,9 +1,8 @@
-
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401
-from .routers import evaluations, images, iot, lots
+from .routers import auth, evaluations, images, iot, lots, users
 
 app = FastAPI(title="AgroScan API")
 
@@ -14,6 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(lots.router)
 app.include_router(evaluations.router)
 app.include_router(iot.router)

@@ -8,10 +8,12 @@ from sqlalchemy import engine_from_config, event, pool
 from app.database import Base, DATABASE_URL
 from app import models  # Registra todos los modelos
 
+
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
 
 database_url = os.getenv("AGROSCAN_DATABASE_URL", DATABASE_URL)
 
@@ -45,12 +47,15 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    # Activar claves foráneas en cada conexión SQLite de Alembic.
-    @event.listens_for(connectable, "connect")
-    def enable_foreign_keys(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    # Desactivar claves foraneas directamente en DBAPI,
+    # antes de que SQLAlchemy inicie una transaccion.
+    if connectable.dialect.name == "sqlite":
+
+        @event.listens_for(connectable, "connect")
+        def disable_foreign_keys(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            cursor.close()
 
     with connectable.connect() as connection:
         context.configure(
@@ -60,8 +65,30 @@ def run_migrations_online() -> None:
             render_as_batch=True,
         )
 
+        # Alembic administra la transaccion de la migracion.
         with context.begin_transaction():
             context.run_migrations()
+
+        if connection.dialect.name == "sqlite":
+
+            # Verificar integridad despues de ejecutar la migracion.
+            violations = connection.exec_driver_sql(
+                "PRAGMA foreign_key_check"
+            ).fetchall()
+
+            if violations:
+                raise RuntimeError(
+                    f"Errores de integridad referencial: {violations}"
+                )
+
+            # Finalizar la transaccion de comprobacion.
+            connection.commit()
+
+            # Reactivar las claves foraneas fuera de una transaccion.
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+            connection.commit()
+
+    connectable.dispose()
 
 
 if context.is_offline_mode():

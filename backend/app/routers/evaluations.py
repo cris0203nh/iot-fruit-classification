@@ -7,13 +7,19 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..dependencies import (
+    require_admin,
+    require_reviewer,
+    require_operator,
+    require_authenticated,
+)
 from ..evaluation_schemas import (
     EvaluationCreate,
     EvaluationDetailOut,
     EvaluationSummaryOut,
     WeightStepOut,
 )
-from ..models import Evaluation, Lot, Measurement, Piece, Review
+from ..models import Evaluation, Lot, Measurement, Piece, Review, User
 
 from ..review_schemas import (
     CancelCreate,
@@ -94,7 +100,11 @@ def effective_value(ev: Evaluation) -> str | None:
     return ev.visual_category
 
 
-@router.get("", response_model=list[EvaluationSummaryOut])
+@router.get(
+    "",
+    response_model=list[EvaluationSummaryOut],
+    dependencies=[Depends(require_authenticated)],
+)
 def list_evaluations(
     lot: str | None = None,
     product: Literal["mango", "tomate"] | None = None,
@@ -113,7 +123,11 @@ def list_evaluations(
 
 
 @router.post("", response_model=EvaluationDetailOut, status_code=201)
-def create_evaluation(payload: EvaluationCreate, db: Session = Depends(get_db)):
+def create_evaluation(
+    payload: EvaluationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
+):
     # 1. Buscar el lote correspondiente.
     lot = db.scalar(
         select(Lot).where(
@@ -168,12 +182,20 @@ def create_evaluation(payload: EvaluationCreate, db: Session = Depends(get_db)):
 
 
 
-@router.get("/{evaluation_id}", response_model=EvaluationDetailOut)
+@router.get(
+    "/{evaluation_id}",
+    response_model=EvaluationDetailOut,
+    dependencies=[Depends(require_authenticated)],
+)
 def get_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
     return detail(get_or_404(db, evaluation_id))
 
 
-@router.get("/{evaluation_id}/traceability", response_model=TraceabilityOut)
+@router.get(
+    "/{evaluation_id}/traceability",
+    response_model=TraceabilityOut,
+    dependencies=[Depends(require_authenticated)],
+)
 def get_traceability(evaluation_id: str, db: Session = Depends(get_db)):
     ev = get_or_404(db, evaluation_id)
     return {
@@ -185,9 +207,19 @@ def get_traceability(evaluation_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/{evaluation_id}/reviews", response_model=ReviewEventOut, status_code=201)
-def add_review(evaluation_id: str, payload: ReviewCreate, db: Session = Depends(get_db)):
+@router.post(
+    "/{evaluation_id}/reviews",
+    response_model=ReviewEventOut,
+    status_code=201,
+)
+def add_review(
+    evaluation_id: str,
+    payload: ReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_reviewer),
+):
     ev = get_or_404(db, evaluation_id)
+
     if ev.status not in ("pending_review", "completed"):
         raise HTTPException(
             status_code=409,
@@ -197,39 +229,57 @@ def add_review(evaluation_id: str, payload: ReviewCreate, db: Session = Depends(
     review = Review(
         evaluation_id=ev.id,
         type="review",
-        actor_id=payload.actorId,
+        actor_id=current_user.username,
         reason=payload.reason,
         previous_value=effective_value(ev),
         updated_value=payload.newValue,
     )
+
     db.add(review)
     ev.status = "completed"
     ev.review_note = payload.reason
+
     db.commit()
     db.refresh(review)
+
     return review_out(review)
 
 
-@router.post("/{evaluation_id}/cancel", response_model=ReviewEventOut, status_code=201)
-def cancel_evaluation(evaluation_id: str, payload: CancelCreate, db: Session = Depends(get_db)):
+@router.post(
+    "/{evaluation_id}/cancel",
+    response_model=ReviewEventOut,
+    status_code=201,
+)
+def cancel_evaluation(
+    evaluation_id: str,
+    payload: CancelCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     ev = get_or_404(db, evaluation_id)
+
     if ev.status == "cancelled":
-        raise HTTPException(status_code=409, detail="La evaluación ya está anulada.")
+        raise HTTPException(
+            status_code=409,
+            detail="La evaluación ya está anulada.",
+        )
 
     event = Review(
         evaluation_id=ev.id,
         type="cancellation",
-        actor_id=payload.actorId,
+        actor_id=current_user.username,
         reason=payload.reason,
         previous_value=ev.status,
         updated_value="cancelled",
     )
+
     db.add(event)
     ev.status = "cancelled"
+
     db.commit()
     db.refresh(event)
-    return review_out(event)
 
+    return review_out(event)
 
 FRESH_SECONDS = 10       # una lectura es vigente si llegó hace menos de esto
 TOLERANCE_G = 5.0        # diferencia máxima entre peso inicial y de confirmación
@@ -331,7 +381,11 @@ def weight_step(stage: str, m: Measurement) -> dict:
 
 
 @router.post("/{evaluation_id}/weight/pre", response_model=WeightStepOut)
-def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
+def weight_pre(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
+):
     ev = get_or_404(db, evaluation_id)
     ensure_active(db, ev)
 
@@ -358,7 +412,11 @@ def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{evaluation_id}/weight/post", response_model=WeightStepOut)
-def weight_post(evaluation_id: str, db: Session = Depends(get_db)):
+def weight_post(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
+):
     ev = get_or_404(db, evaluation_id)
     ensure_active(db, ev)
 

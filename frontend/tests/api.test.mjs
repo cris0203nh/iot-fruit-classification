@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ApiConnectionError, ApiResponseError, createLot, getBackendHealth, listLots,
+  ApiConnectionError, ApiDataError, ApiResponseError, createLot, getBackendHealth, listLots,
 } from '../src/services/agroscanApi.ts'
 
 const previousFetch = globalThis.fetch
@@ -45,4 +45,18 @@ test('desconexión no se interpreta como una lista vacía', async (t) => {
   t.after(() => { globalThis.fetch = previousFetch })
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
   await assert.rejects(listLots(), ApiConnectionError)
+})
+
+
+test('AGROP-30: no acepta como creado un lote distinto al producto o código solicitado', async (t) => {
+  t.after(() => { globalThis.fetch = previousFetch })
+  const lot = { id: 15, code: 'DEMO-MANGO-01', product: 'mango', status: 'open', responsible: '', created_at: '2026-11-01T12:00:00Z' }
+  for (const invalid of [
+    { ...lot, code: 'DEMO-OTRO-01' },
+    { ...lot, product: 'tomate' },
+    { ...lot, status: 'closed' },
+  ]) {
+    globalThis.fetch = async () => response(invalid, 201)
+    await assert.rejects(createLot({ code: 'DEMO-MANGO-01', product: 'mango' }), ApiDataError)
+  }
 })

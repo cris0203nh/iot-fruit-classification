@@ -180,7 +180,6 @@ def upgrade() -> None:
     if "lots" not in existing_tables:
         create_empty_schema()
         return
-
     # CASO 2: base existente. Agregar únicamente trazabilidad.
     if "pieces" not in existing_tables:
         op.create_table(
@@ -199,57 +198,101 @@ def upgrade() -> None:
                 name="uq_piece_lot_code",
             ),
         )
-        op.create_index("ix_pieces_lot_id", "pieces", ["lot_id"])
+
+    # Crear índice de piezas si todavía no existe.
+    inspector = inspect(connection)
+    piece_indexes = {
+        index["name"] for index in inspector.get_indexes("pieces")
+    }
+
+    if "ix_pieces_lot_id" not in piece_indexes:
+        op.create_index(
+            "ix_pieces_lot_id",
+            "pieces",
+            ["lot_id"],
+        )
+
+    # Obtener las columnas actuales de evaluations.
+    inspector = inspect(connection)
 
     columns = {
         column["name"]
-        for column in inspect(connection).get_columns("evaluations")
+        for column in inspector.get_columns("evaluations")
     }
 
-    new_columns = {
-        "piece_ref_id": sa.Column(
-            "piece_ref_id", sa.Integer(), nullable=True
-        ),
-        "weight_pre_measurement_id": sa.Column(
-            "weight_pre_measurement_id", sa.Integer(), nullable=True
-        ),
-        "weight_post_measurement_id": sa.Column(
-            "weight_post_measurement_id", sa.Integer(), nullable=True
-        ),
+    # Identificar las claves foráneas existentes.
+    existing_fks = inspector.get_foreign_keys("evaluations")
+
+    fk_signatures = {
+        (
+            tuple(fk["constrained_columns"]),
+            fk["referred_table"],
+            tuple(fk["referred_columns"]),
+        )
+        for fk in existing_fks
     }
 
-    with op.batch_alter_table("evaluations") as batch_op:
-        for name, column in new_columns.items():
-            if name not in columns:
-                batch_op.add_column(column)
+    # Preparar las nuevas relaciones.
+    relationships = [
+        (
+            "piece_ref_id",
+            "pieces",
+            "fk_evaluations_piece_ref_id_pieces",
+        ),
+        (
+            "weight_pre_measurement_id",
+            "measurements",
+            "fk_evaluations_weight_pre_measurement_id_measurements",
+        ),
+        (
+            "weight_post_measurement_id",
+            "measurements",
+            "fk_evaluations_weight_post_measurement_id_measurements",
+        ),
+    ]
 
-        if "piece_ref_id" not in columns:
-            batch_op.create_index(
-                "ix_evaluations_piece_ref_id",
-                ["piece_ref_id"],
-            )
-            batch_op.create_foreign_key(
-                "fk_evaluations_piece_ref_id_pieces",
-                "pieces",
-                ["piece_ref_id"],
-                ["id"],
+    # Reconstruir evaluations mediante el mecanismo compatible
+    # con SQLite, conservando las columnas y registros existentes.
+    with op.batch_alter_table(
+        "evaluations",
+        recreate="always",
+    ) as batch_op:
+
+        for column_name, referred_table, constraint_name in relationships:
+
+            if column_name not in columns:
+                batch_op.add_column(
+                    sa.Column(column_name, sa.Integer(), nullable=True)
+                )
+
+            signature = (
+                (column_name,),
+                referred_table,
+                ("id",),
             )
 
-        if "weight_pre_measurement_id" not in columns:
-            batch_op.create_foreign_key(
-                "fk_evaluations_weight_pre_measurement_id_measurements",
-                "measurements",
-                ["weight_pre_measurement_id"],
-                ["id"],
-            )
+            if signature not in fk_signatures:
+                batch_op.create_foreign_key(
+                    constraint_name,
+                    referred_table,
+                    [column_name],
+                    ["id"],
+                )
 
-        if "weight_post_measurement_id" not in columns:
-            batch_op.create_foreign_key(
-                "fk_evaluations_weight_post_measurement_id_measurements",
-                "measurements",
-                ["weight_post_measurement_id"],
-                ["id"],
-            )
+    # Crear el índice de piece_ref_id si falta.
+    inspector = inspect(connection)
+
+    evaluation_indexes = {
+        index["name"]
+        for index in inspector.get_indexes("evaluations")
+    }
+
+    if "ix_evaluations_piece_ref_id" not in evaluation_indexes:
+        op.create_index(
+            "ix_evaluations_piece_ref_id",
+            "evaluations",
+            ["piece_ref_id"],
+        )
 
     # Vincular las evaluaciones existentes con sus piezas.
     evaluations = connection.execute(
@@ -302,8 +345,6 @@ def upgrade() -> None:
                 "evaluation_id": evaluation["id"],
             },
         )
-
-
 def downgrade() -> None:
     """Retirar las nuevas relaciones de trazabilidad."""
 

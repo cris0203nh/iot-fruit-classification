@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..database import DATA_DIR, get_db
+from ..dependencies import require_authenticated, require_operator
+from ..models import User
 from ..evaluation_schemas import ImageOut
 from ..models import Evaluation, Image
 
@@ -38,6 +40,7 @@ async def upload_image(
     view: str = Form("vista-1"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
 ):
     pk = parse_eval(evaluation_id)
     ev = db.get(Evaluation, pk) if pk is not None else None
@@ -94,7 +97,11 @@ async def upload_image(
 
 
 @router.get("/images/{image_id}")
-def get_image(image_id: str, db: Session = Depends(get_db)):
+def get_image(
+    image_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated),
+):
     import re
     m = re.fullmatch(r"I-(\d{1,9})", image_id)
     img = db.get(Image, int(m.group(1))) if m else None

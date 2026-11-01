@@ -37,7 +37,8 @@ export class ApiDataError extends Error {
 }
 
 const configuredBase = import.meta.env?.VITE_API_BASE_URL?.trim()
-const API_BASE = (configuredBase || 'http://127.0.0.1:8000').replace(/\/+$/, '')
+// En desarrollo, Vite redirige /api a FastAPI; también funciona desde el teléfono en la LAN.
+const API_BASE = (configuredBase || '').replace(/\/+$/, '')
 
 function detailMessage(body: unknown): string | null {
   if (typeof body !== 'object' || body === null || !('detail' in body)) return null
@@ -246,4 +247,18 @@ export async function createEvaluation(input: { lotId: string; pieceId: string }
     throw new ApiDataError()
   }
   return body
+}
+
+/** AGROP-26: archivo RGB asociado a una evaluación existente en proceso. */
+export type CapturedEvidence = { id: string; view: string; imageUrl: string }
+export async function uploadEvaluationPhoto(evaluationId: string, file: File): Promise<CapturedEvidence> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const form = new FormData()
+  form.append('view', 'vista-1')
+  form.append('file', file, file.name)
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/images`, {
+    method: 'POST', body: form,
+  })
+  if (!isEvidence(body) || !object(body) || body.view !== 'vista-1') throw new ApiDataError()
+  return { id: body.id as string, view: body.view as string, imageUrl: body.imageUrl as string }
 }

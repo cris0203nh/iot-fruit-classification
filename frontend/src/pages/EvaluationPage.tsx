@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
 import { WeightStatusCard } from '../features/iot/WeightStatusCard'
+import { EvaluationImageCapture } from '../features/capture/EvaluationImageCapture'
 import { isValidPieceId } from '../features/evaluation/pieceValidation'
 import {
   ApiConnectionError, ApiDataError, ApiResponseError, createEvaluation, listLots,
@@ -130,7 +131,7 @@ export function EvaluationPage() {
       <div className="page-heading">
         <span className="eyebrow">Módulo de evaluación</span>
         <h1>Evaluación externa de frutas</h1>
-        <p>Registra la identificación de una pieza en un lote existente. El peso se consulta en tiempo real desde FastAPI; la captura de imágenes y el registro de masa todavía requieren integración.</p>
+        <p>Registra la identificación de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografías pueden capturarse y vincularse a una evaluación en proceso. El pesaje físico y la clasificación requieren validación independiente.</p>
       </div>
 
       <div className="notice notice--warning" role="status">
@@ -255,26 +256,26 @@ export function EvaluationPage() {
             <span className="evaluation-step evaluation-step--muted" aria-hidden="true">2</span>
             <div>
               <h2 id="acquisition-heading">Adquisición de datos</h2>
-              <p>Lectura consultada por la API IoT; la integración física y la cámara están pendientes de validar.</p>
+              <p>Lectura por API IoT y captura RGB desde teléfono o galería; la validación física es independiente.</p>
             </div>
           </div>
           <WeightStatusCard />
           <div className="evaluation-acquisition__card">
             <div className="evaluation-acquisition__top"><Icon name="camera" size={21} /><strong>Cámara RGB</strong></div>
-            <div className="evaluation-camera-empty"><Icon name="camera" size={30} /><span>Sin imagen capturada</span></div>
-            <p>La futura captura podrá incluir vistas adicionales de la misma pieza.</p>
+            {created ? <EvaluationImageCapture key={created.id} evaluationId={created.id} /> : (
+              <div className="evaluation-camera-empty"><Icon name="camera" size={30} /><span>Primero registra una evaluación para asociar la fotografía a su ID.</span></div>
+            )}
           </div>
           <div className="evaluation-disabled-actions">
-            <button type="button" className="action-button action-button--secondary" disabled>Capturar imagen</button>
             <button type="button" className="action-button action-button--primary" disabled>Finalizar evaluación</button>
           </div>
-          <p className="evaluation-help">Acciones deshabilitadas hasta que los módulos de hardware, visión y finalización estén integrados y verificados.</p>
+          <p className="evaluation-help">La captura RGB inicial no finaliza la evaluación ni genera una clasificación. Las vistas adicionales corresponden a AGROP-27.</p>
         </section>
       </div>
 
       <section className="panel evaluation-next" aria-labelledby="next-steps-heading">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="next-steps-heading">Siguiente etapa</h2></div>
-        <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura y el análisis RGB continúan pendientes. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
+        <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
         <Link to="/historial" className="text-link">Ver historial de evaluaciones <Icon name="arrow-right" size={16} /></Link>
       </section>
     </div>

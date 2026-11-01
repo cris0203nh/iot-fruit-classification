@@ -13,7 +13,7 @@ from ..evaluation_schemas import (
     EvaluationSummaryOut,
     WeightStepOut,
 )
-from ..models import Evaluation, Lot, Measurement, Review
+from ..models import Evaluation, Lot, Measurement, Piece, Review
 
 from ..review_schemas import (
     CancelCreate,
@@ -111,19 +111,61 @@ def list_evaluations(
     return [summary(ev) for ev in db.scalars(stmt).all()]
 
 
+
 @router.post("", response_model=EvaluationDetailOut, status_code=201)
 def create_evaluation(payload: EvaluationCreate, db: Session = Depends(get_db)):
-    lot = db.scalar(select(Lot).where(func.lower(Lot.code) == payload.lotId.lower()))
-    if lot is None:
-        raise HTTPException(status_code=404, detail="El lote indicado no existe.")
-    if lot.status != "open":
-        raise HTTPException(status_code=409, detail="El lote está cerrado.")
+    # 1. Buscar el lote correspondiente.
+    lot = db.scalar(
+        select(Lot).where(
+            func.lower(Lot.code) == payload.lotId.lower()
+        )
+    )
 
-    ev = Evaluation(lot_id=lot.id, piece_id=payload.pieceId, product=lot.product)
+    if lot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="El lote indicado no existe."
+        )
+
+    if lot.status != "open":
+        raise HTTPException(
+            status_code=409,
+            detail="El lote está cerrado."
+        )
+
+    # 2. Buscar si la pieza ya está registrada dentro del lote.
+    piece = db.scalar(
+        select(Piece).where(
+            Piece.lot_id == lot.id,
+            Piece.code == payload.pieceId
+        )
+    )
+
+    # 3. Registrar la pieza solamente si todavía no existe.
+    if piece is None:
+        piece = Piece(
+            lot_id=lot.id,
+            code=payload.pieceId
+        )
+        db.add(piece)
+        db.flush()
+
+    # 4. Crear la evaluación vinculada a la pieza.
+    ev = Evaluation(
+        lot_id=lot.id,
+        piece_id=payload.pieceId,
+        piece_ref_id=piece.id,
+        product=lot.product
+    )
     db.add(ev)
-    db.commit()
-    db.refresh(ev)
+    try:
+        db.commit()
+        db.refresh(ev)
+    except Exception:
+        db.rollback()
+        raise
     return detail(ev)
+
 
 
 @router.get("/{evaluation_id}", response_model=EvaluationDetailOut)
@@ -287,22 +329,31 @@ def weight_step(stage: str, m: Measurement) -> dict:
     }
 
 
+
 @router.post("/{evaluation_id}/weight/pre", response_model=WeightStepOut)
 def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
     ev = get_or_404(db, evaluation_id)
     ensure_active(db, ev)
+
     if ev.weight_pre_g is not None:
-        raise HTTPException(status_code=409, detail="El peso inicial ya fue registrado.")
+        raise HTTPException(
+            status_code=409,
+            detail="El peso inicial ya fue registrado."
+        )
 
     m = latest_ready(db, after=aware(ev.created_at))
 
-
+    # Registrar el peso y vincular la medición original.
     ev.weight_pre_g = m.weight_g
     ev.weight_pre_at = m.received_at
+    ev.weight_pre_measurement_id = m.id
+
     ev.device_id = m.device_id
     ev.boot_id = m.boot_id
     ev.calibration_reference = m.calibration_version
+
     db.commit()
+
     return weight_step("pre", m)
 
 
@@ -310,21 +361,39 @@ def weight_pre(evaluation_id: str, db: Session = Depends(get_db)):
 def weight_post(evaluation_id: str, db: Session = Depends(get_db)):
     ev = get_or_404(db, evaluation_id)
     ensure_active(db, ev)
+
     if ev.weight_pre_g is None:
-        raise HTTPException(status_code=409, detail="Falta registrar el peso inicial.")
+        raise HTTPException(
+            status_code=409,
+            detail="Falta registrar el peso inicial."
+        )
+
     if ev.weight_post_g is not None:
-        raise HTTPException(status_code=409, detail="El peso de confirmación ya fue registrado.")
+        raise HTTPException(
+            status_code=409,
+            detail="El peso de confirmación ya fue registrado."
+        )
 
     m = latest_ready(db, after=aware(ev.weight_pre_at))
 
-
+    # Verificar que continúa siendo el mismo dispositivo y sesión.
     if m.device_id != ev.device_id or m.boot_id != ev.boot_id:
         fail(db, ev, "El sensor se reinició o cambió durante la evaluación.")
-    if abs(m.weight_g - ev.weight_pre_g) > TOLERANCE_G:
-        fail(db, ev, "El peso cambió durante la captura: posible movimiento o cambio de pieza.")
 
+    # Verificar que el peso no haya cambiado significativamente.
+    if abs(m.weight_g - ev.weight_pre_g) > TOLERANCE_G:
+        fail(
+            db,
+            ev,
+            "El peso cambió durante la captura: posible movimiento o cambio de pieza."
+        )
+
+    # Registrar el peso final y vincular la medición original.
     ev.weight_post_g = m.weight_g
     ev.weight_post_at = m.received_at
+    ev.weight_post_measurement_id = m.id
     ev.weight_grams = m.weight_g
+
     db.commit()
+
     return weight_step("post", m)

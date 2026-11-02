@@ -143,6 +143,13 @@ class Measurement(Base):
 
 
 class Image(Base):
+    __table_args__ = (
+    UniqueConstraint(
+        "evaluation_id",
+        "idempotency_key",
+        name="uq_image_evaluation_idempotency",
+    ),
+)
     __tablename__ = "images"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -156,6 +163,10 @@ class Image(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     evaluation: Mapped["Evaluation"] = relationship(back_populates="images")
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
 
 
 class Review(Base):

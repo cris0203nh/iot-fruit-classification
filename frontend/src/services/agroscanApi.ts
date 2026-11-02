@@ -52,13 +52,38 @@ export function isOperatorAuthenticated(): boolean {
 }
 
 function detailMessage(body: unknown): string | null {
-  if (typeof body !== 'object' || body === null || !('detail' in body)) return null
+  if (typeof body !== 'object' || body === null || !('detail' in body)) {
+    return null
+  }
+
   const detail = body.detail
+
   if (typeof detail === 'string') return detail
+
+  if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+    const message = detail.message
+    const action = 'action' in detail ? detail.action : null
+
+    if (typeof message === 'string') {
+      return typeof action === 'string'
+        ? `${message} ${action}`
+        : message
+    }
+  }
+
   if (Array.isArray(detail) && detail.length > 0) {
     const first: unknown = detail[0]
-    if (typeof first === 'object' && first !== null && 'msg' in first && typeof first.msg === 'string') return first.msg
+
+    if (
+      typeof first === 'object'
+      && first !== null
+      && 'msg' in first
+      && typeof first.msg === 'string'
+    ) {
+      return first.msg
+    }
   }
+
   return null
 }
 
@@ -128,6 +153,59 @@ function isIotStatus(value: unknown): value is IotStatus {
 export async function getIotStatus(): Promise<IotStatus> {
   const body = await request('/api/iot/status')
   if (!isIotStatus(body)) throw new ApiDataError()
+  return body
+}
+export type WeightStep = {
+  stage: 'pre' | 'post'
+  weightG: number
+  deviceId: string
+  receivedAt: string
+}
+
+function isWeightStep(value: unknown): value is WeightStep {
+  if (!object(value)) return false
+
+  return (value.stage === 'pre' || value.stage === 'post')
+    && typeof value.weightG === 'number'
+    && Number.isFinite(value.weightG)
+    && value.weightG >= 0
+    && typeof value.deviceId === 'string'
+    && value.deviceId.length > 0
+    && typeof value.receivedAt === 'string'
+    && Number.isFinite(Date.parse(value.receivedAt))
+}
+
+export async function captureWeightPre(
+  evaluationId: string,
+): Promise<WeightStep> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/weight/pre`,
+    { method: 'POST' },
+  )
+
+  if (!isWeightStep(body) || body.stage !== 'pre') {
+    throw new ApiDataError()
+  }
+
+  return body
+}
+
+export async function captureWeightPost(
+  evaluationId: string,
+): Promise<WeightStep> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/weight/post`,
+    { method: 'POST' },
+  )
+
+  if (!isWeightStep(body) || body.stage !== 'post') {
+    throw new ApiDataError()
+  }
+
   return body
 }
 
@@ -262,19 +340,83 @@ export async function createEvaluation(input: { lotId: string; pieceId: string }
   return body
 }
 
-/** AGROP-26/27: envía una vista RGB a una evaluación existente sin crear otra. */
-export type CapturedEvidence = { id: string; view: string; imageUrl: string }
-export async function uploadEvaluationPhoto(evaluationId: string, file: File, view = 'vista-1'): Promise<CapturedEvidence> {
-  if (!validEvaluationId(evaluationId) || !/^vista-[1-9]\d{0,2}$/.test(view)) throw new ApiDataError()
+
+/** AGROP-32: evidencia RGB asociada a una evaluación. */
+export type CapturedEvidence = {
+  id: string
+  view: string
+  imageUrl: string
+}
+
+/** Genera una clave estable para identificar el mismo archivo y reintento. */
+export async function createEvidenceIdempotencyKey(
+  evaluationId: string,
+  file: File,
+  view: string,
+): Promise<string> {
+  const prefix = new TextEncoder().encode(
+    `${evaluationId}|${view}|${file.name}|${file.size}|${file.lastModified}|`,
+  )
+
+  const content = new Uint8Array(await file.arrayBuffer())
+  const combined = new Uint8Array(prefix.length + content.length)
+
+  combined.set(prefix)
+  combined.set(content, prefix.length)
+
+  const digest = await crypto.subtle.digest('SHA-256', combined)
+
+  return Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/** AGROP-32: subida RGB idempotente y recuperable. */
+export async function uploadEvaluationPhoto(
+  evaluationId: string,
+  file: File,
+  view = 'vista-1',
+): Promise<CapturedEvidence> {
+  if (
+    !validEvaluationId(evaluationId) ||
+    !/^vista-[1-9]\d{0,2}$/.test(view)
+  ) {
+    throw new ApiDataError()
+  }
+
+  const idempotencyKey = await createEvidenceIdempotencyKey(
+    evaluationId,
+    file,
+    view,
+  )
+
   const form = new FormData()
   form.append('view', view)
   form.append('file', file, file.name)
-  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/images`, {
-    method: 'POST', body: form,
-  })
-  if (!isEvidence(body) || !object(body) || body.view !== view) throw new ApiDataError()
-  return { id: body.id as string, view: body.view as string, imageUrl: body.imageUrl as string }
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/images`,
+    {
+      method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: form,
+    },
+  )
+
+  if (!isEvidence(body) || !object(body) || body.view !== view) {
+    throw new ApiDataError()
+  }
+
+  return {
+    id: body.id as string,
+    view: body.view as string,
+    imageUrl: body.imageUrl as string,
+  }
 }
+
+
 
 /** AGROP-47: autentica al operador contra FastAPI y verifica su rol real. */
 export async function loginOperator(username: string, password: string): Promise<void> {

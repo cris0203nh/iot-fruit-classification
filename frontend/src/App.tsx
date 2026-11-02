@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
+import { AuthGate } from './features/auth/AuthGate'
 import { EvaluationPage } from './pages/EvaluationPage'
 import { HomePage } from './pages/HomePage'
 import { HistoryDetailPage, HistoryPage } from './pages/HistoryPage'
@@ -12,7 +13,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<AppLayout />}>
+        <Route element={<AuthGate><AppLayout /></AuthGate>}>
           <Route index element={<HomePage />} />
           <Route path="evaluacion" element={<EvaluationPage />} />
           <Route path="historial" element={<HistoryPage />} />

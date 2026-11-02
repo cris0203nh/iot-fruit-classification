@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
+import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
 import {
   filterHistory,
   formatDate,
@@ -224,7 +225,7 @@ function HistoryDetailContent({ evaluationId }: { evaluationId: string }) {
             <h3>Evidencia visual</h3>
             {state.data.evidence.length === 0 ? <p>Sin imágenes vinculadas.</p> : (
               <ul className="history-evidence">
-                {state.data.evidence.map((item) => <li key={item.id}><strong>{item.view} · {item.id}</strong>{resolveEvidenceUrl(item.imageUrl) ? <img className="history-evidence__image" src={resolveEvidenceUrl(item.imageUrl)!} alt={`Evidencia ${item.view}`} loading="lazy" /> : <span>Referencia de imagen no reconocida.</span>}</li>)}
+                {state.data.evidence.map((item) => <li key={item.id}><strong>{item.view} · {item.id}</strong>{resolveEvidenceUrl(item.imageUrl) ? <ProtectedEvidenceImage className="history-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view}`} /> : <span>Referencia de imagen no reconocida.</span>}</li>)}
               </ul>
             )}
           </div>

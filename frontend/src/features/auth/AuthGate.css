@@ -1,0 +1,12 @@
+.agroscan-login { min-height: 100vh; display: grid; place-items: center; background: #f3f7fa; padding: 24px; color: #263c4b; }
+.agroscan-login__panel { display: grid; gap: 12px; width: min(100%, 440px); padding: 27px; background: #fff; border: 1px solid #d6e2e8; border-radius: 14px; box-shadow: 0 8px 26px rgb(0 0 0 / 6%); }
+.agroscan-login__panel h1 { font-size: 23px; margin: 0; }
+.agroscan-login__panel p { margin: 0 0 8px; font-size: 13px; line-height: 1.6; }
+.agroscan-login__panel label { font-weight: 700; font-size: 13px; }
+.agroscan-login__panel input { width: 100%; min-height: 44px; padding: 11px; border: 1px solid #c9d8e0; border-radius: 8px; font-size: 14px; }
+.agroscan-login__panel button { min-height: 44px; background: #126c49; color: white; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.agroscan-login__panel button:disabled { opacity: .65; cursor: not-allowed; }
+.agroscan-login__panel small { color: #647889; line-height: 1.5; }
+.agroscan-login__panel .agroscan-login__error { padding: 10px; background: #fff5f5; border: 1px solid #efcaca; color: #9f3333; border-radius: 8px; margin: 0; }
+.agroscan-session { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 7px 18px; background: #ecf6f1; color: #215b44; font-size: 12px; }
+.agroscan-session button { border: 1px solid #a5cbb7; background: #fff; color: #215b44; padding: 6px 10px; border-radius: 7px; cursor: pointer; }

@@ -117,10 +117,10 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
             headers=headers,
             data={"view": view},
             files={
-                "file": (
-                    f"{view}.jpg",
-                    b"contenido de prueba de imagen",
-                    "image/jpeg",
+            "file": (
+                f"{view}.jpg",
+                b"\xff\xd8\xffcontenido de prueba de imagen\xff\xd9",
+                "image/jpeg",
                 )
             },
         )

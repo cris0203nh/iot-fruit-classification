@@ -5,6 +5,7 @@ import {
 } from '../../services/agroscanApi'
 import { captureFileError } from './captureValidation'
 import { nextCaptureView } from './captureViews'
+import { ProtectedEvidenceImage } from './ProtectedEvidenceImage'
 import './EvaluationImageCapture.css'
 
 type Props = { evaluationId: string }
@@ -129,7 +130,7 @@ export function EvaluationImageCapture({ evaluationId }: Props) {
           <ul className="capture__gallery">
             {saved.map((item) => (
               <li key={item.id}>
-                <img src={item.url} alt={`${item.view} de la evaluación ${evaluationId}`} loading="lazy" />
+                <ProtectedEvidenceImage path={item.imageUrl} alt={`${item.view} de la evaluación ${evaluationId}`} />
                 <strong>{item.view}</strong>
                 <span>{item.id}</span>
               </li>

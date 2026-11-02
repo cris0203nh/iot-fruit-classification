@@ -40,6 +40,17 @@ const configuredBase = import.meta.env?.VITE_API_BASE_URL?.trim()
 // En desarrollo, Vite redirige /api a FastAPI; también funciona desde el teléfono en la LAN.
 const API_BASE = (configuredBase || '').replace(/\/+$/, '')
 
+// Token de sesión exclusivamente en memoria; nunca se guarda en localStorage ni en URL.
+let sessionToken: string | null = null
+
+export function clearOperatorSession(): void {
+  sessionToken = null
+}
+
+export function isOperatorAuthenticated(): boolean {
+  return sessionToken !== null
+}
+
 function detailMessage(body: unknown): string | null {
   if (typeof body !== 'object' || body === null || !('detail' in body)) return null
   const detail = body.detail
@@ -56,7 +67,9 @@ async function request(path: string, options?: RequestInit): Promise<unknown> {
   const timer = setTimeout(() => controller.abort(), 8000)
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}`, { ...options, signal: controller.signal })
+    const headers = sessionToken ? new Headers(options?.headers) : options?.headers
+    if (sessionToken && headers instanceof Headers) headers.set('Authorization', `Bearer ${sessionToken}`)
+    response = await fetch(`${API_BASE}${path}`, { ...options, ...(headers ? { headers } : {}), signal: controller.signal })
   } catch {
     throw new ApiConnectionError()
   } finally {
@@ -261,4 +274,52 @@ export async function uploadEvaluationPhoto(evaluationId: string, file: File, vi
   })
   if (!isEvidence(body) || !object(body) || body.view !== view) throw new ApiDataError()
   return { id: body.id as string, view: body.view as string, imageUrl: body.imageUrl as string }
+}
+
+/** AGROP-47: autentica al operador contra FastAPI y verifica su rol real. */
+export async function loginOperator(username: string, password: string): Promise<void> {
+  clearOperatorSession()
+  if (!username.trim() || !password) throw new ApiDataError()
+  const credentials = new URLSearchParams({ username: username.trim(), password })
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: credentials,
+  })
+  if (!object(login) || typeof login.access_token !== 'string' || !login.access_token || login.token_type !== 'bearer') {
+    throw new ApiDataError()
+  }
+  sessionToken = login.access_token
+  try {
+    const me = await request('/api/auth/me')
+    if (!object(me) || !Array.isArray(me.roles) || !me.roles.every((role: unknown) => typeof role === 'string')) {
+      throw new ApiDataError()
+    }
+    if (!me.roles.includes('operador') && !me.roles.includes('administrador')) {
+      throw new ApiResponseError(403, 'La captura de fotografías requiere el rol operador o administrador.')
+    }
+  } catch (error) {
+    clearOperatorSession()
+    throw error
+  }
+}
+
+/** Imágenes protegidas AGROP-47: el token va en la cabecera, nunca en el src ni en la URL. */
+export async function loadProtectedEvidence(path: string, signal?: AbortSignal): Promise<Blob> {
+  const url = resolveEvidenceUrl(path)
+  if (!url) throw new ApiDataError()
+  if (!sessionToken) throw new ApiResponseError(401, 'Inicia sesión para consultar las fotografías.')
+  let response: Response
+  try {
+    response = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}` }, signal })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    throw new ApiConnectionError()
+  }
+  if (!response.ok) throw new ApiResponseError(response.status, `No se pudo obtener la fotografía (HTTP ${response.status}).`)
+  const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim()
+  if (contentType !== 'image/jpeg' && contentType !== 'image/png') throw new ApiDataError()
+  const blob = await response.blob()
+  if (blob.size === 0 || blob.size > 5 * 1024 * 1024) throw new ApiDataError()
+  return blob
 }

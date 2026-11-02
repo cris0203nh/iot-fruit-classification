@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
+import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
 import { formatDate, formatWeight } from '../features/history/historyService'
 import {
   buildTraceabilityTimeline,
@@ -185,7 +186,7 @@ function TraceabilityRecordContent({ record }: { record: TraceabilityRecord }) {
         <h3>Evidencias visuales ({evaluation.evidence.length})</h3>
         {evaluation.evidence.length === 0
           ? <p>No se registraron imágenes asociadas.</p>
-          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <img className="trace-evidence__image" src={resolveEvidenceUrl(item.imageUrl)!} alt={`Evidencia ${item.view} de ${evaluation.id}`} loading="lazy" /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
+          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <ProtectedEvidenceImage className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
           <p>Las imágenes se consultan desde la API local. El acceso a evidencias aún no tiene autenticación y no debe exponerse públicamente.</p>
       </section>
       <section className="trace-record__section" aria-labelledby="trace-timeline-title">

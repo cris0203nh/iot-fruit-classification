@@ -1,10 +1,12 @@
 # AGROP-22 · [AG-014] Visualización del peso y su estado
 
+> Actualización del 01/11/2026: este documento conserva el estado histórico de la entrega de software. Ya existen ensayos físicos de Fernando; consultar el [registro actualizado](hardware/AGROP-21-23-validacion-fisica.md) antes de interpretar sus pendientes. Esos ensayos no acreditan todavía el recorrido completo del peso real hasta AgroScan.
+
 ## Estado y alcance
 
 Integración **solo de lectura** del frontend con `GET /api/iot/status` de FastAPI, usando la estructura existente. No crea ni guarda pesos en una evaluación, no confirma que el ESP32 haya sido programado con el nuevo firmware y no acredita calibración física.
 
-El ZIP auditado contiene backend FastAPI/SQLite y frontend React; **no incorpora** `firmware/agroscan_scale/agroscan_scale.ino` ni el puente serial/HTTP documentados por Fernando en su PR 2. Por tanto, el adaptador debe incorporarse o validarse por el equipo, sin inventar un endpoint alternativo.
+En la auditoría inicial, el ZIP contenía backend FastAPI/SQLite y frontend React; **no incorpora** `firmware/agroscan_scale/agroscan_scale.ino` ni el puente serial/HTTP documentados por Fernando en su PR 2. Esta ausencia corresponde a ese ZIP histórico: main ya incluye firmware/agroscan_scale/agroscan_scale.ino y firmware/tools/serial_bridge.py. Sigue pendiente validar su ejecución física y compatibilidad con el sketch cargado.
 
 ## Contrato utilizado
 

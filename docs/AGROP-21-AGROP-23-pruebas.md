@@ -1,5 +1,7 @@
 # Evidencia de pruebas de software de pesaje
 
+> Actualización del 01/11/2026: este documento conserva el estado histórico de la entrega de software. Ya existen ensayos físicos de Fernando; consultar el [registro actualizado](hardware/AGROP-21-23-validacion-fisica.md) antes de interpretar sus pendientes. Esos ensayos no acreditan todavía el recorrido completo del peso real hasta AgroScan.
+
 Ejecución local: **29 de octubre de 2026, aproximadamente 20:15, Lima** (30/10/2026 01:15 UTC). Responsable del aporte: Fernando Ramirez. Tareas: AGROP-21 y AGROP-23.
 
 ## Resultados ejecutados

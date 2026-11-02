@@ -1,5 +1,7 @@
 # Pesaje ESP32 con simulación y preparación de calibración
 
+> Actualización del 01/11/2026: este documento conserva el estado histórico de la entrega de software. Ya existen ensayos físicos de Fernando; consultar el [registro actualizado](hardware/AGROP-21-23-validacion-fisica.md) antes de interpretar sus pendientes. Esos ensayos no acreditan todavía el recorrido completo del peso real hasta AgroScan.
+
 ## Alcance y trazabilidad
 
 - **AGROP-21 / AG-013:** firmware ESP32-HX711, diagnóstico de disponibilidad, modo simulado explícito y salida serial. Montaje físico y lectura real siguen pendientes de verificación.

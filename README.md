@@ -10,3 +10,7 @@ El firmware ESP32/HX711 está en [`firmware/agroscan_scale`](firmware/agroscan_s
 - [Pruebas y alcance de validación](docs/AGROP-21-AGROP-23-pruebas.md)
 
 Las pruebas de software y compilación no sustituyen la validación física ni la calibración con masas conocidas.
+
+## Actualización de validación física
+
+Fernando realizó ensayos físicos de montaje y pesaje documentados en Jira. Ver [resultados, limitaciones y pendientes de integración](docs/hardware/AGROP-21-23-validacion-fisica.md). No confundir estas pruebas con una ejecución end-to-end: falta acreditar el transporte del peso real a AgroScan. El firmware versionado utiliza USB/serie y puente HTTP, no Wi-Fi directo.

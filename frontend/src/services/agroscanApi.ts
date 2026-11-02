@@ -249,16 +249,16 @@ export async function createEvaluation(input: { lotId: string; pieceId: string }
   return body
 }
 
-/** AGROP-26: archivo RGB asociado a una evaluación existente en proceso. */
+/** AGROP-26/27: envía una vista RGB a una evaluación existente sin crear otra. */
 export type CapturedEvidence = { id: string; view: string; imageUrl: string }
-export async function uploadEvaluationPhoto(evaluationId: string, file: File): Promise<CapturedEvidence> {
-  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+export async function uploadEvaluationPhoto(evaluationId: string, file: File, view = 'vista-1'): Promise<CapturedEvidence> {
+  if (!validEvaluationId(evaluationId) || !/^vista-[1-9]\d{0,2}$/.test(view)) throw new ApiDataError()
   const form = new FormData()
-  form.append('view', 'vista-1')
+  form.append('view', view)
   form.append('file', file, file.name)
   const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/images`, {
     method: 'POST', body: form,
   })
-  if (!isEvidence(body) || !object(body) || body.view !== 'vista-1') throw new ApiDataError()
+  if (!isEvidence(body) || !object(body) || body.view !== view) throw new ApiDataError()
   return { id: body.id as string, view: body.view as string, imageUrl: body.imageUrl as string }
 }

@@ -269,7 +269,7 @@ export function EvaluationPage() {
           <div className="evaluation-disabled-actions">
             <button type="button" className="action-button action-button--primary" disabled>Finalizar evaluación</button>
           </div>
-          <p className="evaluation-help">La captura RGB inicial no finaliza la evaluación ni genera una clasificación. Las vistas adicionales corresponden a AGROP-27.</p>
+          <p className="evaluation-help">Puedes añadir varias vistas de la misma fruta girándola manualmente, sin crear otra evaluación. La captura RGB no genera clasificación automática.</p>
         </section>
       </div>
 

@@ -48,6 +48,8 @@ class AGROP24WeightValidationTests(unittest.TestCase):
         self.engine.dispose()
 
     def add_measurement(self, stable=True, zero_confirmed=True):
+        now = datetime.now(timezone.utc)
+
         measurement = Measurement(
             device_id="station-001",
             boot_id="boot-agrop24",
@@ -55,9 +57,11 @@ class AGROP24WeightValidationTests(unittest.TestCase):
             weight_g=250.0,
             stable=stable,
             zero_confirmed=zero_confirmed,
-            calibration_version="test-1",
-            received_at=datetime.now(timezone.utc),
+            calibration_version="cal-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1",
+            received_at=now,
+            observed_at=now,
         )
+
         self.db.add(measurement)
         self.db.commit()
 

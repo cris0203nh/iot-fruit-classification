@@ -124,13 +124,21 @@ class Measurement(Base):
     weight_g: Mapped[float] = mapped_column(Float)
     stable: Mapped[bool] = mapped_column(Boolean)
     calibration_version: Mapped[str] = mapped_column(String(64))
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
     zero_confirmed: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+    observed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
-        UniqueConstraint("device_id", "boot_id", "seq", name="uq_measurement_seq"),
+        UniqueConstraint(
+            "device_id", "boot_id", "seq",
+            name="uq_measurement_seq"
+        ),
     )
 
 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -10,6 +12,7 @@ class MeasurementCreate(BaseModel):
     stable: bool
     calibration_version: str = Field(min_length=1, max_length=64)
     zero_confirmed: bool = False
+    observed_at: datetime
 
 
 class MeasurementOut(BaseModel):
@@ -24,4 +27,4 @@ class IotStatusOut(BaseModel):
     weightG: float | None
     stable: bool | None
     receivedAt: str | None
-    ageSeconds: float | None
+    ageSeconds: float | None 

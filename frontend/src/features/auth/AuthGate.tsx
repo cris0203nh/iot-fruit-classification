@@ -1,10 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { ApiConnectionError, ApiResponseError, clearOperatorSession, isOperatorAuthenticated, loginOperator } from '../../services/agroscanApi'
+import { useNavigate } from 'react-router-dom'
+import { ApiConnectionError, ApiResponseError, clearOperatorSession, getSessionRole, isAgroscanAuthenticated, loginAgroscan } from '../../services/agroscanApi'
 import './AuthGate.css'
 
-/** Sesión de operador limitada a la pestaña. No persiste credenciales en el navegador. */
+/** Sesión por rol limitada a la pestaña. No persiste credenciales en el navegador. */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const [authenticated, setAuthenticated] = useState(isOperatorAuthenticated)
+  const navigate = useNavigate()
+  const [authenticated, setAuthenticated] = useState(isAgroscanAuthenticated)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [working, setWorking] = useState(false)
@@ -16,9 +18,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setWorking(true)
     setError(null)
     try {
-      await loginOperator(username, password)
+      const role = await loginAgroscan(username, password)
       setPassword('')
       setAuthenticated(true)
+      if (role === 'revisor') navigate('/historial', { replace: true })
     } catch (failure) {
       setError(failure instanceof ApiResponseError
         ? failure.status === 401 ? 'Usuario o contraseña incorrectos.' : failure.message
@@ -34,7 +37,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <>
         <div className="agroscan-session">
-          <span>Sesión de operador activa</span>
+          <span>Sesión de {getSessionRole() === 'revisor' ? 'revisor (consulta)' : 'operador'} activa</span>
           <button type="button" onClick={() => { clearOperatorSession(); setAuthenticated(false); setPassword(''); setError(null) }}>Cerrar sesión</button>
         </div>
         {children}
@@ -46,7 +49,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     <main className="agroscan-login">
       <form onSubmit={submit} className="agroscan-login__panel">
         <h1>Ingresar a AgroScan</h1>
-        <p>Inicia sesión con tu cuenta de operador o administrador para registrar evaluaciones y fotografías.</p>
+        <p>Inicia sesión con tu cuenta de operador, revisor o administrador. El rol revisor tiene acceso de consulta.</p>
         <label htmlFor="agroscan-login-user">Usuario</label>
         <input id="agroscan-login-user" autoComplete="username" required value={username} onChange={(event) => setUsername(event.target.value)} disabled={working} />
         <label htmlFor="agroscan-login-pass">Contraseña</label>

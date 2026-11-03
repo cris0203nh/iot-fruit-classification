@@ -79,3 +79,28 @@ test('solo admite identificadores de FastAPI y rutas de imágenes del backend', 
   assert.equal(resolveEvidenceUrl('https://example.com/a.png'), null)
   assert.equal(resolveEvidenceUrl('/api/images/../../secret'), null)
 })
+
+test('AGROP-35: combina filtros independientes de lote y pieza sin modificar registros', () => {
+  const second = { ...evaluation, id: 'E-000002', lotId: 'TEST-TOMATE-02', pieceId: 'P-002', product: 'tomate', imageCount: 2 }
+  const third = { ...evaluation, id: 'E-000003', pieceId: 'P-003' }
+  const records = [evaluation, second, third]
+  const selected = filterHistory(records, { query: '', lot: 'test-mango', piece: 'p-003', product: '', status: '' })
+  assert.deepEqual(selected, [third])
+  assert.equal(records.length, 3)
+  assert.deepEqual(filterHistory(records, { query: '', lot: 'test-tomate', piece: 'p-001', product: '', status: '' }), [])
+})
+
+test('AGROP-35: lista y detalle se vuelven a consultar, nunca se recuperan de caché inventada', async (t) => {
+  t.after(() => { globalThis.fetch = previousFetch })
+  let calls = 0
+  globalThis.fetch = async (url) => {
+    calls += 1
+    if (url.endsWith('/api/evaluations')) return res([evaluation])
+    if (url.endsWith('/api/evaluations/E-000001')) return res(detail)
+    throw new Error('Ruta inesperada')
+  }
+  assert.deepEqual(await historyService.list(), [evaluation])
+  assert.deepEqual(await historyService.getById('E-000001'), detail)
+  assert.deepEqual(await historyService.list(), [evaluation])
+  assert.equal(calls, 3)
+})

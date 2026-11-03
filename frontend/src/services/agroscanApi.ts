@@ -41,14 +41,25 @@ const configuredBase = import.meta.env?.VITE_API_BASE_URL?.trim()
 const API_BASE = (configuredBase || '').replace(/\/+$/, '')
 
 // Token de sesión exclusivamente en memoria; nunca se guarda en localStorage ni en URL.
+export type AgroScanRole = 'administrador' | 'operador' | 'revisor'
 let sessionToken: string | null = null
+let sessionRole: AgroScanRole | null = null
 
 export function clearOperatorSession(): void {
   sessionToken = null
+  sessionRole = null
+}
+
+export function getSessionRole(): AgroScanRole | null {
+  return sessionRole
+}
+
+export function isAgroscanAuthenticated(): boolean {
+  return sessionToken !== null && sessionRole !== null
 }
 
 export function isOperatorAuthenticated(): boolean {
-  return sessionToken !== null
+  return isAgroscanAuthenticated() && (sessionRole === 'operador' || sessionRole === 'administrador')
 }
 
 function detailMessage(body: unknown): string | null {
@@ -419,7 +430,11 @@ export async function uploadEvaluationPhoto(
 
 
 /** AGROP-47: autentica al operador contra FastAPI y verifica su rol real. */
-export async function loginOperator(username: string, password: string): Promise<void> {
+async function authenticateWithRoles(
+  username: string,
+  password: string,
+  allowedRoles: readonly AgroScanRole[],
+): Promise<AgroScanRole> {
   clearOperatorSession()
   if (!username.trim() || !password) throw new ApiDataError()
   const credentials = new URLSearchParams({ username: username.trim(), password })
@@ -437,13 +452,28 @@ export async function loginOperator(username: string, password: string): Promise
     if (!object(me) || !Array.isArray(me.roles) || !me.roles.every((role: unknown) => typeof role === 'string')) {
       throw new ApiDataError()
     }
-    if (!me.roles.includes('operador') && !me.roles.includes('administrador')) {
-      throw new ApiResponseError(403, 'La captura de fotografías requiere el rol operador o administrador.')
+    const recognized: readonly AgroScanRole[] = ['administrador', 'operador', 'revisor']
+    const validatedRoles: string[] = me.roles
+    const role = recognized.find((candidate) => validatedRoles.includes(candidate) && allowedRoles.includes(candidate))
+    if (!role) {
+      throw new ApiResponseError(403, 'Esta cuenta no tiene permisos para acceder al módulo solicitado.')
     }
+    sessionRole = role
+    return role
   } catch (error) {
     clearOperatorSession()
     throw error
   }
+}
+
+/** Inicio de sesión general: los revisores pueden consultar, nunca operar el registro. */
+export async function loginAgroscan(username: string, password: string): Promise<AgroScanRole> {
+  return authenticateWithRoles(username, password, ['administrador', 'operador', 'revisor'])
+}
+
+/** Mantiene la restricción anterior para flujos que requieren operador o administrador. */
+export async function loginOperator(username: string, password: string): Promise<void> {
+  await authenticateWithRoles(username, password, ['administrador', 'operador'])
 }
 
 /** Imágenes protegidas AGROP-47: el token va en la cabecera, nunca en el src ni en la URL. */

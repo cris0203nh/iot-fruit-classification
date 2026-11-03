@@ -23,7 +23,10 @@ test('AGROP-26: envía multipart y recibe id real de imagen vinculada', async (t
     assert.equal(options.method, 'POST')
     assert.equal(options.body.get('view'), 'vista-1')
     assert.equal(options.body.get('file').name, 'DEMO-tomate.png')
-    assert.equal(options.headers, undefined) // el navegador define el boundary de FormData
+    const headers = new Headers(options.headers)
+    assert.match(headers.get('Idempotency-Key') ?? '', /^[a-f0-9]{64}$/)
+    // El navegador define el boundary de multipart; no se debe fijar Content-Type.
+    assert.equal(headers.has('Content-Type'), false)
     return ok(image)
   }
   const file = new File(['RGB'], 'DEMO-tomate.png', { type: 'image/png' })

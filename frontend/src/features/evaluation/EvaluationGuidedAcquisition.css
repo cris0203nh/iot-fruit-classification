@@ -1,0 +1,19 @@
+.guided-acquisition__identity { display: grid; gap: 4px; padding: 12px; border-radius: 9px; background: #eef8f1; border: 1px solid #b9dfca; font-size: 12px; color: #2b6048; overflow-wrap: anywhere; }
+.guided-acquisition__identity strong { font-size: 14px; }
+.guided-acquisition__stage { display: grid; align-content: start; gap: 13px; min-width: 0; }
+.guided-acquisition__stage h3 { margin: 0; font-size: 16px; color: #244357; }
+.guided-acquisition__stage > p { margin: 0; font-size: 12px; line-height: 1.65; color: #526c7a; }
+.guided-acquisition__stage > button { justify-self: stretch; }
+.guided-acquisition__actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.guided-acquisition__actions .action-button { flex: 1 1 145px; justify-content: center; }
+.guided-acquisition__notice, .guided-acquisition__success, .guided-acquisition__error { padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.55; }
+.guided-acquisition__notice { background: #fff9ee; border: 1px solid #f0dab2; color: #79592b; }
+.guided-acquisition__success { background: #eef8f2; border: 1px solid #b9ddc7; color: #17643e; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.guided-acquisition__error { margin: 0; background: #fff5f5; border: 1px solid #efbaba; color: #a03030; }
+.guided-acquisition__review { display: grid; gap: 7px; margin: 0; }
+.guided-acquisition__review div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border: 1px solid #e0e9ed; border-radius: 7px; background: #f8fbfc; padding: 9px 11px; }
+.guided-acquisition__review dt { font-size: 11px; color: #6b8190; }
+.guided-acquisition__review dd { margin: 0; font-weight: 700; font-size: 12px; color: #34526a; text-align: right; overflow-wrap: anywhere; }
+.guided-acquisition__check { display: flex; gap: 9px; align-items: flex-start; font-size: 12px; line-height: 1.5; color: #34526a; }
+.guided-acquisition__check input { flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 560px) { .guided-acquisition__review div { flex-direction: column; gap: 3px; } .guided-acquisition__review dd { text-align: left; } }

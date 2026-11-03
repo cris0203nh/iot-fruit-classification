@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
-import { WeightStatusCard } from '../features/iot/WeightStatusCard'
-import { EvaluationImageCapture } from '../features/capture/EvaluationImageCapture'
+import { EvaluationGuidedAcquisition } from '../features/evaluation/EvaluationGuidedAcquisition'
+import { GUIDED_STEP_LABELS, type GuidedStep } from '../features/evaluation/evaluationFlow'
+import '../features/evaluation/EvaluationProgress.css'
 import { isValidPieceId } from '../features/evaluation/pieceValidation'
 import {
   ApiConnectionError, ApiDataError, ApiResponseError, createEvaluation, listLots,
@@ -57,6 +58,7 @@ export function EvaluationPage() {
   const submitting = useRef(false)
   const [created, setCreated] = useState<EvaluationDetail | null>(null)
   const [submitError, setSubmitError] = useState<SubmissionError | null>(null)
+  const [guideStep, setGuideStep] = useState<GuidedStep>(1)
 
   useEffect(() => {
     let active = true
@@ -102,6 +104,7 @@ export function EvaluationPage() {
       const saved = await createEvaluation({ lotId: selectedLot.code, pieceId: draft.piece.trim() })
       if (saved.product !== selectedLot.product) throw new ApiDataError()
       setCreated(saved)
+      setGuideStep(2)
     } catch (error) {
       const uncertain = error instanceof ApiConnectionError || error instanceof ApiDataError
       const message = uncertain
@@ -123,6 +126,7 @@ export function EvaluationPage() {
     setDraft(EMPTY_DRAFT)
     setAttempted(false)
     setCreated(null)
+    setGuideStep(1)
     setSubmitError(null)
   }
 
@@ -133,6 +137,20 @@ export function EvaluationPage() {
         <h1>Evaluación externa de frutas</h1>
         <p>Registra la identificación de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografías pueden capturarse y vincularse a una evaluación en proceso. El pesaje físico y la clasificación requieren validación independiente.</p>
       </div>
+
+      <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
+        <ol>
+          {GUIDED_STEP_LABELS.map((label, index) => {
+            const number = (index + 1) as GuidedStep
+            return (
+              <li key={label} className={number === guideStep ? 'evaluation-progress__active' : number < guideStep ? 'evaluation-progress__passed' : ''} aria-current={number === guideStep ? 'step' : undefined}>
+                <span className="evaluation-progress__number">{number}</span>
+                <span>{label}</span>
+              </li>
+            )
+          })}
+        </ol>
+      </nav>
 
       <div className="notice notice--warning" role="status">
         <Icon name="alert" size={19} />
@@ -235,7 +253,7 @@ export function EvaluationPage() {
               <>
                 <strong>Evaluación registrada en el backend</strong>
                 <p>ID: <b>{created.id}</b> · {created.product === 'mango' ? 'Mango' : 'Tomate'} · Lote: {created.lotId} · Pieza: {created.pieceId}</p>
-                <p>Estado inicial: <b>En proceso</b>. La evaluación existe en SQLite, pero aún no cuenta con adquisición física ni resultado final.</p>
+                <p>Estado inicial: <b>En proceso</b>. Los pesos y fotografías se confirman por separado; no se ha registrado clasificación.</p>
                 <div className="evaluation-record-links">
                   <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>Ver detalle <Icon name="arrow-right" size={16} /></Link>
                   <Link className="action-button action-button--secondary" to={`/trazabilidad/${created.id}`}>Ver trazabilidad</Link>
@@ -251,26 +269,12 @@ export function EvaluationPage() {
           </div>
         </form>
 
-        <section className="panel evaluation-acquisition" aria-labelledby="acquisition-heading">
-          <div className="evaluation-section-heading">
-            <span className="evaluation-step evaluation-step--muted" aria-hidden="true">2</span>
-            <div>
-              <h2 id="acquisition-heading">Adquisición de datos</h2>
-              <p>Lectura por API IoT y captura RGB desde teléfono o galería; la validación física es independiente.</p>
-            </div>
-          </div>
-          <WeightStatusCard />
-          <div className="evaluation-acquisition__card">
-            <div className="evaluation-acquisition__top"><Icon name="camera" size={21} /><strong>Cámara RGB</strong></div>
-            {created ? <EvaluationImageCapture key={created.id} evaluationId={created.id} /> : (
-              <div className="evaluation-camera-empty"><Icon name="camera" size={30} /><span>Primero registra una evaluación para asociar la fotografía a su ID.</span></div>
-            )}
-          </div>
-          <div className="evaluation-disabled-actions">
-            <button type="button" className="action-button action-button--primary" disabled>Finalizar evaluación</button>
-          </div>
-          <p className="evaluation-help">Puedes añadir varias vistas de la misma fruta girándola manualmente, sin crear otra evaluación. La captura RGB no genera clasificación automática.</p>
-        </section>
+        <EvaluationGuidedAcquisition
+          key={created?.id ?? 'sin-evaluacion'}
+          evaluation={created}
+          onStepChange={setGuideStep}
+          onNextEvaluation={clearForm}
+        />
       </div>
 
       <section className="panel evaluation-next" aria-labelledby="next-steps-heading">

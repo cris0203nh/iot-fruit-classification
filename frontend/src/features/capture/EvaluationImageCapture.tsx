@@ -8,7 +8,7 @@ import { nextCaptureView } from './captureViews'
 import { ProtectedEvidenceImage } from './ProtectedEvidenceImage'
 import './EvaluationImageCapture.css'
 
-type Props = { evaluationId: string }
+type Props = { evaluationId: string; onEvidenceChange?: (count: number) => void }
 type Saved = CapturedEvidence & { url: string }
 type LoadedState = 'loading' | 'ready' | 'closed' | 'failed'
 
@@ -21,7 +21,7 @@ function asSaved(evidence: CapturedEvidence[]): Saved[] {
 }
 
 /** AGROP-27: varias vistas, siempre ligadas al mismo identificador de evaluación. */
-export function EvaluationImageCapture({ evaluationId }: Props) {
+export function EvaluationImageCapture({ evaluationId, onEvidenceChange }: Props) {
   const cameraInput = useRef<HTMLInputElement>(null)
   const galleryInput = useRef<HTMLInputElement>(null)
   const sending = useRef(false)
@@ -48,6 +48,7 @@ export function EvaluationImageCapture({ evaluationId }: Props) {
         }
         try {
           setSaved(asSaved(detail.evidence))
+          onEvidenceChange?.(detail.evidence.length)
           setLoadState(detail.status === 'processing' ? 'ready' : 'closed')
           setError(null)
         } catch (failure) {
@@ -66,7 +67,7 @@ export function EvaluationImageCapture({ evaluationId }: Props) {
       },
     )
     return () => { active = false }
-  }, [evaluationId, revision])
+  }, [evaluationId, revision, onEvidenceChange])
 
   useEffect(() => {
     return () => { if (candidate) URL.revokeObjectURL(candidate.url) }
@@ -96,6 +97,7 @@ export function EvaluationImageCapture({ evaluationId }: Props) {
       const result = await uploadEvaluationPhoto(evaluationId, candidate.file, nextView)
       const [item] = asSaved([result])
       setSaved((previous) => [...previous, item])
+      onEvidenceChange?.(saved.length + 1)
       setRotationConfirmed(false)
       setCandidate(null)
     } catch (failure) {

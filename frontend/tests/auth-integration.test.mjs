@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   ApiDataError, ApiResponseError, clearOperatorSession, getEvaluationById,
-  isOperatorAuthenticated, loadProtectedEvidence, loginOperator, uploadEvaluationPhoto,
+  getSessionRole, isAgroscanAuthenticated, isOperatorAuthenticated, loadProtectedEvidence, loginAgroscan, loginOperator, uploadEvaluationPhoto,
 } from '../src/services/agroscanApi.ts'
 
 const previousFetch = globalThis.fetch
@@ -62,4 +62,26 @@ test('AGROP-47: obtiene JPG protegido por cabecera, nunca por URL de token', asy
   await assert.rejects(loadProtectedEvidence('https://evil.example/images/I-000003'), ApiDataError)
   clearOperatorSession()
   await assert.rejects(loadProtectedEvidence('/api/images/I-000003'), (error) => error instanceof ApiResponseError && error.status === 401)
+})
+
+test('AGROP-35: revisor autenticado consulta historial y detalle, sin permiso de operador', async (t) => {
+  t.after(() => { globalThis.fetch = previousFetch; clearOperatorSession() })
+  clearOperatorSession()
+  const record = { id: 'E-000010', lotId: 'LOTE-R1', pieceId: 'P-001', product: 'mango', registeredAt: '2026-11-03T10:00:00+00:00', status: 'processing', weightGrams: null, imageCount: 1 }
+  globalThis.fetch = async (url, options) => {
+    if (url.endsWith('/api/auth/login')) return { ok: true, status: 200, json: async () => ({ access_token: 'token-revisor', token_type: 'bearer' }) }
+    assert.equal(new Headers(options.headers).get('Authorization'), 'Bearer token-revisor')
+    if (url.endsWith('/api/auth/me')) return { ok: true, status: 200, json: async () => ({ id: 2, username: 'revisor', roles: ['revisor'] }) }
+    if (url.endsWith('/api/evaluations')) return { ok: true, status: 200, json: async () => [record] }
+    if (url.endsWith('/api/evaluations/E-000010')) return { ok: true, status: 200, json: async () => ({ ...record, evidence: [{ id: 'I-000004', view: 'vista-1', imageUrl: '/api/images/I-000004' }], visualCategory: null, reviewNote: null, failureReason: null }) }
+    throw new Error('Endpoint inesperado')
+  }
+  assert.equal(await loginAgroscan('revisor', 'clave'), 'revisor')
+  assert.equal(isAgroscanAuthenticated(), true)
+  assert.equal(getSessionRole(), 'revisor')
+  assert.equal(isOperatorAuthenticated(), false)
+  assert.equal((await getEvaluationById('E-000010'))?.evidence.length, 1)
+  clearOperatorSession()
+  assert.equal(isAgroscanAuthenticated(), false)
+  assert.equal(getSessionRole(), null)
 })

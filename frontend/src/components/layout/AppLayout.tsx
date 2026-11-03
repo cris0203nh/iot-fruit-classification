@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { primaryNavigation, secondaryNavigation } from '../../app/navigation'
 import type { NavigationItem } from '../../app/navigation'
+import { getSessionRole } from '../../services/agroscanApi'
 import { Icon } from './Icon'
 import './AppLayout.css'
 
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const reviewer = getSessionRole() === 'revisor'
 
   function renderLinks(items: NavigationItem[]) {
     return items.map(({ path, label, icon }) => (
@@ -54,13 +56,15 @@ export function AppLayout() {
         </div>
 
         <nav aria-label="Navegación principal" className="sidebar-nav">
-          {renderLinks(primaryNavigation)}
+          {renderLinks(reviewer ? primaryNavigation.filter((item) => item.path === '/historial' || item.path === '/trazabilidad') : primaryNavigation)}
         </nav>
 
         <div className="sidebar-bottom">
-          <nav aria-label="Configuración de la estación" className="sidebar-nav">
-            {renderLinks(secondaryNavigation)}
-          </nav>
+          {!reviewer && (
+            <nav aria-label="Configuración de la estación" className="sidebar-nav">
+              {renderLinks(secondaryNavigation)}
+            </nav>
+          )}
           <div className="sidebar-disclaimer">
             <Icon name="info" size={17} />
             <span>Integración por módulos<br />Hardware sin verificar</span>

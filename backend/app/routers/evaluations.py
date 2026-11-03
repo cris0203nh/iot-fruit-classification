@@ -306,8 +306,9 @@ def ensure_active(db: Session, ev: Evaluation) -> None:
 
 
 
+
 def latest_ready(db: Session, after: datetime) -> Measurement:
-    """Obtiene una lectura válida y devuelve un error específico si no lo es."""
+    """Obtiene la última adquisición y valida su vigencia y trazabilidad."""
 
     last = db.scalar(
         select(Measurement).order_by(Measurement.id.desc()).limit(1)
@@ -319,50 +320,105 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             detail={
                 "code": "SENSOR_DISCONNECTED",
                 "message": "No se recibió ninguna lectura del sensor.",
-                "action": "Revise la conexión del ESP32 y espere una nueva lectura."
+                "action": "Revise la conexión del ESP32."
             }
         )
 
+    now = datetime.now(timezone.utc)
+
+    # 1. Exigir timestamp de adquisición.
+    if last.observed_at is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TIMESTAMP_MISSING",
+                "message": "La adquisición no tiene timestamp.",
+                "action": "Verifique el puente serial y espere una nueva lectura."
+            }
+        )
+
+    observed = aware(last.observed_at)
     received = aware(last.received_at)
-    age = (datetime.now(timezone.utc) - received).total_seconds()
+
+    # 2. Rechazar timestamps futuros.
+    if (observed - now).total_seconds() > 2:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TIMESTAMP_INVALID",
+                "message": "El timestamp de adquisición está en el futuro.",
+                "action": "Verifique la sincronización del reloj."
+            }
+        )
+
+    # 3. Evitar timestamps posteriores a la recepción.
+    if (observed - received).total_seconds() > 2:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TIMESTAMP_INVALID",
+                "message": "La fecha de adquisición es posterior a su recepción.",
+                "action": "Verifique el timestamp enviado por el puente serial."
+            }
+        )
+
+    # 4. Validar antigüedad de la adquisición, no solo recepción.
+    age = (now - observed).total_seconds()
 
     if age > FRESH_SECONDS:
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "SENSOR_DISCONNECTED",
-                "message": "La lectura del sensor está vencida.",
-                "action": "Restablezca la comunicación y espere una lectura actualizada."
+                "message": "La adquisición del peso está vencida.",
+                "action": "Espere una nueva lectura del ESP32."
             }
         )
 
+    # 5. Exigir versión compatible con el firmware real.
+    if not re.fullmatch(
+        r"cal-[0-9a-fA-F]{32}-[1-9][0-9]*",
+        last.calibration_version
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CALIBRATION_INVALID",
+                "message": "La versión de calibración no es válida.",
+                "action": "Realice y verifique la calibración de la balanza."
+            }
+        )
+
+    # 6. Validar estabilidad.
     if not last.stable:
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "WEIGHT_UNSTABLE",
                 "message": "El peso registrado no está estable.",
-                "action": "Mantenga la pieza quieta y espere a que el peso se estabilice."
+                "action": "Mantenga la pieza quieta."
             }
         )
 
+    # 7. Validar puesta a cero.
     if not last.zero_confirmed:
         raise HTTPException(
-        status_code=409,
-        detail={
-            "code": "ZERO_NOT_CONFIRMED",
-            "message": "No se confirmó el cero de la balanza.",
-            "action": "Retire la carga y realice la puesta a cero (TARE)."
+            status_code=409,
+            detail={
+                "code": "ZERO_NOT_CONFIRMED",
+                "message": "No se confirmó el cero de la balanza.",
+                "action": "Retire la carga y realice TARE."
             }
         )
 
-    if received <= after:
+    # 8. Exigir una adquisición posterior a la etapa anterior.
+    if observed <= aware(after):
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "WAITING_FOR_NEW_READING",
-                "message": "La lectura no es posterior al inicio de esta etapa.",
-                "action": "Espere una nueva lectura del sensor e intente nuevamente."
+                "message": "La adquisición no es posterior al inicio de esta etapa.",
+                "action": "Espere una nueva lectura del sensor."
             }
         )
 
@@ -448,7 +504,7 @@ def weight_post(
 
     # Registrar el peso final y vincular la medición original.
     ev.weight_post_g = m.weight_g
-    ev.weight_post_at = m.received_at
+    ev.weight_post_at = aware(m.observed_at)
     ev.weight_post_measurement_id = m.id
     ev.weight_grams = m.weight_g
 

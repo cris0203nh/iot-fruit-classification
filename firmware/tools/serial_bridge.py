@@ -32,7 +32,11 @@ def validate_url(url):
     if p.scheme not in ('http', 'https') or not p.hostname or p.username or p.password or p.fragment:
         raise ValueError('URL HTTP(S) sin credenciales ni fragmento requerida')
 
-def extract_measurement(envelope, allow_simulated=False):
+def extract_measurement(
+    envelope,
+    allow_simulated=False,
+    observed_at=None
+):
     if not isinstance(envelope, dict) or envelope.get('type') != 'telemetry':
         return None
     simulated = envelope.get('simulated')
@@ -64,7 +68,12 @@ def extract_measurement(envelope, allow_simulated=False):
         raise ValueError('Simulación bloqueada para envío; usa --allow-simulated solo en pruebas')
     if envelope.get('status') not in ('stable', 'unstable') or (envelope['status'] == 'stable') != m['stable']:
         raise ValueError('Estado inconsistente con measurement')
-    return dict(m)
+    result = dict(m)
+
+    if observed_at is not None:
+        result['observed_at'] = observed_at
+
+    return result
 
 def send(url, payload, attempts=3, timeout=2.0, delay=0.25):
     validate_url(url)
@@ -137,11 +146,20 @@ def main(argv=None):
                     continue
                 try:
                     envelope = json.loads(line)
-                    print(json.dumps({'observed_at_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
-                                      'telemetry': envelope}, allow_nan=False), flush=True)
+
+                    observed_at = dt.datetime.now(dt.timezone.utc)
+
+                    print(json.dumps({
+                        'observed_at_utc': observed_at.isoformat(),
+                        'telemetry': envelope
+                    }, allow_nan=False), flush=True)
                     if not args.url:
                         continue
-                    message = extract_measurement(envelope, args.allow_simulated)
+                    message = extract_measurement(
+                        envelope,
+                        args.allow_simulated,
+                        observed_at=observed_at.isoformat()
+                    )
                     if message is None:
                         continue
                     identity = (message['device_id'], message['boot_id'], message['seq'])

@@ -38,7 +38,10 @@ class BackendIntegrationTests(unittest.TestCase):
             'stable':True,
             'zero_confirmed':True,
             'calibration_version':'cal-test-1'}}
-        return extract_measurement(env)
+        return extract_measurement(
+            env,
+            observed_at=datetime.now(timezone.utc).isoformat()
+        )
     def test_firmware_payload_received_and_duplicate_not_refreshed(self):
         first=self.client.post('/api/iot/measurements',json=self.payload())
         self.assertEqual(first.status_code,200);self.assertFalse(first.json()['duplicate'])
@@ -48,7 +51,13 @@ class BackendIntegrationTests(unittest.TestCase):
         status=self.client.get('/api/iot/status').json()
         self.assertTrue(status['online']);self.assertEqual(status['weightG'],250.0)
     def test_simulator_payload_accepted_in_isolated_test(self):
-        response=self.client.post('/api/iot/measurements',json=measurement(152.8,1,'sim-test',True))
+        sim_payload = measurement(152.8, 1, 'sim-test', True)
+        sim_payload['observed_at'] = datetime.now(timezone.utc).isoformat()
+
+        response = self.client.post(
+            '/api/iot/measurements',
+            json=sim_payload
+        )
         self.assertEqual(response.status_code,200);self.assertTrue(response.json()['received'])
     def test_422_for_invalid_weight_schema_and_identifier(self):
         for update in [{'weight_g':-1},{'weight_g':5001},{'schema_version':2},{'device_id':'x'*65}]:

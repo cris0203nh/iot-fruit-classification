@@ -1,4 +1,4 @@
-"""AGROP-26: imágenes de muestra vinculadas a evaluación, SQLite aislado."""
+﻿"""AGROP-26: imÃ¡genes de muestra vinculadas a evaluaciÃ³n, SQLite aislado."""
 import base64
 import tempfile
 import unittest
@@ -12,9 +12,9 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot
-from app.routers import images
+from app.routers import images, evaluations
 
-# PNG 1x1 válido para demostrar transporte y vinculación (no legibilidad).
+# PNG 1x1 vÃ¡lido para demostrar transporte y vinculaciÃ³n (no legibilidad).
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8ISfHAANMDEgANwcANHYBDK9qubUAAAAASUVORK5CYII="
 )
@@ -42,6 +42,11 @@ class CaptureAGROP26Tests(unittest.TestCase):
                 yield db
 
         app.dependency_overrides[get_db] = test_session
+
+        # Autenticación simulada exclusivamente para pruebas aisladas.
+        app.dependency_overrides[images.require_operator] = lambda: None
+        app.dependency_overrides[images.require_authenticated] = lambda: None
+        app.dependency_overrides[evaluations.require_authenticated] = lambda: None
         self.data_dir = patch.object(images, "DATA_DIR", self.root)
         self.image_dir = patch.object(images, "IMAGES_DIR", self.root / "images")
         self.data_dir.start()
@@ -62,8 +67,8 @@ class CaptureAGROP26Tests(unittest.TestCase):
             f"/api/evaluations/{self.eval_id}/images",
             data={"view": "vista-1"},
             files={"file": (filename, content, mime)},
+            headers={"Idempotency-Key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
         )
-
     def test_subida_sin_peso_previo_se_vincula_a_la_evaluacion(self):
         response = self.upload()
         self.assertEqual(response.status_code, 201, response.text)
@@ -85,6 +90,7 @@ class CaptureAGROP26Tests(unittest.TestCase):
         response = self.client.post(
             "/api/evaluations/E-999999/images",
             files={"file": ("toma.png", PNG, "image/png")},
+            headers={"Idempotency-Key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
         )
         self.assertEqual(response.status_code, 404)
         self.assertEqual(list(self.root.rglob('*.png')), [])
@@ -116,5 +122,60 @@ class CaptureAGROP26Tests(unittest.TestCase):
         self.assertEqual(self.upload().status_code, 409)
 
 
+
+    def test_reintento_misma_clave_conserva_id_y_no_duplica(self):
+        first = self.upload()
+        self.assertEqual(first.status_code, 201, first.text)
+
+        second = self.upload()
+        self.assertEqual(second.status_code, 201, second.text)
+
+        first_body = first.json()
+        second_body = second.json()
+
+        # El reintento debe recuperar exactamente la misma evidencia.
+        self.assertEqual(first_body["id"], second_body["id"])
+        self.assertEqual(first_body["imageUrl"], second_body["imageUrl"])
+
+        detail = self.client.get(
+            f"/api/evaluations/{self.eval_id}"
+        ).json()
+
+        self.assertEqual(detail["imageCount"], 1)
+        self.assertEqual(len(detail["evidence"]), 1)
+
+        saved_files = list(
+            (self.root / "images").rglob("*.png")
+        )
+        self.assertEqual(len(saved_files), 1)
+
+    def test_error_almacenamiento_no_genera_exito_ni_archivos(self):
+        with patch(
+            "app.routers.images.os.replace",
+            side_effect=OSError("Fallo simulado de almacenamiento"),
+        ):
+            response = self.upload()
+
+        self.assertEqual(response.status_code, 500)
+
+        detail = self.client.get(
+            f"/api/evaluations/{self.eval_id}"
+        ).json()
+
+        self.assertEqual(detail["imageCount"], 0)
+        self.assertEqual(detail["evidence"], [])
+
+        remaining_files = [
+            p for p in (self.root / "images").rglob("*")
+            if p.is_file()
+        ]
+        self.assertEqual(remaining_files, [])
+
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

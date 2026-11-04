@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..database import DATA_DIR, get_db
 from ..dependencies import (
     require_admin,
     require_reviewer,
@@ -19,7 +19,7 @@ from ..evaluation_schemas import (
     EvaluationSummaryOut,
     WeightStepOut,
 )
-from ..models import Evaluation, Lot, Measurement, Piece, Review, User
+from ..models import Evaluation, Image, Lot, Measurement, Piece, Review, User
 
 from ..review_schemas import (
     CancelCreate,
@@ -88,12 +88,12 @@ def get_or_404(db: Session, evaluation_id: str) -> Evaluation:
     pk = parse_id(evaluation_id)
     ev = db.get(Evaluation, pk) if pk is not None else None
     if ev is None:
-        raise HTTPException(status_code=404, detail="Evaluación no encontrada.")
+        raise HTTPException(status_code=404, detail="EvaluaciÃ³n no encontrada.")
     return ev
 
 
 def effective_value(ev: Evaluation) -> str | None:
-    """Valor vigente: el de la última revisión, o el original si no hay."""
+    """Valor vigente: el de la Ãºltima revisiÃ³n, o el original si no hay."""
     for r in reversed(ev.reviews):
         if r.type == "review":
             return r.updated_value
@@ -144,10 +144,10 @@ def create_evaluation(
     if lot.status != "open":
         raise HTTPException(
             status_code=409,
-            detail="El lote está cerrado."
+            detail="El lote estÃ¡ cerrado."
         )
 
-    # 2. Buscar si la pieza ya está registrada dentro del lote.
+    # 2. Buscar si la pieza ya estÃ¡ registrada dentro del lote.
     piece = db.scalar(
         select(Piece).where(
             Piece.lot_id == lot.id,
@@ -155,7 +155,7 @@ def create_evaluation(
         )
     )
 
-    # 3. Registrar la pieza solamente si todavía no existe.
+    # 3. Registrar la pieza solamente si todavÃ­a no existe.
     if piece is None:
         piece = Piece(
             lot_id=lot.id,
@@ -164,7 +164,7 @@ def create_evaluation(
         db.add(piece)
         db.flush()
 
-    # 4. Crear la evaluación vinculada a la pieza.
+    # 4. Crear la evaluaciÃ³n vinculada a la pieza.
     ev = Evaluation(
         lot_id=lot.id,
         piece_id=payload.pieceId,
@@ -223,7 +223,7 @@ def add_review(
     if ev.status not in ("pending_review", "completed"):
         raise HTTPException(
             status_code=409,
-            detail="Solo se puede revisar una evaluación completada o por revisar.",
+            detail="Solo se puede revisar una evaluaciÃ³n completada o por revisar.",
         )
 
     review = Review(
@@ -261,7 +261,7 @@ def cancel_evaluation(
     if ev.status == "cancelled":
         raise HTTPException(
             status_code=409,
-            detail="La evaluación ya está anulada.",
+            detail="La evaluaciÃ³n ya estÃ¡ anulada.",
         )
 
     event = Review(
@@ -281,9 +281,9 @@ def cancel_evaluation(
 
     return review_out(event)
 
-FRESH_SECONDS = 10       # una lectura es vigente si llegó hace menos de esto
-TOLERANCE_G = 5.0        # diferencia máxima entre peso inicial y de confirmación
-TIMEOUT_SECONDS = 180    # tiempo máximo de una evaluación en proceso
+FRESH_SECONDS = 10       # una lectura es vigente si llegÃ³ hace menos de esto
+TOLERANCE_G = 5.0        # diferencia mÃ¡xima entre peso inicial y de confirmaciÃ³n
+TIMEOUT_SECONDS = 180    # tiempo mÃ¡ximo de una evaluaciÃ³n en proceso
 
 
 def aware(value: datetime) -> datetime:
@@ -299,16 +299,16 @@ def fail(db: Session, ev: Evaluation, reason: str):
 
 def ensure_active(db: Session, ev: Evaluation) -> None:
     if ev.status != "processing":
-        raise HTTPException(status_code=409, detail="La evaluación ya no está en proceso.")
+        raise HTTPException(status_code=409, detail="La evaluaciÃ³n ya no estÃ¡ en proceso.")
     age = (datetime.now(timezone.utc) - aware(ev.created_at)).total_seconds()
     if age > TIMEOUT_SECONDS:
-        fail(db, ev, "Tiempo de espera agotado sin completar la medición de peso.")
+        fail(db, ev, "Tiempo de espera agotado sin completar la mediciÃ³n de peso.")
 
 
 
 
 def latest_ready(db: Session, after: datetime) -> Measurement:
-    """Obtiene la última adquisición y valida su vigencia y trazabilidad."""
+    """Obtiene la Ãºltima adquisiciÃ³n y valida su vigencia y trazabilidad."""
 
     last = db.scalar(
         select(Measurement).order_by(Measurement.id.desc()).limit(1)
@@ -319,20 +319,20 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "SENSOR_DISCONNECTED",
-                "message": "No se recibió ninguna lectura del sensor.",
-                "action": "Revise la conexión del ESP32."
+                "message": "No se recibiÃ³ ninguna lectura del sensor.",
+                "action": "Revise la conexiÃ³n del ESP32."
             }
         )
 
     now = datetime.now(timezone.utc)
 
-    # 1. Exigir timestamp de adquisición.
+    # 1. Exigir timestamp de adquisiciÃ³n.
     if last.observed_at is None:
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "TIMESTAMP_MISSING",
-                "message": "La adquisición no tiene timestamp.",
+                "message": "La adquisiciÃ³n no tiene timestamp.",
                 "action": "Verifique el puente serial y espere una nueva lectura."
             }
         )
@@ -346,23 +346,23 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "TIMESTAMP_INVALID",
-                "message": "El timestamp de adquisición está en el futuro.",
-                "action": "Verifique la sincronización del reloj."
+                "message": "El timestamp de adquisiciÃ³n estÃ¡ en el futuro.",
+                "action": "Verifique la sincronizaciÃ³n del reloj."
             }
         )
 
-    # 3. Evitar timestamps posteriores a la recepción.
+    # 3. Evitar timestamps posteriores a la recepciÃ³n.
     if (observed - received).total_seconds() > 2:
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "TIMESTAMP_INVALID",
-                "message": "La fecha de adquisición es posterior a su recepción.",
+                "message": "La fecha de adquisiciÃ³n es posterior a su recepciÃ³n.",
                 "action": "Verifique el timestamp enviado por el puente serial."
             }
         )
 
-    # 4. Validar antigüedad de la adquisición, no solo recepción.
+    # 4. Validar antigÃ¼edad de la adquisiciÃ³n, no solo recepciÃ³n.
     age = (now - observed).total_seconds()
 
     if age > FRESH_SECONDS:
@@ -370,12 +370,12 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "SENSOR_DISCONNECTED",
-                "message": "La adquisición del peso está vencida.",
+                "message": "La adquisiciÃ³n del peso estÃ¡ vencida.",
                 "action": "Espere una nueva lectura del ESP32."
             }
         )
 
-    # 5. Exigir versión compatible con el firmware real.
+    # 5. Exigir versiÃ³n compatible con el firmware real.
     if not re.fullmatch(
         r"cal-[0-9a-fA-F]{32}-[1-9][0-9]*",
         last.calibration_version
@@ -384,8 +384,8 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "CALIBRATION_INVALID",
-                "message": "La versión de calibración no es válida.",
-                "action": "Realice y verifique la calibración de la balanza."
+                "message": "La versiÃ³n de calibraciÃ³n no es vÃ¡lida.",
+                "action": "Realice y verifique la calibraciÃ³n de la balanza."
             }
         )
 
@@ -395,7 +395,7 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "WEIGHT_UNSTABLE",
-                "message": "El peso registrado no está estable.",
+                "message": "El peso registrado no estÃ¡ estable.",
                 "action": "Mantenga la pieza quieta."
             }
         )
@@ -406,18 +406,18 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
             status_code=409,
             detail={
                 "code": "ZERO_NOT_CONFIRMED",
-                "message": "No se confirmó el cero de la balanza.",
+                "message": "No se confirmÃ³ el cero de la balanza.",
                 "action": "Retire la carga y realice TARE."
             }
         )
 
-    # 8. Exigir una adquisición posterior a la etapa anterior.
+    # 8. Exigir una adquisiciÃ³n posterior a la etapa anterior.
     if observed <= aware(after):
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "WAITING_FOR_NEW_READING",
-                "message": "La adquisición no es posterior al inicio de esta etapa.",
+                "message": "La adquisiciÃ³n no es posterior al inicio de esta etapa.",
                 "action": "Espere una nueva lectura del sensor."
             }
         )
@@ -453,7 +453,7 @@ def weight_pre(
 
     m = latest_ready(db, after=aware(ev.created_at))
 
-    # Registrar el peso y vincular la medición original.
+    # Registrar el peso y vincular la mediciÃ³n original.
     ev.weight_pre_g = m.weight_g
     ev.weight_pre_at = m.received_at
     ev.weight_pre_measurement_id = m.id
@@ -485,24 +485,24 @@ def weight_post(
     if ev.weight_post_g is not None:
         raise HTTPException(
             status_code=409,
-            detail="El peso de confirmación ya fue registrado."
+            detail="El peso de confirmaciÃ³n ya fue registrado."
         )
 
     m = latest_ready(db, after=aware(ev.weight_pre_at))
 
-    # Verificar que continúa siendo el mismo dispositivo y sesión.
+    # Verificar que continÃºa siendo el mismo dispositivo y sesiÃ³n.
     if m.device_id != ev.device_id or m.boot_id != ev.boot_id:
-        fail(db, ev, "El sensor se reinició o cambió durante la evaluación.")
+        fail(db, ev, "El sensor se reiniciÃ³ o cambiÃ³ durante la evaluaciÃ³n.")
 
     # Verificar que el peso no haya cambiado significativamente.
     if abs(m.weight_g - ev.weight_pre_g) > TOLERANCE_G:
         fail(
             db,
             ev,
-            "El peso cambió durante la captura: posible movimiento o cambio de pieza."
+            "El peso cambiÃ³ durante la captura: posible movimiento o cambio de pieza."
         )
 
-    # Registrar el peso final y vincular la medición original.
+    # Registrar el peso final y vincular la mediciÃ³n original.
     ev.weight_post_g = m.weight_g
     ev.weight_post_at = aware(m.observed_at)
     ev.weight_post_measurement_id = m.id
@@ -511,3 +511,82 @@ def weight_post(
     db.commit()
 
     return weight_step("post", m)
+@router.post("/{evaluation_id}/acquisition/confirm")
+def confirm_acquisition(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
+):
+    ev = get_or_404(db, evaluation_id)
+
+    if ev.status != "processing":
+        raise HTTPException(
+            status_code=409,
+            detail="La evaluaciÃ³n ya no estÃ¡ en proceso."
+        )
+
+    # Verificar los dos registros de peso.
+    if (
+        ev.weight_pre_g is None
+        or ev.weight_post_g is None
+        or ev.weight_pre_measurement_id is None
+        or ev.weight_post_measurement_id is None
+        or ev.weight_grams is None
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Falta completar la captura y confirmaciÃ³n del peso."
+        )
+
+    # Recuperar las mediciones originales.
+    pre = db.get(Measurement, ev.weight_pre_measurement_id)
+    post = db.get(Measurement, ev.weight_post_measurement_id)
+
+    if pre is None or post is None:
+        raise HTTPException(
+            status_code=409,
+            detail="No se encontraron las mediciones originales."
+        )
+
+    # Verificar que ambas mediciones sean del mismo dispositivo y sesiÃ³n.
+    if (
+        pre.device_id != post.device_id
+        or pre.boot_id != post.boot_id
+        or pre.device_id != ev.device_id
+        or pre.boot_id != ev.boot_id
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Las mediciones no corresponden al mismo dispositivo y sesiÃ³n."
+        )
+
+    # Comprobar que existen fotografÃ­as asociadas a esta evaluaciÃ³n.
+    images = db.scalars(
+        select(Image).where(Image.evaluation_id == ev.id)
+    ).all()
+
+    if not images:
+        raise HTTPException(
+            status_code=409,
+            detail="Debe guardar al menos una fotografÃ­a de la pieza."
+        )
+
+    # Verificar que los archivos asociados continÃºen disponibles.
+    for image in images:
+        image_path = DATA_DIR / image.relative_path
+
+        if not image_path.is_file() or image.size_bytes <= 0:
+            raise HTTPException(
+                status_code=409,
+                detail="Existe una fotografÃ­a no disponible o invÃ¡lida."
+            )
+
+    return {
+        "confirmed": True,
+        "evaluationId": public_id(ev.id),
+        "pieceId": ev.piece_id,
+        "product": ev.product,
+        "weightGrams": ev.weight_grams,
+        "imageCount": len(images),
+        "deviceId": ev.device_id,
+    }

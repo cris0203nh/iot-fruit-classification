@@ -16,6 +16,8 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot, Piece
+from app.models import Evaluation, Lot, Piece, Role, User
+from app.security import create_access_token, hash_password
 
 
 class AGROP30LotsPiecesTests(unittest.TestCase):
@@ -31,6 +33,23 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
             connection.execute("PRAGMA foreign_keys=ON")
 
         Base.metadata.create_all(self.engine)
+        self.db = Session(self.engine)
+
+        role = Role(name="operador")
+        user = User(
+            username="agrop30_operador",
+            full_name="Operador AGROP-30",
+            password_hash=hash_password("PruebaSegura123"),
+            is_active=True,
+            roles=[role],
+        )
+
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+
+        self.token = create_access_token(user.id)
+        self.headers = {"Authorization": f"Bearer {self.token}"}
 
         def isolated_db():
             with Session(self.engine) as session:
@@ -47,12 +66,19 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
     def create_lot(self, code="DEMO-MANGO-01", product="mango"):
         return self.client.post(
             "/api/lots",
-            json={"code": code, "product": product, "responsible": "DEMO"},
+            headers=self.headers,
+            json={
+                "code": code,
+                "product": product,
+                "responsible": "DEMO",
+            },
         )
 
     def register(self, code, piece="DEMO-P001"):
         return self.client.post(
-            "/api/evaluations", json={"lotId": code, "pieceId": piece}
+            "/api/evaluations",
+            headers=self.headers,
+            json={"lotId": code, "pieceId": piece},
         )
 
     def test_creacion_y_consulta_de_lote_abierto(self):
@@ -64,8 +90,20 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         self.assertEqual(lot["status"], "open")
         self.assertGreater(lot["id"], 0)
         self.assertIsNotNone(lot["created_at"])
-        self.assertEqual(self.client.get(f"/api/lots/{lot['id']}").json(), lot)
-        self.assertEqual(self.client.get("/api/lots").json(), [lot])
+        self.assertEqual(
+        self.client.get(
+                f"/api/lots/{lot['id']}",
+                headers=self.headers,
+            ).json(),
+            lot,
+        )
+        self.assertEqual(
+    self.client.get(
+        "/api/lots",
+        headers=self.headers,
+    ).json(),
+    [lot],
+)
 
     def test_referencia_de_lote_unica_sin_distinguir_mayusculas(self):
         self.assertEqual(self.create_lot().status_code, 201)
@@ -78,7 +116,13 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
             with self.subTest(code=code, product=product):
                 response = self.create_lot(code, product)
                 self.assertEqual(response.status_code, 422)
-        self.assertEqual(self.client.get("/api/lots").json(), [])
+                self.assertEqual(
+            self.client.get(
+                "/api/lots",
+                headers=self.headers,
+            ).json(),
+            [],
+        )
 
     def test_registro_requiere_lote_existente(self):
         response = self.register("DEMO-NO-EXISTE")
@@ -109,7 +153,13 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         self.assertEqual(saved["product"], "mango")
         self.assertEqual(saved["status"], "processing")
         self.assertIsNone(saved["weightGrams"])
-        self.assertEqual(self.client.get(f"/api/evaluations/{saved['id']}").json(), saved)
+        self.assertEqual(
+        self.client.get(
+                f"/api/evaluations/{saved['id']}",
+                headers=self.headers,
+            ).json(),
+            saved,
+        )
         with Session(self.engine) as db:
             ev = db.scalar(select(Evaluation))
             piece = db.scalar(select(Piece))

@@ -2,15 +2,16 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
-import { WeightStatusCard } from '../features/iot/WeightStatusCard'
+import { WeightCaptureCard } from '../features/iot/WeightCaptureCard'
 import { EvaluationImageCapture } from '../features/capture/EvaluationImageCapture'
 import { isValidPieceId } from '../features/evaluation/pieceValidation'
 import {
-  ApiConnectionError, ApiDataError, ApiResponseError, createEvaluation, listLots,
+  ApiConnectionError, ApiDataError, ApiResponseError, createEvaluation, listLots, confirmEvaluationAcquisition,
   type LotRecord,
 } from '../services/agroscanApi'
 import type { EvaluationDetail } from '../features/history/historyService'
 import './EvaluationPage.css'
+
 
 type Product = FruitProduct | ''
 type Draft = { product: Product; lot: string; piece: string }
@@ -37,9 +38,9 @@ function ProductOption({ value, selected, disabled, onSelect }: {
       disabled={disabled}
       onClick={() => onSelect(value)}
     >
-      <span className="evaluation-product__symbol" aria-hidden="true">{value === 'mango' ? '🥭' : '🍅'}</span>
+      <span className="evaluation-product__symbol" aria-hidden="true">{value === 'mango' ? 'ðŸ¥­' : 'ðŸ…'}</span>
       <span className="evaluation-product__label">{value === 'mango' ? 'Mango' : 'Tomate'}</span>
-      <span className="evaluation-product__hint">Evaluación externa</span>
+      <span className="evaluation-product__hint">EvaluaciÃ³n externa</span>
     </button>
   )
 }
@@ -57,6 +58,14 @@ export function EvaluationPage() {
   const submitting = useRef(false)
   const [created, setCreated] = useState<EvaluationDetail | null>(null)
   const [submitError, setSubmitError] = useState<SubmissionError | null>(null)
+  const [acquisitionConfirmed, setAcquisitionConfirmed] = useState(false)
+  const [confirmingAcquisition, setConfirmingAcquisition] = useState(false)
+  const [acquisitionError, setAcquisitionError] = useState<string | null>(null)
+  const [acquisitionResult, setAcquisitionResult] =
+    useState<Awaited<ReturnType<typeof confirmEvaluationAcquisition>> | null>(null)
+
+  const [weightComplete, setWeightComplete] = useState(false)
+  const [savedImageCount, setSavedImageCount] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -105,16 +114,37 @@ export function EvaluationPage() {
     } catch (error) {
       const uncertain = error instanceof ApiConnectionError || error instanceof ApiDataError
       const message = uncertain
-        ? 'No se pudo confirmar si la evaluación se registró. Consulta Historial antes de volver a intentarlo para evitar duplicados.'
+        ? 'No se pudo confirmar si la evaluaciÃ³n se registrÃ³. Consulta Historial antes de volver a intentarlo para evitar duplicados.'
         : error instanceof ApiResponseError && error.status === 404
           ? 'El lote ya no existe en el backend. Actualiza el listado y selecciona otro lote.'
           : error instanceof ApiResponseError && error.status === 409
-            ? 'El lote está cerrado y no permite iniciar evaluaciones. Actualiza el listado.'
-            : error instanceof Error ? `No se creó la evaluación: ${error.message}` : 'No fue posible crear la evaluación.'
+            ? 'El lote estÃ¡ cerrado y no permite iniciar evaluaciones. Actualiza el listado.'
+            : error instanceof Error ? `No se creÃ³ la evaluaciÃ³n: ${error.message}` : 'No fue posible crear la evaluaciÃ³n.'
       setSubmitError({ message, uncertain })
     } finally {
       submitting.current = false
       setCreating(false)
+    }
+  }
+
+  async function handleConfirmAcquisition() {
+    if (!created || !weightComplete || savedImageCount < 1 || confirmingAcquisition || acquisitionConfirmed) return
+
+    setConfirmingAcquisition(true)
+    setAcquisitionError(null)
+
+    try {
+      const result = await confirmEvaluationAcquisition(created.id)
+      setAcquisitionResult(result)
+      setAcquisitionConfirmed(true)
+    } catch (error) {
+      setAcquisitionError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible confirmar la adquisicion.'
+      )
+    } finally {
+      setConfirmingAcquisition(false)
     }
   }
 
@@ -124,19 +154,25 @@ export function EvaluationPage() {
     setAttempted(false)
     setCreated(null)
     setSubmitError(null)
+    setAcquisitionConfirmed(false)
+    setConfirmingAcquisition(false)
+    setAcquisitionError(null)
+    setAcquisitionResult(null)
+    setWeightComplete(false)
+    setSavedImageCount(0)
   }
 
   return (
     <div className="page-stack evaluation-page">
       <div className="page-heading">
-        <span className="eyebrow">Módulo de evaluación</span>
-        <h1>Evaluación externa de frutas</h1>
-        <p>Registra la identificación de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografías pueden capturarse y vincularse a una evaluación en proceso. El pesaje físico y la clasificación requieren validación independiente.</p>
+        <span className="eyebrow">MÃ³dulo de evaluaciÃ³n</span>
+        <h1>EvaluaciÃ³n externa de frutas</h1>
+        <p>Registra la identificaciÃ³n de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografÃ­as pueden capturarse y vincularse a una evaluaciÃ³n en proceso. El pesaje fÃ­sico y la clasificaciÃ³n requieren validaciÃ³n independiente.</p>
       </div>
 
       <div className="notice notice--warning" role="status">
         <Icon name="alert" size={19} />
-        <span><strong>Registro conectado:</strong> crear una evaluación guarda un registro real en SQLite con estado «En proceso». No implica que se haya pesado, fotografiado o clasificado la fruta.</span>
+        <span><strong>Registro conectado:</strong> crear una evaluaciÃ³n guarda un registro real en SQLite con estado Â«En procesoÂ». No implica que se haya pesado, fotografiado o clasificado la fruta.</span>
       </div>
 
       <div className="evaluation-grid">
@@ -145,7 +181,7 @@ export function EvaluationPage() {
             <span className="evaluation-step" aria-hidden="true">1</span>
             <div>
               <h2>Identificar y registrar la muestra</h2>
-              <p>Una solicitud crea una evaluación. El backend asigna el identificador.</p>
+              <p>Una solicitud crea una evaluaciÃ³n. El backend asigna el identificador.</p>
             </div>
           </div>
 
@@ -183,13 +219,13 @@ export function EvaluationPage() {
                 aria-describedby="lot-reference-hint"
                 onChange={(event) => updateDraft({ ...draft, lot: event.target.value })}
               >
-                <option value="">{lotsState.kind === 'loading' ? 'Consultando lotes…' : 'Selecciona un lote abierto'}</option>
+                <option value="">{lotsState.kind === 'loading' ? 'Consultando lotesâ€¦' : 'Selecciona un lote abierto'}</option>
                 {availableLots.map((lot) => <option key={lot.id} value={lot.code}>{lot.code}</option>)}
               </select>
               {attempted && !selectedLot && <p className="evaluation-error" role="alert">Selecciona un lote abierto confirmado por la API.</p>}
               <p id="lot-reference-hint" className="evaluation-help">
                 {lotsState.kind === 'ready' && availableLots.length === 0
-                  ? 'No hay lotes abiertos para este producto. Registra uno en Gestión de lotes.'
+                  ? 'No hay lotes abiertos para este producto. Registra uno en GestiÃ³n de lotes.'
                   : 'Solo se muestran lotes abiertos recuperados de FastAPI.'}
               </p>
             </div>
@@ -208,17 +244,17 @@ export function EvaluationPage() {
                 onChange={(event) => updateDraft({ ...draft, piece: event.target.value })}
               />
               {attempted && !pieceValid ? (
-                <p id="piece-reference-error" className="evaluation-error" role="alert">Entre 1 y 64 caracteres: letras, números, punto, guion o guion bajo; inicia con letra o número.</p>
+                <p id="piece-reference-error" className="evaluation-error" role="alert">Entre 1 y 64 caracteres: letras, nÃºmeros, punto, guion o guion bajo; inicia con letra o nÃºmero.</p>
               ) : <p id="piece-reference-hint" className="evaluation-help">Identificador de la pieza; verifica que no se haya registrado ya para evitar evaluaciones involuntarias.</p>}
             </div>
           </div>
 
           <div className="evaluation-form__actions">
             <button className="action-button action-button--primary" type="submit" disabled={locked || lotsState.kind !== 'ready'}>
-              <Icon name="clipboard" size={18} /> {creating ? 'Registrando…' : 'Registrar evaluación'}
+              <Icon name="clipboard" size={18} /> {creating ? 'Registrandoâ€¦' : 'Registrar evaluaciÃ³n'}
             </button>
             <button className="action-button action-button--secondary" type="button" onClick={clearForm} disabled={creating}>
-              {created ? 'Nueva evaluación' : 'Limpiar'}
+              {created ? 'Nueva evaluaciÃ³n' : 'Limpiar'}
             </button>
             <Link className="action-button action-button--secondary" to="/lotes">Ir a lotes</Link>
           </div>
@@ -233,9 +269,9 @@ export function EvaluationPage() {
           <div className={`evaluation-preparation${created ? ' evaluation-preparation--confirmed' : ''}`} aria-live="polite" aria-atomic="true">
             {created ? (
               <>
-                <strong>Evaluación registrada en el backend</strong>
-                <p>ID: <b>{created.id}</b> · {created.product === 'mango' ? 'Mango' : 'Tomate'} · Lote: {created.lotId} · Pieza: {created.pieceId}</p>
-                <p>Estado inicial: <b>En proceso</b>. La evaluación existe en SQLite, pero aún no cuenta con adquisición física ni resultado final.</p>
+                <strong>EvaluaciÃ³n registrada en el backend</strong>
+                <p>ID: <b>{created.id}</b> Â· {created.product === 'mango' ? 'Mango' : 'Tomate'} Â· Lote: {created.lotId} Â· Pieza: {created.pieceId}</p>
+                <p>Estado inicial: <b>En proceso</b>. La evaluaciÃ³n existe en SQLite, pero aÃºn no cuenta con adquisiciÃ³n fÃ­sica ni resultado final.</p>
                 <div className="evaluation-record-links">
                   <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>Ver detalle <Icon name="arrow-right" size={16} /></Link>
                   <Link className="action-button action-button--secondary" to={`/trazabilidad/${created.id}`}>Ver trazabilidad</Link>
@@ -243,8 +279,8 @@ export function EvaluationPage() {
               </>
             ) : (
               <>
-                <strong>Sin evaluación iniciada</strong>
-                <p>Selecciona un lote abierto, identifica la pieza y pulsa «Registrar evaluación».</p>
+                <strong>Sin evaluaciÃ³n iniciada</strong>
+                <p>Selecciona un lote abierto, identifica la pieza y pulsa Â«Registrar evaluaciÃ³nÂ».</p>
                 <span>El registro solo se confirma cuando FastAPI devuelve su identificador real.</span>
               </>
             )}
@@ -255,27 +291,87 @@ export function EvaluationPage() {
           <div className="evaluation-section-heading">
             <span className="evaluation-step evaluation-step--muted" aria-hidden="true">2</span>
             <div>
-              <h2 id="acquisition-heading">Adquisición de datos</h2>
-              <p>Lectura por API IoT y captura RGB desde teléfono o galería; la validación física es independiente.</p>
+              <h2 id="acquisition-heading">AdquisiciÃ³n de datos</h2>
+              <p>Lectura por API IoT y captura RGB desde telÃ©fono o galerÃ­a; la validaciÃ³n fÃ­sica es independiente.</p>
             </div>
           </div>
-          <WeightStatusCard />
-          <div className="evaluation-acquisition__card">
-            <div className="evaluation-acquisition__top"><Icon name="camera" size={21} /><strong>Cámara RGB</strong></div>
-            {created ? <EvaluationImageCapture key={created.id} evaluationId={created.id} /> : (
-              <div className="evaluation-camera-empty"><Icon name="camera" size={30} /><span>Primero registra una evaluación para asociar la fotografía a su ID.</span></div>
-            )}
-          </div>
+          {created ? (
+  <>
+    <WeightCaptureCard
+      key={created.id}
+      evaluationId={created.id}
+      onComplete={setWeightComplete}
+    />
+
+    <div className="evaluation-acquisition__card">
+      <div className="evaluation-acquisition__top">
+        <Icon name="camera" size={21} />
+        <strong>Captura fotografica RGB</strong>
+      </div>
+
+      <EvaluationImageCapture
+        key={`images-${created.id}`}
+        evaluationId={created.id}
+        onSavedCountChange={setSavedImageCount}
+      />
+    </div>
+  </>
+) : (
+  <div className="evaluation-acquisition__card">
+    <div className="evaluation-acquisition__top">
+      <Icon name="scale" size={21} />
+      <strong>Pesaje ESP32 + HX711</strong>
+    </div>
+    <div className="evaluation-camera-empty">
+      <Icon name="scale" size={30} />
+      <span>
+        Primero registra una evaluaciÃ³n para habilitar el pesaje
+        de la pieza.
+      </span>
+    </div>
+  </div>
+)}
           <div className="evaluation-disabled-actions">
-            <button type="button" className="action-button action-button--primary" disabled>Finalizar evaluación</button>
+            <button
+  type="button"
+  className="action-button action-button--primary"
+  disabled={!created || !weightComplete || savedImageCount < 1 || confirmingAcquisition || acquisitionConfirmed}
+  onClick={handleConfirmAcquisition}
+>
+  {confirmingAcquisition
+    ? 'Verificando adquisicion...'
+    : acquisitionConfirmed
+      ? 'Adquisicion confirmada'
+      : 'Confirmar peso y fotografia'}
+</button>
+
+{acquisitionError && (
+  <div className="evaluation-submit-error" role="alert">
+    {acquisitionError}
+  </div>
+)}
+
+{acquisitionResult && (
+  <div className="evaluation-preparation evaluation-preparation--confirmed">
+    <strong>Adquisicion conjunta confirmada</strong>
+    <p>
+      Pieza: {acquisitionResult.pieceId}
+      {' · '}
+      Peso: {acquisitionResult.weightGrams} g
+      {' · '}
+      Fotografias: {acquisitionResult.imageCount}
+    </p>
+    <p>Evaluacion: {acquisitionResult.evaluationId}</p>
+  </div>
+)}
           </div>
-          <p className="evaluation-help">Puedes añadir varias vistas de la misma fruta girándola manualmente, sin crear otra evaluación. La captura RGB no genera clasificación automática.</p>
+          <p className="evaluation-help">Puedes aÃ±adir varias vistas de la misma fruta girÃ¡ndola manualmente, sin crear otra evaluaciÃ³n. La captura RGB no genera clasificaciÃ³n automÃ¡tica.</p>
         </section>
       </div>
 
       <section className="panel evaluation-next" aria-labelledby="next-steps-heading">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="next-steps-heading">Siguiente etapa</h2></div>
-        <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
+        <p>La identificaciÃ³n se registra mediante FastAPI. La visualizaciÃ³n del peso ya consulta la API local, pero Fernando debe validar fÃ­sicamente el HX711 y la calibraciÃ³n; la captura RGB inicial requiere verificaciÃ³n con un telÃ©fono real y el anÃ¡lisis automÃ¡tico continÃºa pendiente. La evaluaciÃ³n no se considerarÃ¡ completada hasta que el backend confirme el flujo de adquisiciÃ³n y clasificaciÃ³n.</p>
         <Link to="/historial" className="text-link">Ver historial de evaluaciones <Icon name="arrow-right" size={16} /></Link>
       </section>
     </div>

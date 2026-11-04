@@ -4,6 +4,9 @@ import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
 import { WeightCaptureCard } from '../features/iot/WeightCaptureCard'
 import { EvaluationImageCapture } from '../features/capture/EvaluationImageCapture'
+import { EvaluationGuidedAcquisition } from '../features/evaluation/EvaluationGuidedAcquisition'
+import { GUIDED_STEP_LABELS, type GuidedStep } from '../features/evaluation/evaluationFlow'
+import '../features/evaluation/EvaluationProgress.css'
 import { isValidPieceId } from '../features/evaluation/pieceValidation'
 import {
   ApiConnectionError, ApiDataError, ApiResponseError, createEvaluation, listLots, confirmEvaluationAcquisition,
@@ -58,14 +61,17 @@ export function EvaluationPage() {
   const submitting = useRef(false)
   const [created, setCreated] = useState<EvaluationDetail | null>(null)
   const [submitError, setSubmitError] = useState<SubmissionError | null>(null)
-  const [acquisitionConfirmed, setAcquisitionConfirmed] = useState(false)
-  const [confirmingAcquisition, setConfirmingAcquisition] = useState(false)
-  const [acquisitionError, setAcquisitionError] = useState<string | null>(null)
-  const [acquisitionResult, setAcquisitionResult] =
-    useState<Awaited<ReturnType<typeof confirmEvaluationAcquisition>> | null>(null)
+const [acquisitionConfirmed, setAcquisitionConfirmed] = useState(false)
+const [confirmingAcquisition, setConfirmingAcquisition] = useState(false)
+const [acquisitionError, setAcquisitionError] = useState<string | null>(null)
 
-  const [weightComplete, setWeightComplete] = useState(false)
-  const [savedImageCount, setSavedImageCount] = useState(0)
+const [acquisitionResult, setAcquisitionResult] =
+  useState<Awaited<ReturnType<typeof confirmEvaluationAcquisition>> | null>(null)
+
+const [weightComplete, setWeightComplete] = useState(false)
+const [savedImageCount, setSavedImageCount] = useState(0)
+
+const [guideStep, setGuideStep] = useState<GuidedStep>(1)
 
   useEffect(() => {
     let active = true
@@ -111,6 +117,7 @@ export function EvaluationPage() {
       const saved = await createEvaluation({ lotId: selectedLot.code, pieceId: draft.piece.trim() })
       if (saved.product !== selectedLot.product) throw new ApiDataError()
       setCreated(saved)
+      setGuideStep(2)
     } catch (error) {
       const uncertain = error instanceof ApiConnectionError || error instanceof ApiDataError
       const message = uncertain
@@ -153,6 +160,7 @@ export function EvaluationPage() {
     setDraft(EMPTY_DRAFT)
     setAttempted(false)
     setCreated(null)
+    setGuideStep(1)
     setSubmitError(null)
     setAcquisitionConfirmed(false)
     setConfirmingAcquisition(false)
@@ -169,6 +177,20 @@ export function EvaluationPage() {
         <h1>EvaluaciÃ³n externa de frutas</h1>
         <p>Registra la identificaciÃ³n de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografÃ­as pueden capturarse y vincularse a una evaluaciÃ³n en proceso. El pesaje fÃ­sico y la clasificaciÃ³n requieren validaciÃ³n independiente.</p>
       </div>
+
+      <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
+        <ol>
+          {GUIDED_STEP_LABELS.map((label, index) => {
+            const number = (index + 1) as GuidedStep
+            return (
+              <li key={label} className={number === guideStep ? 'evaluation-progress__active' : number < guideStep ? 'evaluation-progress__passed' : ''} aria-current={number === guideStep ? 'step' : undefined}>
+                <span className="evaluation-progress__number">{number}</span>
+                <span>{label}</span>
+              </li>
+            )
+          })}
+        </ol>
+      </nav>
 
       <div className="notice notice--warning" role="status">
         <Icon name="alert" size={19} />
@@ -269,104 +291,56 @@ export function EvaluationPage() {
           <div className={`evaluation-preparation${created ? ' evaluation-preparation--confirmed' : ''}`} aria-live="polite" aria-atomic="true">
             {created ? (
               <>
-                <strong>EvaluaciÃ³n registrada en el backend</strong>
-                <p>ID: <b>{created.id}</b> Â· {created.product === 'mango' ? 'Mango' : 'Tomate'} Â· Lote: {created.lotId} Â· Pieza: {created.pieceId}</p>
-                <p>Estado inicial: <b>En proceso</b>. La evaluaciÃ³n existe en SQLite, pero aÃºn no cuenta con adquisiciÃ³n fÃ­sica ni resultado final.</p>
-                <div className="evaluation-record-links">
-                  <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>Ver detalle <Icon name="arrow-right" size={16} /></Link>
-                  <Link className="action-button action-button--secondary" to={`/trazabilidad/${created.id}`}>Ver trazabilidad</Link>
-                </div>
-              </>
-            ) : (
-              <>
-                <strong>Sin evaluaciÃ³n iniciada</strong>
-                <p>Selecciona un lote abierto, identifica la pieza y pulsa Â«Registrar evaluaciÃ³nÂ».</p>
-                <span>El registro solo se confirma cuando FastAPI devuelve su identificador real.</span>
-              </>
-            )}
-          </div>
+<div className="evaluation-preparation">
+  {created ? (
+    <>
+      <strong>Evaluación registrada en el backend</strong>
+
+      <p>
+        ID: <b>{created.id}</b> ·
+        {created.product === 'mango' ? 'Mango' : 'Tomate'} ·
+        Lote: {created.lotId} ·
+        Pieza: {created.pieceId}
+      </p>
+
+      <p>
+        Estado inicial: <b>En proceso</b>. La evaluación existe en SQLite.
+        Los pesos y fotografías deben asociarse a la misma evaluación.
+        No se ha registrado clasificación.
+      </p>
+
+      <div className="evaluation-record-links">
+        <Link
+          className="action-button action-button--primary"
+          to={`/historial/${created.id}`}
+        >
+          Ver detalle <Icon name="arrow-right" size={16} />
+        </Link>
+
+        <Link
+          className="action-button action-button--secondary"
+          to={`/trazabilidad/${created.id}`}
+        >
+          Ver trazabilidad
+        </Link>
+      </div>
+    </>
+  ) : (
+    <>
+      <strong>Sin evaluación iniciada</strong>
+      <p>
+        Selecciona un lote abierto, identifica la pieza y pulsa
+        «Registrar evaluación».
+      </p>
+      <span>
+        El registro solo se confirma cuando FastAPI devuelve su identificador real.
+      </span>
+    </>
+  )}
+</div>
         </form>
 
-        <section className="panel evaluation-acquisition" aria-labelledby="acquisition-heading">
-          <div className="evaluation-section-heading">
-            <span className="evaluation-step evaluation-step--muted" aria-hidden="true">2</span>
-            <div>
-              <h2 id="acquisition-heading">AdquisiciÃ³n de datos</h2>
-              <p>Lectura por API IoT y captura RGB desde telÃ©fono o galerÃ­a; la validaciÃ³n fÃ­sica es independiente.</p>
-            </div>
-          </div>
-          {created ? (
-  <>
-    <WeightCaptureCard
-      key={created.id}
-      evaluationId={created.id}
-      onComplete={setWeightComplete}
-    />
 
-    <div className="evaluation-acquisition__card">
-      <div className="evaluation-acquisition__top">
-        <Icon name="camera" size={21} />
-        <strong>Captura fotografica RGB</strong>
-      </div>
-
-      <EvaluationImageCapture
-        key={`images-${created.id}`}
-        evaluationId={created.id}
-        onSavedCountChange={setSavedImageCount}
-      />
-    </div>
-  </>
-) : (
-  <div className="evaluation-acquisition__card">
-    <div className="evaluation-acquisition__top">
-      <Icon name="scale" size={21} />
-      <strong>Pesaje ESP32 + HX711</strong>
-    </div>
-    <div className="evaluation-camera-empty">
-      <Icon name="scale" size={30} />
-      <span>
-        Primero registra una evaluaciÃ³n para habilitar el pesaje
-        de la pieza.
-      </span>
-    </div>
-  </div>
-)}
-          <div className="evaluation-disabled-actions">
-            <button
-  type="button"
-  className="action-button action-button--primary"
-  disabled={!created || !weightComplete || savedImageCount < 1 || confirmingAcquisition || acquisitionConfirmed}
-  onClick={handleConfirmAcquisition}
->
-  {confirmingAcquisition
-    ? 'Verificando adquisicion...'
-    : acquisitionConfirmed
-      ? 'Adquisicion confirmada'
-      : 'Confirmar peso y fotografia'}
-</button>
-
-{acquisitionError && (
-  <div className="evaluation-submit-error" role="alert">
-    {acquisitionError}
-  </div>
-)}
-
-{acquisitionResult && (
-  <div className="evaluation-preparation evaluation-preparation--confirmed">
-    <strong>Adquisicion conjunta confirmada</strong>
-    <p>
-      Pieza: {acquisitionResult.pieceId}
-      {' · '}
-      Peso: {acquisitionResult.weightGrams} g
-      {' · '}
-      Fotografias: {acquisitionResult.imageCount}
-    </p>
-    <p>Evaluacion: {acquisitionResult.evaluationId}</p>
-  </div>
-)}
-          </div>
-          <p className="evaluation-help">Puedes aÃ±adir varias vistas de la misma fruta girÃ¡ndola manualmente, sin crear otra evaluaciÃ³n. La captura RGB no genera clasificaciÃ³n automÃ¡tica.</p>
-        </section>
       </div>
 
       <section className="panel evaluation-next" aria-labelledby="next-steps-heading">

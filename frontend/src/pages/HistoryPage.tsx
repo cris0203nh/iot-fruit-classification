@@ -13,7 +13,7 @@ import {
   type EvaluationSummary,
   type HistoryFilters,
 } from '../features/history/historyService'
-import { ApiConnectionError, ApiResponseError, resolveEvidenceUrl } from '../services/agroscanApi'
+import { ApiConnectionError, ApiResponseError, getSessionRole, resolveEvidenceUrl } from '../services/agroscanApi'
 import './HistoryPage.css'
 
 type LoadState<T> =
@@ -23,7 +23,7 @@ type LoadState<T> =
   | { kind: 'error' }
   | { kind: 'ready'; data: T }
 
-const EMPTY_FILTERS: HistoryFilters = { query: '', product: '', status: '' }
+const EMPTY_FILTERS: HistoryFilters = { query: '', lot: '', piece: '', product: '', status: '' }
 
 function useHistoryList(): { state: LoadState<EvaluationSummary[]>; refresh: () => void } {
   const [state, setState] = useState<LoadState<EvaluationSummary[]>>({ kind: 'loading' })
@@ -69,7 +69,8 @@ export function HistoryPage() {
   const [filters, setFilters] = useState<HistoryFilters>(EMPTY_FILTERS)
   const records = state.kind === 'ready' ? state.data : []
   const filteredRecords = filterHistory(records, filters)
-  const filtersActive = filters.query !== '' || filters.product !== '' || filters.status !== ''
+  const lots = Array.from(new Set(records.map((record) => record.lotId))).sort((a, b) => a.localeCompare(b, 'es-PE'))
+  const filtersActive = filters.query !== '' || filters.lot !== '' || filters.piece !== '' || filters.product !== '' || filters.status !== ''
 
   return (
     <div className="page-stack history-page">
@@ -77,6 +78,7 @@ export function HistoryPage() {
         <span className="eyebrow">Módulo de historial</span>
         <h1>Historial de evaluaciones</h1>
         <p>Consulta por lote, pieza y producto los registros que hayan sido almacenados y confirmados por el sistema.</p>
+        {getSessionRole() === 'revisor' && <p className="history-readonly-note">Modo revisor: consulta de solo lectura. Las evaluaciones y sus evidencias no se modifican.</p>}
       </div>
 
       {state.kind === 'unavailable' && (
@@ -107,6 +109,17 @@ export function HistoryPage() {
             />
           </div>
           <div className="history-field">
+            <label htmlFor="history-lot">Lote</label>
+            <select id="history-lot" value={filters.lot ?? ''} onChange={(event) => setFilters((current) => ({ ...current, lot: event.target.value }))}>
+              <option value="">Todos los lotes</option>
+              {lots.map((lot) => <option key={lot} value={lot}>{lot}</option>)}
+            </select>
+          </div>
+          <div className="history-field">
+            <label htmlFor="history-piece">Pieza</label>
+            <input id="history-piece" type="search" placeholder="Ej.: PEE_01" value={filters.piece ?? ''} onChange={(event) => setFilters((current) => ({ ...current, piece: event.target.value }))} />
+          </div>
+          <div className="history-field">
             <label htmlFor="history-product">Producto</label>
             <select id="history-product" value={filters.product} onChange={(event) => setFilters((current) => ({ ...current, product: event.target.value as HistoryFilters['product'] }))}>
               <option value="">Todos</option>
@@ -131,7 +144,7 @@ export function HistoryPage() {
 
         <div className="history-table-wrap">
           <table className="history-table">
-            <thead><tr><th scope="col">Evaluación / Pieza</th><th scope="col">Producto</th><th scope="col">Lote</th><th scope="col">Fecha</th><th scope="col">Peso</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
+            <thead><tr><th scope="col">Evaluación / Pieza</th><th scope="col">Producto</th><th scope="col">Lote</th><th scope="col">Fecha</th><th scope="col">Peso</th><th scope="col">Imágenes</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
             <tbody>
               {filteredRecords.map((record) => (
                 <tr key={record.id}>
@@ -140,6 +153,7 @@ export function HistoryPage() {
                   <td>{record.lotId}</td>
                   <td>{formatDate(record.registeredAt)}</td>
                   <td>{formatWeight(record.weightGrams)}</td>
+                  <td>{record.imageCount}</td>
                   <td><StatusLabel status={record.status} /></td>
                   <td><Link className="history-detail-link" to={`/historial/${encodeURIComponent(record.id)}`}>Ver detalle <Icon name="arrow-right" size={14} /></Link></td>
                 </tr>
@@ -163,8 +177,8 @@ export function HistoryPage() {
 
       <section className="panel history-guide" aria-labelledby="history-guide-title">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="history-guide-title">Información que se conservará</h2></div>
-        <p>Las consultas muestran los registros existentes. Las evaluaciones en proceso pueden no tener peso ni imágenes. Esta interfaz no modifica resultados; el historial de revisiones se consulta en Trazabilidad.</p>
-        <Link className="text-link" to="/evaluacion">Ir a Evaluación <Icon name="arrow-right" size={16} /></Link>
+        <p>Las consultas muestran registros persistidos. Tras reiniciar FastAPI, vuelve a iniciar sesión y busca el mismo ID: los registros se recuperan desde SQLite. Las evaluaciones en proceso pueden no tener peso ni imágenes.</p>
+        {getSessionRole() !== 'revisor' && <Link className="text-link" to="/evaluacion">Ir a Evaluación <Icon name="arrow-right" size={16} /></Link>}
       </section>
     </div>
   )

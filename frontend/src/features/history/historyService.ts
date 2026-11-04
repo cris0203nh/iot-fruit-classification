@@ -54,16 +54,24 @@ export function formatDate(isoDate: string): string {
 
 export type HistoryFilters = {
   query: string
+  lot?: string
+  piece?: string
   product: '' | EvaluatedProduct
   status: '' | EvaluationStatus
 }
 
+/** Todos los filtros se combinan, sin modificar ni inventar registros del backend. */
 export function filterHistory(items: EvaluationSummary[], filters: HistoryFilters): EvaluationSummary[] {
-  const query = filters.query.trim().toLocaleLowerCase('es-PE')
+  const normalize = (value: string) => value.trim().toLocaleLowerCase('es-PE')
+  const query = normalize(filters.query)
+  const lot = normalize(filters.lot ?? '')
+  const piece = normalize(filters.piece ?? '')
   return items.filter((item) => {
     const matchesText = !query || [item.id, item.lotId, item.pieceId]
-      .some((value) => value.toLocaleLowerCase('es-PE').includes(query))
+      .some((value) => normalize(value).includes(query))
     return matchesText
+      && (!lot || normalize(item.lotId).includes(lot))
+      && (!piece || normalize(item.pieceId).includes(piece))
       && (!filters.product || item.product === filters.product)
       && (!filters.status || item.status === filters.status)
   })

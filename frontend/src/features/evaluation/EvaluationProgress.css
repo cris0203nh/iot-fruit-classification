@@ -1,0 +1,9 @@
+.evaluation-progress { overflow-x: auto; padding-bottom: 2px; }
+.evaluation-progress ol { display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0; }
+.evaluation-progress li { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #d8e5ec; border-radius: 9px; background: #f8fafb; color: #637789; font-size: 11px; font-weight: 650; min-width: 0; }
+.evaluation-progress__number { display: grid; flex: 0 0 23px; height: 23px; place-items: center; border-radius: 50%; background: #e7eef3; color: #566d7b; font-size: 12px; }
+.evaluation-progress li.evaluation-progress__active { border-color: #83c7a5; background: #e9f7ef; color: #14643d; }
+.evaluation-progress__active .evaluation-progress__number { background: #087645; color: white; }
+.evaluation-progress li.evaluation-progress__passed { border-color: #c5e1d2; color: #47795c; }
+.evaluation-progress__passed .evaluation-progress__number { background: #bce8cf; color: #175b35; }
+@media (max-width: 720px) { .evaluation-progress ol { min-width: 680px; } }

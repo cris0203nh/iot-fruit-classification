@@ -495,3 +495,44 @@ export async function loadProtectedEvidence(path: string, signal?: AbortSignal):
   if (blob.size === 0 || blob.size > 5 * 1024 * 1024) throw new ApiDataError()
   return blob
 }
+export type AcquisitionConfirmation = {
+  confirmed: true
+  evaluationId: string
+  pieceId: string
+  product: FruitProduct
+  weightGrams: number
+  imageCount: number
+  deviceId: string
+}
+
+export async function confirmEvaluationAcquisition(
+  evaluationId: string,
+): Promise<AcquisitionConfirmation> {
+  if (!validEvaluationId(evaluationId)) {
+    throw new ApiDataError()
+  }
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/acquisition/confirm`,
+    { method: 'POST' },
+  )
+
+  if (
+    !object(body)
+    || body.confirmed !== true
+    || body.evaluationId !== evaluationId
+    || typeof body.pieceId !== 'string'
+    || (body.product !== 'mango' && body.product !== 'tomate')
+    || typeof body.weightGrams !== 'number'
+    || !Number.isFinite(body.weightGrams)
+    || body.weightGrams < 0
+    || typeof body.imageCount !== 'number'
+    || !Number.isInteger(body.imageCount)
+    || body.imageCount < 1
+    || typeof body.deviceId !== 'string'
+  ) {
+    throw new ApiDataError()
+  }
+
+  return body as AcquisitionConfirmation
+}

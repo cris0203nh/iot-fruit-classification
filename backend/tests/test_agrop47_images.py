@@ -13,6 +13,7 @@ from app.main import app
 from app.models import Evaluation, Lot, Role, User
 from app.security import create_access_token, hash_password
 import app.routers.images as images_router
+import hashlib
 
 
 class AGROP27MultipleViewsTests(unittest.TestCase):
@@ -112,15 +113,22 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
         return evaluation_id
 
     def upload(self, evaluation_id, view, headers=None):
+        idempotency_key = hashlib.sha256(
+            f"{evaluation_id}:{view}".encode("utf-8")
+        ).hexdigest()
+
+        request_headers = dict(headers or {})
+        request_headers["Idempotency-Key"] = idempotency_key
+
         return self.client.post(
             f"/api/evaluations/{evaluation_id}/images",
-            headers=headers,
+            headers=request_headers,
             data={"view": view},
             files={
-            "file": (
-                f"{view}.jpg",
-                b"\xff\xd8\xffcontenido de prueba de imagen\xff\xd9",
-                "image/jpeg",
+                "file": (
+                    f"{view}.jpg",
+                    b"\xff\xd8\xffcontenido de prueba de imagen\xff\xd9",
+                    "image/jpeg",
                 )
             },
         )

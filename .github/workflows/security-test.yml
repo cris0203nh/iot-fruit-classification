@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para que Gitleaks analice todo el historial de commits
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -35,3 +37,9 @@ jobs:
         run: |
           echo "=== ANÁLISIS ESTÁTICO DE CÓDIGO (Bandit) ==="
           bandit -r backend/app -f custom --msg-template "{abspath}:{line}: {severity}: {test_id}: {msg}" || true
+
+      - name: 3. Secret Detection (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ""

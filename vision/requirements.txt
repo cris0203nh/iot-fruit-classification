@@ -1,0 +1,2 @@
+# Dependencia aislada para AGROP-40. No modifica backend/requirements.txt.
+Pillow==12.3.0

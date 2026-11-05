@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0 (Node 24)
         with:
           python-version: '3.12'
       - name: Instalar dependencias
@@ -56,10 +56,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0 (Node 24)
         with:
           node-version: '22'
           cache: npm
@@ -78,10 +78,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0 (Node 24)
         with:
           python-version: '3.12'
       - run: python -m pip install bandit==1.9.4
@@ -96,7 +96,7 @@ jobs:
           python scripts/devsecops/normalize_scan.py --tool bandit --input reports/bandit-raw.json --output reports/bandit.json --exit-code "$code" --fail-severity HIGH
       - name: Guardar reporte seguro
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0 (Node 24)
         with:
           name: devsecops-bandit
           path: reports/bandit.json
@@ -108,10 +108,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0 (Node 24)
         with:
           python-version: '3.12'
       - run: python -m pip install pip-audit==2.10.1
@@ -134,7 +134,7 @@ jobs:
           python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-firmware-raw.json --output reports/pip-firmware.json --exit-code "$code" --fail-findings
       - name: Guardar reportes seguros
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0 (Node 24)
         with:
           name: devsecops-python-sca
           path: |
@@ -144,14 +144,14 @@ jobs:
           retention-days: 14
 
   node-sca:
-    name: Dependencias frontend (observación)
+    name: Dependencias frontend (gate)
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0 (Node 24)
         with:
           node-version: '22'
       - name: Analizar lockfile npm y sanitizar
@@ -162,10 +162,10 @@ jobs:
           npm audit --prefix frontend --json --audit-level=low > reports/npm-raw.json
           code=$?
           set -e
-          python3 scripts/devsecops/normalize_scan.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code"
+          python3 scripts/devsecops/normalize_scan.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code" --fail-findings
       - name: Guardar reporte seguro
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0 (Node 24)
         with:
           name: devsecops-npm-sca
           path: reports/npm.json
@@ -177,7 +177,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -208,7 +208,7 @@ jobs:
           python3 scripts/devsecops/normalize_scan.py --tool gitleaks --input reports/gitleaks-new-raw.json --output reports/gitleaks-new.json --exit-code "$code" --fail-findings
       - name: Guardar reporte sin secretos
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0 (Node 24)
         with:
           name: devsecops-gitleaks
           path: |

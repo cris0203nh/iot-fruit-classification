@@ -74,6 +74,43 @@ class NormalizeTests(unittest.TestCase):
                 self.assertTrue(out.is_file())
                 self.assertFalse(raw.exists())
 
+    def test_npm_audit_gate_blocks_findings_and_sanitizes(self):
+        script = Path(__file__).with_name("normalize_scan.py")
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            raw = directory / "npm-raw.json"
+            safe = directory / "npm.json"
+            raw.write_text(json.dumps({"vulnerabilities": {
+                "example-package": {"severity": "moderate", "isDirect": False,
+                    "via": [{"source": 123, "title": "SECRET-IN-RAW"}],
+                    "fixAvailable": True},
+            }}), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script),
+                "--tool", "npm-audit", "--input", str(raw),
+                "--output", str(safe), "--exit-code", "1", "--fail-findings"],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 1)
+            self.assertFalse(raw.exists())
+            report = json.loads(safe.read_text(encoding="utf-8"))
+            self.assertEqual(report["finding_count"], 1)
+            self.assertEqual(report["by_severity"], {"MODERATE": 1})
+            self.assertNotIn("SECRET-IN-RAW", json.dumps(report))
+
+    def test_npm_audit_gate_accepts_clean_report(self):
+        script = Path(__file__).with_name("normalize_scan.py")
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            raw = directory / "npm-raw.json"
+            safe = directory / "npm.json"
+            raw.write_text(json.dumps({"vulnerabilities": {}}), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script),
+                "--tool", "npm-audit", "--input", str(raw),
+                "--output", str(safe), "--exit-code", "0", "--fail-findings"],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(raw.exists())
+            self.assertEqual(json.loads(safe.read_text(encoding="utf-8"))["finding_count"], 0)
+
     def test_operational_error_must_fail(self):
         script = Path(__file__).with_name("normalize_scan.py")
         with tempfile.TemporaryDirectory() as d:

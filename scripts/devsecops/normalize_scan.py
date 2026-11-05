@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Normalize security scanner reports without publishing raw secrets.
 
-Scanner exit 1 means findings, not an operational failure. For this initial
-baseline, only the *new-commits* secret scan blocks on findings; other tools
-remain observational until findings have been triaged.
+Some scanners use exit status 1 for findings rather than operational failure.
+The workflow gates findings by severity or count for Bandit, Python SCA,
+frontend SCA and new secrets; historical secrets remain observational.
+Unexpected scanner exits and malformed reports always fail closed.
 """
 
 import argparse

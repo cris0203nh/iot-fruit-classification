@@ -2,6 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401
+from .http_security import HttpSecurityHeadersMiddleware
 from .routers import auth, evaluations, images, iot, lots, users
 
 app = FastAPI(title="AgroScan API")
@@ -12,6 +13,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Último middleware registrado = primero en el trayecto de respuesta.
+# También cubre respuestas de preflight generadas por CORSMiddleware.
+app.add_middleware(HttpSecurityHeadersMiddleware)
 
 app.include_router(auth.router)
 app.include_router(users.router)

@@ -1,0 +1,91 @@
+{
+  "tool": "npm-audit",
+  "finding_count": 11,
+  "by_severity": {
+    "MODERATE": 10,
+    "HIGH": 1
+  },
+  "findings": [
+    {
+      "package": "@eslint/config-array",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@eslint/js",
+      "severity": "MODERATE",
+      "direct": true,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@typescript-eslint/eslint-plugin",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@typescript-eslint/parser",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@typescript-eslint/type-utils",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@typescript-eslint/typescript-estree",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "@typescript-eslint/utils",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "eslint",
+      "severity": "MODERATE",
+      "direct": true,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "minimatch",
+      "severity": "MODERATE",
+      "direct": false,
+      "advisory_ids": [
+        "1244623"
+      ],
+      "fix_available": true
+    },
+    {
+      "package": "typescript-eslint",
+      "severity": "MODERATE",
+      "direct": true,
+      "advisory_ids": [],
+      "fix_available": true
+    },
+    {
+      "package": "zod",
+      "severity": "HIGH",
+      "direct": false,
+      "advisory_ids": [
+        "1243066"
+      ],
+      "fix_available": true
+    }
+  ]
+}

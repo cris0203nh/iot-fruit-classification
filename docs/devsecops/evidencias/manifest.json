@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "project": "AgroScan",
+  "branch": "security/devsecops-hardening",
+  "description": "Snapshots normalizados y sanitizados de las ejecuciones de GitHub Actions; no contienen reportes crudos ni credenciales.",
+  "scans": {
+    "baseline": {
+      "commit": "ce9a16d",
+      "run_id": 41954160456,
+      "workflow": "AgroScan DevSecOps - baseline y controles"
+    },
+    "post02": {
+      "commit": "2a59115",
+      "run_id": 41960690988,
+      "workflow": "AgroScan DevSecOps - baseline y controles"
+    },
+    "post04": {
+      "commit": "7b8e2ebb8c567e4e1a715115584afcba5cf3f103",
+      "run_id": 41967242501,
+      "workflow": "AgroScan DevSecOps - baseline y controles"
+    },
+    "dast03": {
+      "commit": "2954fe0",
+      "run_id": 41964882349,
+      "workflow": "AgroScan DevSecOps - baseline y controles"
+    },
+    "dast04": {
+      "commit": "7b8e2ebb8c567e4e1a715115584afcba5cf3f103",
+      "run_id": 41967242501,
+      "workflow": "AgroScan DevSecOps - baseline y controles"
+    }
+  },
+  "files": {
+    "baseline/bandit.json": {
+      "sha256": "0f1dae832e625de3ff81d76d82c32a985d2f5d7a797d34f6f62b83f15e1d181b",
+      "artifact": "devsecops-bandit.zip",
+      "run_id": 41954160456
+    },
+    "baseline/npm.json": {
+      "sha256": "a9f3fc0b0fc0ceaf0775e5a8c6248e69a7cc0bb64a11d4fd1617ad5c5e44dfe6",
+      "artifact": "devsecops-npm-sca.zip",
+      "run_id": 41954160456
+    },
+    "baseline/pip-backend.json": {
+      "sha256": "2f657613e79524cc5bcf6e6584ee3a1e491bd1867d3c583481adc1120f101fdc",
+      "artifact": "devsecops-python-sca.zip",
+      "run_id": 41954160456
+    },
+    "baseline/pip-firmware.json": {
+      "sha256": "16b395a884aaa76b32b9506c8e2a31f63db6a3f6de9aa6848b79fe400207079b",
+      "artifact": "devsecops-python-sca.zip",
+      "run_id": 41954160456
+    },
+    "baseline/gitleaks-history.json": {
+      "sha256": "3915584e436c7bd8c36915b93ce881f4bb493c68903a7f9c8f299de3838a9a86",
+      "artifact": "devsecops-gitleaks.zip",
+      "run_id": 41954160456
+    },
+    "baseline/gitleaks-new.json": {
+      "sha256": "06c92b847e7b7db562a037b2c358aebdaf54840aa0349be6c48c07024518a099",
+      "artifact": "devsecops-gitleaks.zip",
+      "run_id": 41954160456
+    },
+    "post02/bandit.json": {
+      "sha256": "53be9173c1554c75145b325870adab093b09534b06a6af6399a318caaffe29d9",
+      "artifact": "devsecops-bandit (1).zip",
+      "run_id": 41960690988
+    },
+    "post02/npm.json": {
+      "sha256": "a08d3ef93d8e22c3f64321a225eb3bd683c43f5b26fac1da55361390c88beecf",
+      "artifact": "devsecops-npm-sca (1).zip",
+      "run_id": 41960690988
+    },
+    "post02/pip-backend.json": {
+      "sha256": "16b395a884aaa76b32b9506c8e2a31f63db6a3f6de9aa6848b79fe400207079b",
+      "artifact": "devsecops-python-sca (1).zip",
+      "run_id": 41960690988
+    },
+    "post02/pip-firmware.json": {
+      "sha256": "16b395a884aaa76b32b9506c8e2a31f63db6a3f6de9aa6848b79fe400207079b",
+      "artifact": "devsecops-python-sca (1).zip",
+      "run_id": 41960690988
+    },
+    "post02/gitleaks-history.json": {
+      "sha256": "3915584e436c7bd8c36915b93ce881f4bb493c68903a7f9c8f299de3838a9a86",
+      "artifact": "devsecops-gitleaks (1).zip",
+      "run_id": 41960690988
+    },
+    "post02/gitleaks-new.json": {
+      "sha256": "06c92b847e7b7db562a037b2c358aebdaf54840aa0349be6c48c07024518a099",
+      "artifact": "devsecops-gitleaks (1).zip",
+      "run_id": 41960690988
+    },
+    "post04/bandit.json": {
+      "sha256": "53be9173c1554c75145b325870adab093b09534b06a6af6399a318caaffe29d9",
+      "artifact": "AgroScan_CI_final_bandit.zip",
+      "run_id": 41967242501
+    },
+    "post04/npm.json": {
+      "sha256": "a08d3ef93d8e22c3f64321a225eb3bd683c43f5b26fac1da55361390c88beecf",
+      "artifact": "AgroScan_CI_final_npm-sca.zip",
+      "run_id": 41967242501
+    },
+    "post04/pip-backend.json": {
+      "sha256": "16b395a884aaa76b32b9506c8e2a31f63db6a3f6de9aa6848b79fe400207079b",
+      "artifact": "AgroScan_CI_final_python-sca.zip",
+      "run_id": 41967242501
+    },
+    "post04/pip-firmware.json": {
+      "sha256": "16b395a884aaa76b32b9506c8e2a31f63db6a3f6de9aa6848b79fe400207079b",
+      "artifact": "AgroScan_CI_final_python-sca.zip",
+      "run_id": 41967242501
+    },
+    "post04/gitleaks-history.json": {
+      "sha256": "3915584e436c7bd8c36915b93ce881f4bb493c68903a7f9c8f299de3838a9a86",
+      "artifact": "AgroScan_CI_final_gitleaks.zip",
+      "run_id": 41967242501
+    },
+    "post04/gitleaks-new.json": {
+      "sha256": "06c92b847e7b7db562a037b2c358aebdaf54840aa0349be6c48c07024518a099",
+      "artifact": "AgroScan_CI_final_gitleaks.zip",
+      "run_id": 41967242501
+    },
+    "dast03/zap.json": {
+      "sha256": "cacb1397e9ff602426e717e562d1b53274157771e039ac1414b468bbf9800c92",
+      "artifact": "devsecops-zap-dast.zip",
+      "run_id": 41964882349
+    },
+    "dast04/zap.json": {
+      "sha256": "7875e1657881c23fb017e61bc56a2f38bd01462fefcf168d801a077f6cfb600b",
+      "artifact": "AgroScan_DAST_PostIncremento04.zip",
+      "run_id": 41967242501
+    }
+  }
+}

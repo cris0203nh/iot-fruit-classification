@@ -1,0 +1,15 @@
+{
+  "tool": "pip-audit",
+  "finding_count": 1,
+  "by_severity": {},
+  "findings": [
+    {
+      "package": "opentelemetry-api",
+      "version": "1.45.0",
+      "id": "CVE-2026-114603",
+      "fix_versions": [
+        "1.45.1"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "tool": "bandit",
+  "finding_count": 2,
+  "by_severity": {
+    "LOW": 2
+  },
+  "findings": [
+    {
+      "rule": "B105",
+      "file": "backend/app/routers/auth.py",
+      "line": 41,
+      "severity": "LOW",
+      "confidence": "MEDIUM"
+    },
+    {
+      "rule": "B311",
+      "file": "backend/dataset/particionar_datos.py",
+      "line": 80,
+      "severity": "LOW",
+      "confidence": "HIGH"
+    }
+  ]
+}

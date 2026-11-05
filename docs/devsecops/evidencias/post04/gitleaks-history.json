@@ -1,0 +1,28 @@
+{
+  "tool": "gitleaks",
+  "finding_count": 3,
+  "by_severity": {},
+  "findings": [
+    {
+      "rule": "generic-api-key",
+      "file": "backend/tests/test_agrop47_user_management.py",
+      "line": 75,
+      "commit": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b",
+      "fingerprint": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b:backend/tests/test_agrop47_user_management.py:generic-api-key:75"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "backend/tests/test_agrop47_user_management.py",
+      "line": 120,
+      "commit": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b",
+      "fingerprint": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b:backend/tests/test_agrop47_user_management.py:generic-api-key:120"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "backend/tests/test_agrop47_user_management.py",
+      "line": 149,
+      "commit": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b",
+      "fingerprint": "b85c7bd1be4a060b9c68ee7d1f02a2f589471c3b:backend/tests/test_agrop47_user_management.py:generic-api-key:149"
+    }
+  ]
+}

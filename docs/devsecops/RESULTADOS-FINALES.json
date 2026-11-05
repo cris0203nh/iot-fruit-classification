@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "scope": "snapshots sanitizados por commit, no pentest de producción",
+  "baseline": {
+    "bandit": 2,
+    "npm": 11,
+    "pip_backend": 1,
+    "pip_firmware": 0,
+    "gitleaks_history": 3,
+    "gitleaks_new": 0,
+    "total": 17
+  },
+  "after_increment02": {
+    "bandit": 2,
+    "npm": 0,
+    "pip_backend": 0,
+    "pip_firmware": 0,
+    "gitleaks_history": 3,
+    "gitleaks_new": 0,
+    "total": 5
+  },
+  "after_increment04": {
+    "bandit": 2,
+    "npm": 0,
+    "pip_backend": 0,
+    "pip_firmware": 0,
+    "gitleaks_history": 3,
+    "gitleaks_new": 0,
+    "total": 5
+  },
+  "total_records_reduced": 12,
+  "reduction_percent": 70.6,
+  "dast_before_http": {
+    "rules": 5,
+    "by_severity": {
+      "INFO": 3,
+      "LOW": 2,
+      "MEDIUM": 0,
+      "HIGH": 0,
+      "CRITICAL": 0
+    },
+    "occurrences": 33,
+    "rule_ids": [
+      "100000",
+      "10021",
+      "10049",
+      "10111",
+      "90004"
+    ]
+  },
+  "dast_after_http": {
+    "rules": 3,
+    "by_severity": {
+      "INFO": 3,
+      "LOW": 0,
+      "MEDIUM": 0,
+      "HIGH": 0,
+      "CRITICAL": 0
+    },
+    "occurrences": 29,
+    "rule_ids": [
+      "100000",
+      "10049",
+      "10111"
+    ]
+  }
+}

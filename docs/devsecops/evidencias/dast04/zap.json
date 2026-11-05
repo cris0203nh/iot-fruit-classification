@@ -1,0 +1,29 @@
+{
+  "tool": "zap-api-passive",
+  "scan_mode": "openapi-safe-no-active-scan",
+  "finding_count": 3,
+  "by_severity": {
+    "INFO": 3,
+    "LOW": 0,
+    "MEDIUM": 0,
+    "HIGH": 0,
+    "CRITICAL": 0
+  },
+  "findings": [
+    {
+      "rule_id": "100000",
+      "severity": "INFO",
+      "occurrences": 22
+    },
+    {
+      "rule_id": "10049",
+      "severity": "INFO",
+      "occurrences": 5
+    },
+    {
+      "rule_id": "10111",
+      "severity": "INFO",
+      "occurrences": 2
+    }
+  ]
+}

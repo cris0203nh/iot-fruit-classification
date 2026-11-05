@@ -1,3 +1,4 @@
+import secrets
 import copy
 import importlib.util
 import json
@@ -15,6 +16,8 @@ def envelope(sim=False):
             'measurement':{'schema_version':1,'device_id':'simulator-test' if sim else 'esp32-test',
             'boot_id':'boot-test','seq':1,'weight_g':250.0,'stable':True,'zero_confirmed':True,
             'calibration_version':'simulated-test-1' if sim else 'cal-test-1'}}
+
+TEST_DEVICE_KEY = secrets.token_hex(32)
 
 class BridgeTests(unittest.TestCase):
     def test_valid_and_events(self):
@@ -50,10 +53,12 @@ class BridgeTests(unittest.TestCase):
             with self.subTest(url=url),self.assertRaises(ValueError):bridge.validate_url(url)
     def request(self, replies):
         bodies=[]
+        headers_seen=[]
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
             def do_POST(self):
                 bodies.append(self.rfile.read(int(self.headers['Content-Length'])))
+                headers_seen.append(self.headers.get('X-Device-Key'))
                 item=replies[min(len(bodies)-1,len(replies)-1)]
                 code,ack=item
                 if code=='truncated':
@@ -65,32 +70,40 @@ class BridgeTests(unittest.TestCase):
         server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         self.addCleanup(server.server_close);self.addCleanup(thread.join);self.addCleanup(server.shutdown)
+        self.headers_seen = headers_seen
         return f'http://127.0.0.1:{server.server_port}/api/iot/measurements',bodies
     def test_ack(self):
         url,bodies=self.request([(200,{'received':True,'duplicate':False,'receivedAt':'2026-10-30T00:00:00Z'})])
-        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0)['received']);self.assertEqual(len(bodies),1)
+        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)['received']);self.assertEqual(len(bodies),1)
+        self.assertEqual(self.headers_seen, [TEST_DEVICE_KEY])
     def test_retry_503_identical_payload(self):
         url,bodies=self.request([(503,{}),(200,{'received':True,'duplicate':True,'receivedAt':'test'})])
-        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0)['duplicate'])
+        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)['duplicate'])
         self.assertEqual(len(bodies),2);self.assertEqual(bodies[0],bodies[1])
     def test_truncated_ack_retries_identical_payload(self):
         url,bodies=self.request([('truncated',{}),(200,{'received':True,'duplicate':True,'receivedAt':'test'})])
-        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0)['duplicate'])
+        self.assertTrue(bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)['duplicate'])
         self.assertEqual(len(bodies),2);self.assertEqual(bodies[0],bodies[1])
     def test_4xx_not_retried(self):
         url,bodies=self.request([(422,{})])
-        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0)
+        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)
         self.assertEqual(len(bodies),1)
     def test_retry_limit(self):
         url,bodies=self.request([(503,{})])
-        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0)
+        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)
         self.assertEqual(len(bodies),3)
     def test_invalid_ack_not_retried(self):
         url,bodies=self.request([(200,{'received':True,'duplicate':False})])
-        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0)
+        with self.assertRaises(RuntimeError):bridge.send(url,envelope()['measurement'],delay=0,device_key=TEST_DEVICE_KEY)
         self.assertEqual(len(bodies),1)
+    def test_rejects_missing_key_and_insecure_remote(self):
+        with self.assertRaisesRegex(ValueError, 'AGROSCAN_IOT_DEVICE_KEY'):
+            bridge.send('http://127.0.0.1:1',{}, device_key='short')
+        with self.assertRaisesRegex(ValueError, 'HTTPS'):
+            bridge.send('http://example.com/api/iot/measurements',{}, device_key=TEST_DEVICE_KEY)
+
     def test_bad_options(self):
         for kwargs in [{'attempts':4},{'timeout':0},{'delay':-1}]:
-            with self.assertRaises(ValueError):bridge.send('http://127.0.0.1:1',{},**kwargs)
+            with self.assertRaises(ValueError):bridge.send('http://127.0.0.1:1',{},device_key=TEST_DEVICE_KEY,**kwargs)
 
 if __name__=='__main__':unittest.main()

@@ -74,7 +74,7 @@ jobs:
         run: npm run build --prefix frontend
 
   bandit:
-    name: SAST Python (observación)
+    name: SAST Python (gate alta/crítica)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -93,7 +93,7 @@ jobs:
           bandit -r backend/app backend/dataset firmware/tools -f json -o reports/bandit-raw.json
           code=$?
           set -e
-          python scripts/devsecops/normalize_scan.py --tool bandit --input reports/bandit-raw.json --output reports/bandit.json --exit-code "$code"
+          python scripts/devsecops/normalize_scan.py --tool bandit --input reports/bandit-raw.json --output reports/bandit.json --exit-code "$code" --fail-severity HIGH
       - name: Guardar reporte seguro
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -104,7 +104,7 @@ jobs:
           retention-days: 14
 
   python-sca:
-    name: Dependencias Python (observación)
+    name: Dependencias Python (gate)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -123,7 +123,7 @@ jobs:
           pip-audit --no-deps -r backend/requirements.txt --format=json --output=reports/pip-backend-raw.json --progress-spinner=off
           code=$?
           set -e
-          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-backend-raw.json --output reports/pip-backend.json --exit-code "$code"
+          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-backend-raw.json --output reports/pip-backend.json --exit-code "$code" --fail-findings
       - name: Analizar dependencias de puente serial
         shell: bash
         run: |
@@ -131,7 +131,7 @@ jobs:
           pip-audit --no-deps -r firmware/tools/requirements.txt --format=json --output=reports/pip-firmware-raw.json --progress-spinner=off
           code=$?
           set -e
-          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-firmware-raw.json --output reports/pip-firmware.json --exit-code "$code"
+          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-firmware-raw.json --output reports/pip-firmware.json --exit-code "$code" --fail-findings
       - name: Guardar reportes seguros
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

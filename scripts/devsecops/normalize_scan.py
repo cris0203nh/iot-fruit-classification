@@ -106,6 +106,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--exit-code", required=True, type=int)
     parser.add_argument("--fail-findings", action="store_true")
+    parser.add_argument("--fail-severity", choices=("MEDIUM", "HIGH", "CRITICAL"))
     args = parser.parse_args()
 
     if args.exit_code not in (0, 1):
@@ -136,10 +137,18 @@ def main() -> int:
         # Raw reports may contain secrets: never save them as CI artifacts.
         args.input.unlink(missing_ok=True)
 
-    print(f"{args.tool}: {result['finding_count']} hallazgos normalizados; modo={'gate' if args.fail_findings else 'baseline'}. ")
+    print(f"{args.tool}: {result['finding_count']} hallazgos normalizados; modo={'gate' if (args.fail_findings or args.fail_severity) else 'baseline'}. ")
     if args.fail_findings and result["finding_count"]:
-        print(f"Se bloquea el cambio por {result['finding_count']} secreto(s) nuevo(s).", file=sys.stderr)
+        print(f"Se bloquea por {result['finding_count']} hallazgo(s) de {args.tool}.", file=sys.stderr)
         return 1
+    if args.fail_severity:
+        rank = {"LOW": 1, "MEDIUM": 2, "MODERATE": 2, "HIGH": 3, "CRITICAL": 4}
+        selected = rank[args.fail_severity]
+        blocking = [item for item in result["findings"]
+                    if rank.get(item.get("severity", ""), 0) >= selected]
+        if blocking:
+            print(f"Se bloquea por {len(blocking)} hallazgo(s) de severidad {args.fail_severity} o superior.", file=sys.stderr)
+            return 1
     return 0
 
 

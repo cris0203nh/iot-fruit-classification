@@ -1,3 +1,5 @@
+> **DevSecOps (Incremento 02):** Este documento describe pruebas anteriores al endurecimiento de la API. Ahora `POST /api/iot/measurements` requiere `X-Device-Key` de un dispositivo registrado y `GET /api/iot/status` requiere JWT de operador. Ver [`devsecops/INCREMENTO-02.md`](devsecops/INCREMENTO-02.md) para configurar credenciales locales y repetir los pasos. Nunca enviar claves en capturas.
+
 # AGROP-22 · [AG-014] Visualización del peso y su estado
 
 > Actualización del 01/11/2026: este documento conserva el estado histórico de la entrega de software. Ya existen ensayos físicos de Fernando; consultar el [registro actualizado](hardware/AGROP-21-23-validacion-fisica.md) antes de interpretar sus pendientes. Esos ensayos no acreditan todavía el recorrido completo del peso real hasta AgroScan.

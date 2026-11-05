@@ -1,0 +1,146 @@
+{
+  "name": "AgroScan DevSecOps - primera línea base automática",
+  "date": "2026-11-04",
+  "repository": "cris0203nh/iot-fruit-classification",
+  "base_commit": "5544bfceffedea167e40c686381e7e32ba771d41",
+  "workflow_commit_short": "ce9a16d",
+  "branch": "security/devsecops-hardening",
+  "workflow_status": "success",
+  "counts": {
+    "bandit_low": 2,
+    "gitleaks_historic": 3,
+    "gitleaks_new": 0,
+    "npm_high": 1,
+    "npm_moderate": 10,
+    "pip_backend_findings": 1,
+    "pip_firmware_findings": 0,
+    "total_automated_records": 17
+  },
+  "caveats": [
+    "Los registros no representan un número equivalente de vulnerabilidades independientes o explotables",
+    "El pipeline SAST/SCA opera en modo observación",
+    "Gitleaks indica patrones detectados, no verifica por sí solo la existencia de credenciales reales",
+    "pip-audit fue ejecutado con --no-deps y no necesariamente cubre dependencias transitivas no fijadas",
+    "Los reportes npm normalizados no incluyen todas las versiones o cadenas de dependencias; se contrastó package-lock.json"
+  ],
+  "triage": [
+    {
+      "tool": "npm-audit",
+      "component": "zod",
+      "version_in_lock": "4.6.5",
+      "classification": "HIGH - dependency advisory",
+      "identifier": "GHSA-mrhx-c7xc-m3w5",
+      "fix": "4.6.6 o posterior",
+      "scope": "dependencia transitiva de desarrollo vía eslint-plugin-react-hooks",
+      "priority": "P1",
+      "comment": "La presencia en tooling reduce exposición directa de runtime; debe actualizarse y probarse el pipeline."
+    },
+    {
+      "tool": "npm-audit",
+      "component": "minimatch",
+      "version_in_lock": "10.2.6",
+      "classification": "MODERATE - dependency advisory",
+      "identifier": "GHSA-g3hv-75wg-m249",
+      "fix": "11.0.1 o posterior",
+      "scope": "dependencia transitiva de herramientas ESLint",
+      "priority": "P2",
+      "comment": "Es una actualización de versión mayor frente a ^10; no forzar sin verificar compatibilidad."
+    },
+    {
+      "tool": "npm-audit",
+      "component": "otros 9 paquetes",
+      "version_in_lock": null,
+      "classification": "MODERATE - affected dependency packages",
+      "identifier": null,
+      "fix": "revisar árbol npm audit / npm ls",
+      "scope": "ecosistema ESLint y TypeScript ESLint",
+      "priority": "P2",
+      "comment": "Posible propagación de avisos transitivos; no contarlos como CVE distintos sin evidencia."
+    },
+    {
+      "tool": "pip-audit",
+      "component": "opentelemetry-api",
+      "version_in_lock": "1.45.0",
+      "classification": "MEDIUM - vulnerability confirmed in advisory",
+      "identifier": "CVE-2026-114603",
+      "fix": "1.45.1 o posterior",
+      "scope": "backend/requirements.txt",
+      "priority": "P1",
+      "comment": "Riesgo de disponibilidad al analizar cabecera tracestate, condicionado a uso del propagador."
+    },
+    {
+      "tool": "bandit",
+      "component": "backend/app/routers/auth.py",
+      "version_in_lock": null,
+      "classification": "LOW - benign OAuth2 literal",
+      "identifier": "B105",
+      "fix": "documentar justificación o excepción localizada",
+      "scope": "línea 41: token_type bearer",
+      "priority": "P3",
+      "comment": "No es contraseña embebida."
+    },
+    {
+      "tool": "bandit",
+      "component": "backend/dataset/particionar_datos.py",
+      "version_in_lock": null,
+      "classification": "LOW - reproducible PRNG",
+      "identifier": "B311",
+      "fix": "documentar razón de semilla determinista",
+      "scope": "línea 80: random.Random(SEMILLA)",
+      "priority": "P3",
+      "comment": "No tiene uso criptográfico."
+    },
+    {
+      "tool": "gitleaks",
+      "component": "backend/tests/test_agrop47_user_management.py",
+      "version_in_lock": null,
+      "classification": "3 historical probable test fixtures",
+      "identifier": "generic-api-key",
+      "fix": "revisión y excepción contextual si procede",
+      "scope": "líneas 75,120,149 en commit b85c7bd",
+      "priority": "P3",
+      "comment": "Coincide con contraseñas de ejemplo de pruebas; nunca publicar sus valores en reportes."
+    }
+  ],
+  "additional_manual_findings_not_counted": [
+    "Endpoints de ingreso IoT sin autenticación, requieren hardening y pruebas de autorización",
+    "Login sin rate-limiting observable en auditoría anterior",
+    "Protecciones de manipulación y validación de uploads requieren revisión posterior"
+  ],
+  "sources": [
+    {
+      "filename": "devsecops-bandit.zip",
+      "entries": [
+        "bandit.json"
+      ]
+    },
+    {
+      "filename": "devsecops-gitleaks.zip",
+      "entries": [
+        "gitleaks-history.json",
+        "gitleaks-new.json"
+      ]
+    },
+    {
+      "filename": "devsecops-npm-sca.zip",
+      "entries": [
+        "npm.json"
+      ]
+    },
+    {
+      "filename": "devsecops-python-sca.zip",
+      "entries": [
+        "pip-backend.json",
+        "pip-firmware.json"
+      ]
+    }
+  ],
+  "next_metrics": [
+    "conteo por tipo y severidad después de cambios",
+    "cero secretos nuevos en Gitleaks",
+    "tests QA no regresivos",
+    "pip-audit sin CVE-2026-114603",
+    "npm audit sin GHSA-mrhx-c7xc-m3w5 y GHSA-g3hv-75wg-m249",
+    "pruebas negativas de autenticación IoT y protección de login"
+  ]
+}

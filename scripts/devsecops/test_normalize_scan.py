@@ -56,6 +56,24 @@ class NormalizeTests(unittest.TestCase):
                 self.assertFalse(raw.exists())
                 self.assertNotIn("SECRET", safe.read_text(encoding="utf-8"))
 
+    def test_bandit_high_gate_allows_justified_low_but_blocks_high(self):
+        script = Path(__file__).with_name("normalize_scan.py")
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            for severity, expected in (("LOW", 0), ("HIGH", 1)):
+                raw = directory / "raw.json"
+                out = directory / "safe.json"
+                raw.write_text(json.dumps({"results": [{"test_id": "B000",
+                    "filename": "app.py", "line_number": 10,
+                    "issue_severity": severity, "issue_confidence": "HIGH"}]}))
+                result = subprocess.run([sys.executable, str(script),
+                    "--tool", "bandit", "--input", str(raw),
+                    "--output", str(out), "--exit-code", "1",
+                    "--fail-severity", "HIGH"], capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected)
+                self.assertTrue(out.is_file())
+                self.assertFalse(raw.exists())
+
     def test_operational_error_must_fail(self):
         script = Path(__file__).with_name("normalize_scan.py")
         with tempfile.TemporaryDirectory() as d:

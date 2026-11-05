@@ -6,6 +6,8 @@ import datetime as dt
 import http.client
 import json
 import math
+import os
+import ipaddress
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -27,10 +29,21 @@ class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
+def _loopback(hostname):
+    if hostname.lower() == 'localhost':
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
 def validate_url(url):
     p = urlsplit(url)
     if p.scheme not in ('http', 'https') or not p.hostname or p.username or p.password or p.fragment:
         raise ValueError('URL HTTP(S) sin credenciales ni fragmento requerida')
+    if p.scheme == 'http' and not _loopback(p.hostname):
+        raise ValueError('Se requiere HTTPS fuera de localhost')
 
 def extract_measurement(
     envelope,
@@ -75,15 +88,19 @@ def extract_measurement(
 
     return result
 
-def send(url, payload, attempts=3, timeout=2.0, delay=0.25):
+def send(url, payload, attempts=3, timeout=2.0, delay=0.25, *, device_key=None):
     validate_url(url)
+    if device_key is None:
+        device_key = os.getenv('AGROSCAN_IOT_DEVICE_KEY')
+    if not isinstance(device_key, str) or not 32 <= len(device_key) <= 256:
+        raise ValueError('Configura AGROSCAN_IOT_DEVICE_KEY con al menos 32 caracteres')
     if type(attempts) is not int or not 1 <= attempts <= 3 or not 0 < timeout <= 2 or not 0 <= delay <= 1:
         raise ValueError('Intentos 1–3, timeout (0,2], delay [0,1] requeridos')
     body = json.dumps(payload, allow_nan=False, separators=(',', ':')).encode()
     opener = build_opener(NoRedirect())
     last_error = None
     for i in range(attempts):
-        req = Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        req = Request(url, data=body, headers={'Content-Type': 'application/json', 'X-Device-Key': device_key}, method='POST')
         try:
             with opener.open(req, timeout=timeout) as response:
                 if response.status != 200:
@@ -125,6 +142,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.url:
         validate_url(args.url)
+        if not os.getenv('AGROSCAN_IOT_DEVICE_KEY'):
+            parser.error('Configura AGROSCAN_IOT_DEVICE_KEY en el entorno antes de reenviar')
     try:
         import serial
     except ImportError:

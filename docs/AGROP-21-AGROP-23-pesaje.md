@@ -80,6 +80,8 @@ Dentro de `measurement`, los campos del contrato comunicado son:
 
 `measurement` es `null` cuando no hay peso válido. `seq` aumenta con cada medición publicada; los reintentos HTTP conservan el mismo mensaje y secuencia. El identificador de versión incluye arranque y revisión para no mezclar calibraciones entre sesiones. Las secuencias de diagnóstico no son evidencia de conexión Wi-Fi: este firmware usa **USB/serie → PC → HTTP**.
 
+> **DevSecOps (Incremento 02):** los ejemplos siguientes de POST requieren configurar el token del puente `AGROSCAN_IOT_DEVICE_KEY` y el mapa `AGROSCAN_IOT_KEYS_JSON` del backend; ver [`devsecops/INCREMENTO-02.md`](devsecops/INCREMENTO-02.md). HTTP solo se permite hacia loopback; fuera de él HTTPS es obligatorio.
+
 ## Puente de laptop al backend
 
 Cerrar el monitor serial antes de usar el puente: solo una aplicación puede abrir el puerto. La apertura USB puede reiniciar el ESP32. Mantener la plataforma vacía para solicitar tara explícita con `--tare-on-open`; si la ventana todavía no está lista, repetir la tara desde el monitor y comprobar el comportamiento de reinicio del puerto.

@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..dependencies import require_authenticated
+from ..iot_auth import authenticate_measurement_sender
 from ..iot_schemas import IotStatusOut, MeasurementCreate, MeasurementOut
 from ..models import Measurement
 
@@ -20,7 +22,7 @@ def iso(value: datetime) -> str:
     return value.isoformat()
 
 
-@router.post("/measurements", response_model=MeasurementOut)
+@router.post("/measurements", response_model=MeasurementOut, dependencies=[Depends(authenticate_measurement_sender)])
 def receive_measurement(payload: MeasurementCreate, db: Session = Depends(get_db)):
     if payload.schema_version != 1:
         raise HTTPException(status_code=422, detail="schema_version no soportada.")
@@ -52,7 +54,7 @@ def receive_measurement(payload: MeasurementCreate, db: Session = Depends(get_db
     return {"received": True, "duplicate": False, "receivedAt": iso(m.received_at)}
 
 
-@router.get("/status", response_model=IotStatusOut)
+@router.get("/status", response_model=IotStatusOut, dependencies=[Depends(require_authenticated)])
 def iot_status(db: Session = Depends(get_db)):
     last = db.scalar(select(Measurement).order_by(Measurement.id.desc()).limit(1))
     if last is None:

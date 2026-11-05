@@ -1,6 +1,8 @@
+import secrets
 """Real team IoT routes, isolated SQLite; no physical hardware or production data."""
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -12,7 +14,8 @@ from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
-from app.models import Measurement
+from app.models import Measurement, User, Role
+from app.security import hash_password, create_access_token
 from app.routers import iot
 from firmware.tools.serial_bridge import extract_measurement
 from firmware.weight_simulator import measurement
@@ -21,12 +24,23 @@ class BackendIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.engine=create_engine('sqlite://',connect_args={'check_same_thread':False},poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
+        self.test_key = secrets.token_hex(32)
+        config = patch.dict('os.environ', {
+            'AGROSCAN_IOT_KEYS_JSON': json.dumps({'esp32-test': self.test_key, 'simulator-fernando-001': self.test_key})
+        })
+        config.start()
+        self.addCleanup(config.stop)
+        with sessionmaker(bind=self.engine)() as db:
+            user=User(username='iot_observer',full_name='IoT Observer',password_hash=hash_password('TestingPassword123'),is_active=True, roles=[Role(name='operador')])
+            db.add(user);db.commit(); uid=user.id
+        self.test_bearer=create_access_token(uid)
         self.sessions=sessionmaker(bind=self.engine)
         def isolated_db():
             with self.sessions() as db:
                 yield db
         app=FastAPI();app.include_router(iot.router);app.dependency_overrides[get_db]=isolated_db
         self.client=TestClient(app)
+        self.client.headers.update({'Authorization': f'Bearer {self.test_bearer}', 'X-Device-Key': self.test_key})
         self.addCleanup(self.engine.dispose);self.addCleanup(self.client.close)
     def payload(self):
         env={'type':'telemetry','simulated':False,'status':'stable','measurement':{

@@ -40,7 +40,8 @@ def login(
         "access_token": token,
         "token_type": "bearer",
     }
-
+    # Ejemplo en backend/app/routers/auth.py:
+authorization_header = "bearer"  # nosec B105
 
 @router.get("/me")
 def get_me(

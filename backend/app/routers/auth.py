@@ -36,11 +36,11 @@ def login(
 
     token = create_access_token(user.id)
 
-    authorization_header = "bearer"  # nosec B105
+    authorization_header = "bearer"  
 
     return {
         "access_token": token,
-        "token_type": "bearer" # nosec B105
+        "token_type": "bearer" 
     }
 
 

@@ -1,0 +1,25 @@
+{
+  "experiment_id": "AGROP40-EJEMPLO-SIN-EJECUTAR",
+  "piece": {
+    "lot_id": "COLOCAR_LOTE_REAL",
+    "piece_id": "COLOCAR_PIEZA_REAL",
+    "product": "mango",
+    "variety_declared": "Kent"
+  },
+  "coverage_verified": null,
+  "images": [
+    {
+      "image_id": "COLOCAR_ID_REAL",
+      "view": "vista-1",
+      "path": "RUTA_LOCAL_A_IMAGEN_REAL.jpg",
+      "quality": {
+        "focus_ok": null,
+        "lighting_ok": null,
+        "unoccluded": null
+      },
+      "roi_xywh": null,
+      "roi_verified": false
+    }
+  ],
+  "weight": null
+}

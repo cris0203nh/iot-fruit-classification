@@ -216,3 +216,83 @@ jobs:
             reports/gitleaks-new.json
           if-no-files-found: warn
           retention-days: 14
+
+  dast-api:
+    name: DAST API ZAP (pasivo, gate alta/crítica)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0 (Node 24)
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias API
+        run: python -m pip install -r backend/requirements.txt
+      - name: Instancia aislada y escaneo OpenAPI sin ataques activos
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          isolated="$(mktemp -d)"
+          server_pid=''
+          cleanup() {
+            if [ -n "$server_pid" ]; then
+              kill "$server_pid" 2>/dev/null || true
+              wait "$server_pid" 2>/dev/null || true
+            fi
+            rm -rf -- "$isolated"
+            rm -f reports/zap-raw.json
+          }
+          trap cleanup EXIT
+
+          # NO usar backend/data ni backend/.env del checkout. Todo queda en /tmp.
+          cp -R backend/app "$isolated/app"
+          export PYTHONPATH="$isolated"
+          export AGROSCAN_JWT_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          export AGROSCAN_IOT_KEYS_JSON="$(python -c 'import json,secrets; print(json.dumps({"DAST-DEVICE": secrets.token_urlsafe(36)}))')"
+          python - <<'PYDB'
+          from app import models  # noqa: F401
+          from app.database import Base, engine
+          Base.metadata.create_all(engine)
+          PYDB
+
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --no-access-log > "$isolated/server.log" 2>&1 &
+          server_pid=$!
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8765/api/health > /dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'DAST: no fue posible iniciar la API temporal.' >&2
+            exit 1
+          fi
+          python scripts/devsecops/dast_smoke.py
+
+          # ZAP puede registrar cuerpos y rutas en el JSON crudo; publicamos
+          # exclusivamente la salida normalizada y luego eliminamos el crudo.
+          mkdir -p reports
+          chmod 0777 reports  # Solo en runner efímero; imagen usa usuario zap.
+          set +e
+          docker run --rm --network host \
+            -v "$PWD/reports:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef \
+            zap-api-scan.py -t http://127.0.0.1:8765/openapi.json -f openapi \
+            -S -T 5 -s -J zap-raw.json
+          zap_code=$?
+          set -e
+          python scripts/devsecops/normalize_zap.py \
+            --input reports/zap-raw.json --output reports/zap.json \
+            --exit-code "$zap_code" --fail-severity HIGH
+      - name: Guardar reporte DAST sanitizado
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0 (Node 24)
+        with:
+          name: devsecops-zap-dast
+          path: reports/zap.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,3 @@
+# Los escáneres generan aquí informes potencialmente sensibles: no versionarlos.
+*
+!.gitignore

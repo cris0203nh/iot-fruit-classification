@@ -1,0 +1,218 @@
+name: AgroScan DevSecOps - baseline y controles
+
+on:
+  push:
+    branches: [security/devsecops-hardening]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devsecops-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Pruebas backend e IoT
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias
+        run: python -m pip install -r backend/requirements.txt
+      - name: Generar secreto JWT efímero solo para pruebas
+        run: |
+          python - <<'PYSECRET'
+          import os
+          import secrets
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as target:
+              target.write('AGROSCAN_JWT_SECRET=' + secrets.token_hex(32) + '\n')
+          PYSECRET
+      - name: Pruebas de API/backend
+        env:
+          PYTHONPATH: backend
+        run: python -m unittest discover -s backend/tests -p 'test_*.py' -v
+      - name: Pruebas de integración IoT/puente
+        env:
+          PYTHONPATH: backend
+        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Compilar y probar ScaleCore
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -pedantic tests/test_scale_core.cpp -o /tmp/agroscan-scale-tests
+          /tmp/agroscan-scale-tests
+      - name: Pruebas del sanitizador DevSecOps
+        run: python -m unittest discover -s scripts/devsecops -p 'test_*.py' -v
+
+  frontend-tests:
+    name: Frontend lint, test y build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias según lockfile
+        run: npm ci --prefix frontend
+      - name: ESLint
+        run: npm run lint --prefix frontend
+      - name: Pruebas React y servicios
+        run: npm test --prefix frontend
+      - name: TypeScript y build Vite
+        run: npm run build --prefix frontend
+
+  bandit:
+    name: SAST Python (observación)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install bandit==1.9.4
+      - name: Analizar código Python y sanitizar reporte
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          bandit -r backend/app backend/dataset firmware/tools -f json -o reports/bandit-raw.json
+          code=$?
+          set -e
+          python scripts/devsecops/normalize_scan.py --tool bandit --input reports/bandit-raw.json --output reports/bandit.json --exit-code "$code"
+      - name: Guardar reporte seguro
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devsecops-bandit
+          path: reports/bandit.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-sca:
+    name: Dependencias Python (observación)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pip-audit==2.10.1
+      - name: Analizar backend (versiones explícitas)
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          pip-audit --no-deps -r backend/requirements.txt --format=json --output=reports/pip-backend-raw.json --progress-spinner=off
+          code=$?
+          set -e
+          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-backend-raw.json --output reports/pip-backend.json --exit-code "$code"
+      - name: Analizar dependencias de puente serial
+        shell: bash
+        run: |
+          set +e
+          pip-audit --no-deps -r firmware/tools/requirements.txt --format=json --output=reports/pip-firmware-raw.json --progress-spinner=off
+          code=$?
+          set -e
+          python scripts/devsecops/normalize_scan.py --tool pip-audit --input reports/pip-firmware-raw.json --output reports/pip-firmware.json --exit-code "$code"
+      - name: Guardar reportes seguros
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devsecops-python-sca
+          path: |
+            reports/pip-backend.json
+            reports/pip-firmware.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  node-sca:
+    name: Dependencias frontend (observación)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Analizar lockfile npm y sanitizar
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          npm audit --prefix frontend --json --audit-level=low > reports/npm-raw.json
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize_scan.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code"
+      - name: Guardar reporte seguro
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devsecops-npm-sca
+          path: reports/npm.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  secrets:
+    name: Secretos históricos y nuevos (gate nuevos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Auditar historial completo (observación)
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD:/repo:ro" -v "$PWD/reports:/out" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact=100 --report-format=json --report-path=/out/gitleaks-history-raw.json /repo
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize_scan.py --tool gitleaks --input reports/gitleaks-history-raw.json --output reports/gitleaks-history.json --exit-code "$code"
+      - name: Bloquear secretos introducidos después de main
+        shell: bash
+        run: |
+          # Range measures only commits added on the security branch, not legacy findings.
+          test -n "$(git merge-base origin/main HEAD)"
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD:/repo:ro" -v "$PWD/reports:/out" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact=100 --log-opts="origin/main..HEAD" --report-format=json --report-path=/out/gitleaks-new-raw.json /repo
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize_scan.py --tool gitleaks --input reports/gitleaks-new-raw.json --output reports/gitleaks-new.json --exit-code "$code" --fail-findings
+      - name: Guardar reporte sin secretos
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devsecops-gitleaks
+          path: |
+            reports/gitleaks-history.json
+            reports/gitleaks-new.json
+          if-no-files-found: warn
+          retention-days: 14

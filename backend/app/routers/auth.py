@@ -36,12 +36,13 @@ def login(
 
     token = create_access_token(user.id)
 
+    authorization_header = "bearer"  # nosec B105
+
     return {
         "access_token": token,
-        "token_type": "bearer",
+        "token_type": "bearer"
     }
-    # Ejemplo en backend/app/routers/auth.py:
-authorization_header = "bearer"  # nosec B105
+
 
 @router.get("/me")
 def get_me(

@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useRef, useState } from 'react'
 import {
   ApiConnectionError,
@@ -6,6 +6,8 @@ import {
   getEvaluationById,
   resolveEvidenceUrl,
   uploadEvaluationPhoto,
+  detectEvaluationFrame,
+  type FruitDetectionResult,
   type CapturedEvidence,
 } from '../../services/agroscanApi'
 import {
@@ -53,6 +55,10 @@ export function EvaluationImageCapture({
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const sending = useRef(false)
+  const detecting = useRef(false)
+  const stableFrames = useRef(0)
+  const autoCaptureTriggered = useRef(false)
+  const capturePhotoRef = useRef<() => Promise<void>>(async () => {})
 
   const [candidate, setCandidate] = useState<Candidate | null>(null)
 
@@ -76,6 +82,9 @@ export function EvaluationImageCapture({
   const [cameraOpen, setCameraOpen] = useState(false)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraStarting, setCameraStarting] = useState(false)
+  const [, setVisionDetection] = useState<FruitDetectionResult | null>(null)
+  const [visionMessage, setVisionMessage] =
+    useState("Esperando detecci?n de fruta.")
 
   const nextView = nextCaptureView(saved.map(item => item.view))
 
@@ -198,6 +207,103 @@ export function EvaluationImageCapture({
     setCameraReady(false)
   }
 
+
+  // AGROP-42: detección automática de mango y tomate en vivo.
+  useEffect(() => {
+    if (!cameraOpen || !cameraReady) return
+
+    let active = true
+    let timer: number | undefined
+
+    const video = videoRef.current
+    const canvas = document.createElement('canvas')
+
+    async function detectFrame() {
+      if (!active) return
+
+      if (!video || video.readyState < 2 || detecting.current) {
+        timer = window.setTimeout(detectFrame, 300)
+        return
+      }
+
+      detecting.current = true
+
+      try {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('Canvas no disponible')
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+        const blob = await new Promise<Blob | null>(resolve => {
+          canvas.toBlob(resolve, 'image/jpeg', 0.75)
+        })
+
+        if (!blob) throw new Error('Fotograma no disponible')
+
+        const result = await detectEvaluationFrame(evaluationId, blob)
+
+        if (!active) return
+
+        setVisionDetection(result)
+
+        if (result.readyToCapture) {
+          stableFrames.current += 1
+
+          setVisionMessage(
+            `Fruta detectada: ${((result.confidence ?? 0) * 100).toFixed(1)} %. Estabilizando...`
+          )
+
+          if (
+            stableFrames.current >= 3 &&
+            !autoCaptureTriggered.current
+          ) {
+            autoCaptureTriggered.current = true
+
+            setVisionMessage('Fruta identificada. Capturando fotografía...')
+
+            await capturePhotoRef.current()
+            return
+          }
+        } else {
+          stableFrames.current = 0
+          autoCaptureTriggered.current = false
+
+          setVisionMessage(
+            result.candidateCount > 1
+              ? 'Se detectaron varias frutas. Deja solamente una.'
+              : 'Buscando mango o tomate frente a la cámara...'
+          )
+        }
+      } catch {
+        if (active) {
+          stableFrames.current = 0
+          setVisionMessage('Error de detección. Reintentando...')
+        }
+      } finally {
+        detecting.current = false
+      }
+
+      if (active) {
+        timer = window.setTimeout(detectFrame, 700)
+      }
+    }
+
+    void detectFrame()
+
+    return () => {
+      active = false
+
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+      }
+
+      stableFrames.current = 0
+      detecting.current = false
+    }
+  }, [cameraOpen, cameraReady, evaluationId])
   // Liberar cámara al desmontar el componente.
   useEffect(() => {
     return () => {
@@ -337,6 +443,9 @@ export function EvaluationImageCapture({
 
     closeCamera()
   }
+
+  // Referencia actual para la captura automática.
+  capturePhotoRef.current = capturePhoto
 
   // Descartar fotografía.
   function discard() {
@@ -486,6 +595,9 @@ export function EvaluationImageCapture({
             Cámara integrada de la laptop. Coloca el mango o tomate frente a ella.
           </p>
 
+          <p className="capture__hint" role="status">
+            {visionMessage}
+          </p>
           <div className="capture__actions">
 
             <button

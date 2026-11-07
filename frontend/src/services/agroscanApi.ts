@@ -98,9 +98,13 @@ function detailMessage(body: unknown): string | null {
   return null
 }
 
-async function request(path: string, options?: RequestInit): Promise<unknown> {
+async function request(
+  path: string,
+  options?: RequestInit,
+  timeoutMs = 8000
+): Promise<unknown> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 8000)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response: Response
   try {
     const headers = sessionToken ? new Headers(options?.headers) : options?.headers
@@ -537,4 +541,62 @@ export async function confirmEvaluationAcquisition(
   }
 
   return body as AcquisitionConfirmation
+}
+
+
+
+// AGROP-42: resultado de detecci?n y segmentaci?n en vivo.
+
+export type FruitDetectionResult = {
+  detected: boolean
+  readyToCapture: boolean
+  product: FruitProduct
+  confidence: number | null
+  box: [number, number, number, number] | null
+  polygon: Array<[number, number]>
+  candidateCount: number
+  frameWidth: number
+  frameHeight: number
+  reason: string
+}
+
+export async function detectEvaluationFrame(
+  evaluationId: string,
+  frame: Blob
+): Promise<FruitDetectionResult> {
+
+  if (!validEvaluationId(evaluationId) || frame.type !== "image/jpeg") {
+    throw new ApiDataError()
+  }
+
+  const form = new FormData()
+  form.append("file", frame, "fotograma.jpg")
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/vision/detect`,
+    {
+      method: "POST",
+      body: form
+    },
+    30000
+  )
+
+  if (typeof body !== "object" || body === null) {
+    throw new ApiDataError()
+  }
+
+  const value = body as Record<string, unknown>
+
+  if (
+    typeof value.detected !== "boolean" ||
+    typeof value.readyToCapture !== "boolean" ||
+    typeof value.frameWidth !== "number" ||
+    typeof value.frameHeight !== "number" ||
+    typeof value.candidateCount !== "number" ||
+    !Array.isArray(value.polygon)
+  ) {
+    throw new ApiDataError()
+  }
+
+  return value as unknown as FruitDetectionResult
 }

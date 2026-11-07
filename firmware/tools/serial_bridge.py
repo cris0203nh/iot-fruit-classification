@@ -167,10 +167,8 @@ def main(argv=None):
                         continue
                     print(json.dumps({'ack': send(args.url, message)}), flush=True)
                     last_identity = identity
-                    port.reset_input_buffer()  # Do not replay queued stale weights after retries.
                 except (ValueError, RuntimeError) as exc:
                     print(f'Descartado: {exc}', file=sys.stderr)
-                    port.reset_input_buffer()
     except KeyboardInterrupt:
         return 0
     except serial.SerialException as exc:

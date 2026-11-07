@@ -2,6 +2,11 @@
 import os
 import re
 import uuid
+import threading
+from pathlib import Path
+
+import cv2
+import numpy as np
 
 from fastapi import (
     APIRouter, Depends, File, Form, Header,
@@ -187,6 +192,191 @@ async def upload_image(
         )
 
     return image_out(img)
+
+
+
+
+# =====================================================
+# AGROSCAN: DETECCI?N Y SEGMENTACI?N YOLOE EN VIVO
+# =====================================================
+
+VISION_ROOT = Path(__file__).resolve().parents[3]
+VISION_WEIGHTS = VISION_ROOT / "vision" / "models" / "yoloe-26n-seg.pt"
+VISION_PROMPTS = VISION_ROOT / "vision" / "models" / "agroscan_mango_tomato_prompts.npz"
+
+VISION_CLASSES = ["mango fruit", "tomato fruit"]
+
+_VISION_MODEL = None
+_VISION_INIT_LOCK = threading.Lock()
+_VISION_INFERENCE_LOCK = threading.Lock()
+
+
+def get_vision_model():
+    global _VISION_MODEL
+
+    if _VISION_MODEL is None:
+        with _VISION_INIT_LOCK:
+            if _VISION_MODEL is None:
+                from ultralytics import YOLOE
+
+                if not VISION_WEIGHTS.is_file():
+                    raise RuntimeError("Faltan los pesos YOLOE.")
+
+                model = YOLOE(str(VISION_WEIGHTS))
+
+                if VISION_PROMPTS.is_file():
+                    model.load_prompt_embeddings(str(VISION_PROMPTS))
+                else:
+                    model.set_classes(VISION_CLASSES)
+
+                _VISION_MODEL = model
+
+    return _VISION_MODEL
+
+
+@router.post("/evaluations/{evaluation_id}/vision/detect")
+def detect_evaluation_frame(
+    evaluation_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator),
+):
+    pk = parse_eval(evaluation_id)
+    ev = db.get(Evaluation, pk) if pk is not None else None
+
+    if ev is None:
+        raise HTTPException(404, "Evaluaci?n no encontrada.")
+
+    if ev.status != "processing":
+        raise HTTPException(409, "La evaluaci?n ya no est? en proceso.")
+
+    if ev.product not in ("mango", "tomate"):
+        raise HTTPException(422, "Producto no compatible.")
+
+    if file.content_type != "image/jpeg":
+        raise HTTPException(422, "La c?mara debe enviar JPEG.")
+
+    content = file.file.read(2 * 1024 * 1024 + 1)
+
+    if not content or len(content) > 2 * 1024 * 1024:
+        raise HTTPException(422, "Fotograma vac?o o demasiado grande.")
+
+    frame = cv2.imdecode(
+        np.frombuffer(content, dtype=np.uint8),
+        cv2.IMREAD_COLOR
+    )
+
+    if frame is None:
+        raise HTTPException(422, "No se pudo decodificar el fotograma.")
+
+    try:
+        model = get_vision_model()
+
+        with _VISION_INFERENCE_LOCK:
+            result = model.predict(
+                source=frame,
+                imgsz=512,
+                conf=0.25,
+                iou=0.50,
+                max_det=10,
+                device="cpu",
+                verbose=False
+            )[0]
+
+        candidates = []
+        names = result.names
+
+        if result.boxes is not None:
+            for index, box in enumerate(result.boxes):
+                class_id = int(box.cls[0].item())
+
+                label = (
+                    names.get(class_id, "")
+                    if isinstance(names, dict)
+                    else names[class_id]
+                )
+
+                label = str(label).lower()
+
+                if ev.product == "mango" and "mango" not in label:
+                    continue
+
+                if ev.product == "tomate" and not any(
+                    word in label for word in ("tomato", "tomate")
+                ):
+                    continue
+
+                confidence = float(box.conf[0].item())
+
+                coordinates = [
+                    float(value)
+                    for value in box.xyxy[0].tolist()
+                ]
+
+                polygon = []
+
+                if result.masks is not None:
+                    polygons = result.masks.xy
+
+                    if index < len(polygons):
+                        points = polygons[index]
+
+                        stride = max(1, len(points) // 120)
+
+                        polygon = [
+                            [
+                                round(float(point[0]), 1),
+                                round(float(point[1]), 1)
+                            ]
+                            for point in points[::stride]
+                        ]
+
+                candidates.append({
+                    "box": coordinates,
+                    "confidence": confidence,
+                    "polygon": polygon
+                })
+
+        candidates.sort(
+            key=lambda item: item["confidence"],
+            reverse=True
+        )
+
+        selected = candidates[0] if candidates else None
+
+        ready = (
+            len(candidates) == 1
+            and selected is not None
+            and selected["confidence"] >= 0.40
+            and len(selected["polygon"]) >= 3
+        )
+
+        return {
+            "detected": selected is not None,
+            "readyToCapture": ready,
+            "product": ev.product,
+            "confidence": selected["confidence"] if selected else None,
+            "box": selected["box"] if selected else None,
+            "polygon": selected["polygon"] if selected else [],
+            "candidateCount": len(candidates),
+            "frameWidth": int(frame.shape[1]),
+            "frameHeight": int(frame.shape[0]),
+            "reason": (
+                "deteccion_unica"
+                if ready
+                else "varias_frutas"
+                if len(candidates) > 1
+                else "deteccion_no_confirmada"
+            )
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Detector YOLOE no disponible: {type(exc).__name__}"
+        ) from exc
 
 
 @router.get("/images/{image_id}")

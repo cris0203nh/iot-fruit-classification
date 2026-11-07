@@ -16,3 +16,19 @@
 .capture__rotation { border: 1px solid #c7e4d5; background: #f0faf4; border-radius: 8px; color: #276145 !important; padding: 10px; font-size: 12px !important; }
 .capture__rotation-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #34566a; line-height: 1.5; }
 .capture__rotation-check input { margin-top: 3px; flex-shrink: 0; }
+
+/* AGROP-26 integrated webcam */
+.capture__camera {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+.capture__video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #111;
+  border-radius: 9px;
+}

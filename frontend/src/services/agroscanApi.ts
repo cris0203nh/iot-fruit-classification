@@ -220,6 +220,8 @@ export async function captureWeightPost(
   return body
 }
 
+
+
 export async function listLots(): Promise<LotRecord[]> {
   const body = await request('/api/lots')
   if (!Array.isArray(body) || !body.every(isLotRecord)) throw new ApiDataError()

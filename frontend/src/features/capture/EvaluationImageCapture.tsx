@@ -1,5 +1,4 @@
-
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import {
   ApiConnectionError,
   ApiResponseError,
@@ -18,30 +17,24 @@ type Props = {
   onSavedCountChange?: (count: number) => void
   onEvidenceChange?: (count: number) => void
 }
-
 type Saved = CapturedEvidence & { url: string }
 type LoadedState = 'loading' | 'ready' | 'closed' | 'failed'
 
 function asSaved(evidence: CapturedEvidence[]): Saved[] {
   return evidence.map((item) => {
     const url = resolveEvidenceUrl(item.imageUrl)
-
-    if (!url) {
-      throw new Error('El servidor devolvió una ruta de imagen no válida.')
-    }
-
+    if (!url) throw new Error('Ruta de imagen no válida.')
     return { ...item, url }
   })
 }
 
-/** AGROP-27: varias vistas, siempre ligadas al mismo identificador de evaluación. */
 export function EvaluationImageCapture({
   evaluationId,
   onSavedCountChange,
   onEvidenceChange,
 }: Props) {
-  const cameraInput = useRef<HTMLInputElement>(null)
-  const galleryInput = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const sending = useRef(false)
 
   const [candidate, setCandidate] = useState<{ file: File; url: string } | null>(null)
@@ -51,89 +44,187 @@ export function EvaluationImageCapture({
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [rotationConfirmed, setRotationConfirmed] = useState(false)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraReady, setCameraReady] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
 
-  // Comunicar las fotografías guardadas a ambos flujos.
+  const nextView = nextCaptureView(saved.map(item => item.view))
+  const canCapture = loadState === 'ready' && !uploading
+  const canSave = canCapture && (saved.length === 0 || rotationConfirmed)
+
   useEffect(() => {
     onSavedCountChange?.(saved.length)
     onEvidenceChange?.(saved.length)
   }, [saved.length, onSavedCountChange, onEvidenceChange])
 
-  const nextView = nextCaptureView(saved.map((item) => item.view))
-  const canCapture = loadState === 'ready' && !uploading
-  const canSave = canCapture && (saved.length === 0 || rotationConfirmed)
-
-  // Consultar las fotografías asociadas a la evaluación actual.
   useEffect(() => {
     let active = true
 
     getEvaluationById(evaluationId).then(
-      (detail) => {
+      detail => {
         if (!active) return
-
         if (!detail) {
           setLoadState('failed')
-          setError('No se encontró la evaluación. No es posible agregar fotografías.')
+          setError('No se encontró la evaluación.')
           return
         }
-
         try {
           setSaved(asSaved(detail.evidence))
           setLoadState(detail.status === 'processing' ? 'ready' : 'closed')
           setError(null)
         } catch (failure) {
           setLoadState('failed')
-          setError(
-            failure instanceof Error
-              ? failure.message
-              : 'Respuesta de imágenes no válida.',
-          )
+          setError(failure instanceof Error ? failure.message : 'Error al consultar imágenes.')
         }
       },
       (failure: unknown) => {
         if (!active) return
-
         setLoadState('failed')
         setError(
           failure instanceof ApiConnectionError
-            ? 'Sin conexión al consultar las vistas. Reintenta antes de enviar una imagen.'
+            ? 'No hay conexión con FastAPI.'
             : failure instanceof ApiResponseError
-              ? `No se pudieron consultar las vistas (HTTP ${failure.status}).`
-              : 'No fue posible comprobar las imágenes guardadas.',
+              ? `Error HTTP ${failure.status} al consultar imágenes.`
+              : 'No se pudieron consultar las imágenes.'
         )
-      },
+      }
     )
 
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [evaluationId, revision])
 
-  // Liberar la URL temporal de la vista previa.
   useEffect(() => {
     return () => {
       if (candidate) URL.revokeObjectURL(candidate.url)
     }
   }, [candidate])
 
-  function selectFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0] ?? null
-    event.currentTarget.value = ''
+  useEffect(() => {
+    if (!cameraOpen) return
 
-    if (!file || !canCapture) return
+    const video = videoRef.current
+    const stream = streamRef.current
 
-    const validationError = captureFileError(file)
+    if (!video || !stream) return
 
-    setError(validationError)
-    setCandidate(
-      validationError
-        ? null
-        : { file, url: URL.createObjectURL(file) },
+    video.srcObject = stream
+    void video.play().catch(() => {
+      setError('No se pudo iniciar la vista previa de la cámara.')
+    })
+
+    return () => {
+      video.srcObject = null
+    }
+  }, [cameraOpen])
+
+  function closeCamera() {
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    streamRef.current = null
+    setCameraOpen(false)
+    setCameraReady(false)
+  }
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+  }, [])
+
+  async function openCamera() {
+    if (!canCapture || cameraStarting) return
+
+    setError(null)
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setError('Abre AgroScan mediante localhost o HTTPS para utilizar la cámara.')
+      return
+    }
+
+    setCameraStarting(true)
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+
+      streamRef.current = stream
+      setCameraOpen(true)
+    } catch (failure) {
+      const name = failure instanceof Error ? failure.name : ''
+
+      setError(
+        name === 'NotAllowedError'
+          ? 'Permite el acceso a la cámara en Chrome.'
+          : name === 'NotFoundError'
+            ? 'No se encontró la cámara integrada de la laptop.'
+            : name === 'NotReadableError'
+              ? 'La cámara está ocupada por otra aplicación. Cierra Cámara de Windows.'
+              : 'No se pudo iniciar la cámara.'
+      )
+    } finally {
+      setCameraStarting(false)
+    }
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current
+
+    if (!video || !cameraReady || !video.videoWidth) {
+      setError('Espera a que aparezca la imagen de la cámara.')
+      return
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+
+    const context = canvas.getContext('2d')
+
+    if (!context) {
+      setError('No se pudo procesar la fotografía.')
+      return
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.85)
+    })
+
+    if (!blob) {
+      setError('No se pudo generar la fotografía.')
+      return
+    }
+
+    const file = new File(
+      [blob],
+      `AgroScan-${evaluationId}-${Date.now()}.jpg`,
+      { type: 'image/jpeg', lastModified: Date.now() }
     )
+
+    const validation = captureFileError(file)
+
+    if (validation) {
+      setError(validation)
+      return
+    }
+
+    setCandidate({
+      file,
+      url: URL.createObjectURL(file),
+    })
+
+    setError(null)
+    closeCamera()
   }
 
   function discard() {
     if (!canCapture) return
-
     setCandidate(null)
     setError(null)
   }
@@ -149,25 +240,21 @@ export function EvaluationImageCapture({
       const result = await uploadEvaluationPhoto(
         evaluationId,
         candidate.file,
-        nextView,
+        nextView
       )
 
       const [item] = asSaved([result])
-
-      setSaved((previous) => [...previous, item])
+      setSaved(previous => [...previous, item])
       setRotationConfirmed(false)
       setCandidate(null)
     } catch (failure) {
-      const message =
+      setError(
         failure instanceof ApiConnectionError
-          ? 'No se pudo confirmar el envío. Comprueba el detalle o actualiza las vistas antes de reintentar para evitar duplicados.'
+          ? 'No se pudo confirmar el envío. Consulta las imágenes guardadas antes de reintentar.'
           : failure instanceof ApiResponseError
-            ? `No se guardó la fotografía (HTTP ${failure.status}): ${failure.message}`
-            : 'No se pudo confirmar el guardado. Consulta el detalle antes de reintentar.'
-
-      setError(message)
-
-      // Evitar repetir a ciegas una operación cuyo resultado es incierto.
+            ? `Error HTTP ${failure.status}: ${failure.message}`
+            : 'No se pudo confirmar el almacenamiento.'
+      )
       setLoadState('failed')
     } finally {
       sending.current = false
@@ -176,24 +263,19 @@ export function EvaluationImageCapture({
   }
 
   return (
-    <div className="capture" aria-label="Captura de vistas RGB">
+    <div className="capture" aria-label="Captura RGB">
       <p className="capture__reference">
         Evaluación actual: <strong>{evaluationId}</strong>
       </p>
 
       <p className="capture__hint">
-        Todas las fotografías deben corresponder a la misma fruta.
-        Gira manualmente la pieza entre tomas, sin iniciar otra evaluación.
+        Fotografía una sola fruta. Mantén el fruto quieto y comprueba el enfoque.
       </p>
 
-      {loadState === 'loading' && (
-        <p role="status">Consultando vistas guardadas...</p>
-      )}
+      {loadState === 'loading' && <p role="status">Consultando evaluación...</p>}
 
       {loadState === 'closed' && (
-        <p role="status">
-          La evaluación ya no está en proceso. Las vistas se muestran solo para consulta.
-        </p>
+        <p role="status">La evaluación está cerrada. Solo puedes consultar sus imágenes.</p>
       )}
 
       {loadState === 'failed' && (
@@ -203,29 +285,25 @@ export function EvaluationImageCapture({
           disabled={uploading}
           onClick={() => {
             setCandidate(null)
-            setRotationConfirmed(false)
             setLoadState('loading')
-            setRevision((value) => value + 1)
+            setRevision(value => value + 1)
           }}
         >
-          Verificar vistas guardadas
+          Consultar nuevamente
         </button>
       )}
 
       {saved.length > 0 && (
-        <section aria-label="Vistas asociadas a esta evaluación">
+        <section aria-label="Fotografías guardadas">
           <p className="capture__hint">
-            {saved.length}{' '}
-            {saved.length === 1 ? 'vista guardada' : 'vistas guardadas'} en{' '}
-            <strong>{evaluationId}</strong>
+            {saved.length} fotografía(s) guardada(s) en {evaluationId}
           </p>
-
           <ul className="capture__gallery">
-            {saved.map((item) => (
+            {saved.map(item => (
               <li key={item.id}>
                 <ProtectedEvidenceImage
                   path={item.imageUrl}
-                  alt={`${item.view} de la evaluación ${evaluationId}`}
+                  alt={`Fotografía ${item.view}`}
                 />
                 <strong>{item.view}</strong>
                 <span>{item.id}</span>
@@ -236,122 +314,110 @@ export function EvaluationImageCapture({
       )}
 
       {loadState === 'ready' && saved.length > 0 && !candidate && (
-        <p className="capture__rotation" role="status">
-          Para {nextView}, gira manualmente la misma fruta y comprueba
-          que permanezca asociada a {evaluationId}.
-        </p>
+        <>
+          <p className="capture__rotation">
+            Para la siguiente vista, gira manualmente la misma fruta.
+          </p>
+          <label className="capture__rotation-check">
+            <input
+              type="checkbox"
+              checked={rotationConfirmed}
+              onChange={event => setRotationConfirmed(event.target.checked)}
+              disabled={uploading}
+            />
+            Confirmo que giré manualmente la misma fruta.
+          </label>
+        </>
       )}
 
-      {loadState === 'ready' && saved.length > 0 && (
-        <label className="capture__rotation-check">
-          <input
-            type="checkbox"
-            checked={rotationConfirmed}
-            onChange={(event) =>
-              setRotationConfirmed(event.target.checked)
-            }
-            disabled={uploading}
+      {cameraOpen && (
+        <section className="capture__camera">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            onCanPlay={() => setCameraReady(true)}
+            className="capture__video"
           />
-          Confirmo que giré manualmente la misma fruta para esta vista.
-        </label>
+          <p className="capture__hint">
+            Cámara integrada de la laptop. Coloca el mango o tomate frente a ella.
+          </p>
+          <div className="capture__actions">
+            <button
+              className="action-button action-button--primary"
+              type="button"
+              disabled={!cameraReady}
+              onClick={() => void capturePhoto()}
+            >
+              Capturar fotografía
+            </button>
+            <button
+              className="action-button action-button--secondary"
+              type="button"
+              onClick={closeCamera}
+            >
+              Cancelar
+            </button>
+          </div>
+        </section>
       )}
-
-      <input
-        className="capture__input"
-        ref={cameraInput}
-        type="file"
-        accept="image/jpeg,image/png"
-        capture="environment"
-        onChange={selectFile}
-        aria-label="Tomar fotografía con cámara"
-        disabled={!canCapture}
-      />
-
-      <input
-        className="capture__input"
-        ref={galleryInput}
-        type="file"
-        accept="image/jpeg,image/png"
-        onChange={selectFile}
-        aria-label="Seleccionar imagen de galería"
-        disabled={!canCapture}
-      />
 
       {candidate && (
         <div className="capture__result">
-          <img
-            src={candidate.url}
-            alt={`Vista previa de ${nextView} antes del envío`}
-          />
-
+          <img src={candidate.url} alt="Vista previa de la fotografía" />
           <p>
-            Vista previa: <strong>{candidate.file.name}</strong>
-            {' · '}
-            <strong>{nextView}</strong>
+            Fotografía: <strong>{candidate.file.name}</strong>
           </p>
-
           <div className="capture__actions">
             <button
               className="action-button action-button--secondary"
               type="button"
               disabled={!canCapture}
-              onClick={() => cameraInput.current?.click()}
+              onClick={() => {
+                setCandidate(null)
+                void openCamera()
+              }}
             >
-              Repetir toma
+              Repetir fotografía
             </button>
-
             <button
               className="action-button action-button--secondary"
               type="button"
-              disabled={!canCapture}
               onClick={discard}
             >
               Descartar
             </button>
-
             <button
               className="action-button action-button--primary"
               type="button"
               disabled={!canSave}
-              onClick={save}
+              onClick={() => void save()}
             >
-              {uploading ? 'Enviando...' : `Guardar ${nextView}`}
+              {uploading ? 'Guardando...' : 'Guardar fotografía'}
             </button>
           </div>
         </div>
       )}
 
-      {canCapture && !candidate && (
+      {canCapture && !candidate && !cameraOpen && (
         <div className="capture__actions">
           <button
-            className="action-button action-button--secondary"
+            className="action-button action-button--primary"
             type="button"
-            onClick={() => cameraInput.current?.click()}
+            disabled={cameraStarting}
+            onClick={() => void openCamera()}
           >
-            {saved.length ? 'Tomar otra vista' : 'Tomar fotografía'}
-          </button>
-
-          <button
-            className="action-button action-button--secondary"
-            type="button"
-            onClick={() => galleryInput.current?.click()}
-          >
-            Elegir JPG/PNG
+            {cameraStarting ? 'Abriendo cámara...' : 'Tomar fotografía'}
           </button>
         </div>
       )}
 
-      {error && (
-        <p className="capture__error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <p className="capture__error" role="alert">{error}</p>}
 
       <p className="capture__hint">
-        Una fotografía guardada no genera clasificación automática.
-        Para cambiar de pieza, crea una evaluación diferente.
+        La fotografía se guarda en la evaluación actual. Guardarla no genera clasificación automática.
       </p>
     </div>
   )
 }
-

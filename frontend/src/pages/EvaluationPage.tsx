@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { Icon } from '../components/layout/Icon'
@@ -39,9 +39,9 @@ function ProductOption({ value, selected, disabled, onSelect }: {
       disabled={disabled}
       onClick={() => onSelect(value)}
     >
-      <span className="evaluation-product__symbol" aria-hidden="true">{value === 'mango' ? 'Ã°Å¸Â¥Â­' : 'Ã°Å¸Ââ€¦'}</span>
+      <span className="evaluation-product__symbol" aria-hidden="true">{value === 'mango' ? '🥭' : '🍅'}</span>
       <span className="evaluation-product__label">{value === 'mango' ? 'Mango' : 'Tomate'}</span>
-      <span className="evaluation-product__hint">EvaluaciÃƒÂ³n externa</span>
+      <span className="evaluation-product__hint">Evaluación externa</span>
     </button>
   )
 }
@@ -109,12 +109,12 @@ export function EvaluationPage() {
     } catch (error) {
       const uncertain = error instanceof ApiConnectionError || error instanceof ApiDataError
       const message = uncertain
-        ? 'No se pudo confirmar si la evaluaciÃƒÂ³n se registrÃƒÂ³. Consulta Historial antes de volver a intentarlo para evitar duplicados.'
+        ? 'No se pudo confirmar si la evaluación se registró. Consulta Historial antes de volver a intentarlo para evitar duplicados.'
         : error instanceof ApiResponseError && error.status === 404
           ? 'El lote ya no existe en el backend. Actualiza el listado y selecciona otro lote.'
           : error instanceof ApiResponseError && error.status === 409
-            ? 'El lote estÃƒÂ¡ cerrado y no permite iniciar evaluaciones. Actualiza el listado.'
-            : error instanceof Error ? `No se creÃƒÂ³ la evaluaciÃƒÂ³n: ${error.message}` : 'No fue posible crear la evaluaciÃƒÂ³n.'
+            ? 'El lote está cerrado y no permite iniciar evaluaciones. Actualiza el listado.'
+            : error instanceof Error ? `No se creó la evaluación: ${error.message}` : 'No fue posible crear la evaluación.'
       setSubmitError({ message, uncertain })
     } finally {
       submitting.current = false
@@ -133,9 +133,9 @@ export function EvaluationPage() {
   return (
     <div className="page-stack evaluation-page">
       <div className="page-heading">
-        <span className="eyebrow">MÃƒÂ³dulo de evaluaciÃƒÂ³n</span>
-        <h1>EvaluaciÃƒÂ³n externa de frutas</h1>
-        <p>Registra la identificaciÃƒÂ³n de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografÃƒÂ­as pueden capturarse y vincularse a una evaluaciÃƒÂ³n en proceso. El pesaje fÃƒÂ­sico y la clasificaciÃƒÂ³n requieren validaciÃƒÂ³n independiente.</p>
+        <span className="eyebrow">Módulo de evaluación</span>
+        <h1>Evaluación externa de frutas</h1>
+        <p>Registra la identificación de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografías pueden capturarse y vincularse a una evaluación en proceso. El pesaje físico y la clasificación requieren validación independiente.</p>
       </div>
 
       <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
@@ -154,7 +154,7 @@ export function EvaluationPage() {
 
       <div className="notice notice--warning" role="status">
         <Icon name="alert" size={19} />
-        <span><strong>Registro conectado:</strong> crear una evaluaciÃƒÂ³n guarda un registro real en SQLite con estado Ã‚Â«En procesoÃ‚Â». No implica que se haya pesado, fotografiado o clasificado la fruta.</span>
+        <span><strong>Registro conectado:</strong> crear una evaluación guarda un registro real en SQLite con estado «En proceso». No implica que se haya pesado, fotografiado o clasificado la fruta.</span>
       </div>
 
       <div className="evaluation-grid">
@@ -163,7 +163,7 @@ export function EvaluationPage() {
             <span className="evaluation-step" aria-hidden="true">1</span>
             <div>
               <h2>Identificar y registrar la muestra</h2>
-              <p>Una solicitud crea una evaluaciÃƒÂ³n. El backend asigna el identificador.</p>
+              <p>Una solicitud crea una evaluación. El backend asigna el identificador.</p>
             </div>
           </div>
 
@@ -201,13 +201,13 @@ export function EvaluationPage() {
                 aria-describedby="lot-reference-hint"
                 onChange={(event) => updateDraft({ ...draft, lot: event.target.value })}
               >
-                <option value="">{lotsState.kind === 'loading' ? 'Consultando lotesÃ¢â‚¬Â¦' : 'Selecciona un lote abierto'}</option>
+                <option value="">{lotsState.kind === 'loading' ? 'Consultando lotes…' : 'Selecciona un lote abierto'}</option>
                 {availableLots.map((lot) => <option key={lot.id} value={lot.code}>{lot.code}</option>)}
               </select>
               {attempted && !selectedLot && <p className="evaluation-error" role="alert">Selecciona un lote abierto confirmado por la API.</p>}
               <p id="lot-reference-hint" className="evaluation-help">
                 {lotsState.kind === 'ready' && availableLots.length === 0
-                  ? 'No hay lotes abiertos para este producto. Registra uno en GestiÃƒÂ³n de lotes.'
+                  ? 'No hay lotes abiertos para este producto. Registra uno en Gestión de lotes.'
                   : 'Solo se muestran lotes abiertos recuperados de FastAPI.'}
               </p>
             </div>
@@ -226,17 +226,17 @@ export function EvaluationPage() {
                 onChange={(event) => updateDraft({ ...draft, piece: event.target.value })}
               />
               {attempted && !pieceValid ? (
-                <p id="piece-reference-error" className="evaluation-error" role="alert">Entre 1 y 64 caracteres: letras, nÃƒÂºmeros, punto, guion o guion bajo; inicia con letra o nÃƒÂºmero.</p>
+                <p id="piece-reference-error" className="evaluation-error" role="alert">Entre 1 y 64 caracteres: letras, números, punto, guion o guion bajo; inicia con letra o número.</p>
               ) : <p id="piece-reference-hint" className="evaluation-help">Identificador de la pieza; verifica que no se haya registrado ya para evitar evaluaciones involuntarias.</p>}
             </div>
           </div>
 
           <div className="evaluation-form__actions">
             <button className="action-button action-button--primary" type="submit" disabled={locked || lotsState.kind !== 'ready'}>
-              <Icon name="clipboard" size={18} /> {creating ? 'RegistrandoÃ¢â‚¬Â¦' : 'Registrar evaluaciÃƒÂ³n'}
+              <Icon name="clipboard" size={18} /> {creating ? 'Registrando…' : 'Registrar evaluación'}
             </button>
             <button className="action-button action-button--secondary" type="button" onClick={clearForm} disabled={creating}>
-              {created ? 'Nueva evaluaciÃƒÂ³n' : 'Limpiar'}
+              {created ? 'Nueva evaluación' : 'Limpiar'}
             </button>
             <Link className="action-button action-button--secondary" to="/lotes">Ir a lotes</Link>
           </div>
@@ -294,7 +294,7 @@ export function EvaluationPage() {
 
       <section className="panel evaluation-next" aria-labelledby="next-steps-heading">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="next-steps-heading">Siguiente etapa</h2></div>
-        <p>La identificaciÃƒÂ³n se registra mediante FastAPI. La visualizaciÃƒÂ³n del peso ya consulta la API local, pero Fernando debe validar fÃƒÂ­sicamente el HX711 y la calibraciÃƒÂ³n; la captura RGB inicial requiere verificaciÃƒÂ³n con un telÃƒÂ©fono real y el anÃƒÂ¡lisis automÃƒÂ¡tico continÃƒÂºa pendiente. La evaluaciÃƒÂ³n no se considerarÃƒÂ¡ completada hasta que el backend confirme el flujo de adquisiciÃƒÂ³n y clasificaciÃƒÂ³n.</p>
+        <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
         <Link to="/historial" className="text-link">Ver historial de evaluaciones <Icon name="arrow-right" size={16} /></Link>
       </section>
     </div>

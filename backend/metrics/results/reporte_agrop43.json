@@ -1,0 +1,166 @@
+{
+  "story": "AGROP-43",
+  "version": "1.1",
+  "products": {
+    "mango": {
+      "evaluation_status": "insufficient_data",
+      "sample_count": 0,
+      "confusion_matrix": {
+        "primera": {
+          "primera": 0,
+          "segunda": 0
+        },
+        "segunda": {
+          "primera": 0,
+          "segunda": 0
+        }
+      },
+      "accuracy": null,
+      "metrics_by_category": {
+        "primera": {
+          "precision": null,
+          "recall": null,
+          "f1_score": null,
+          "support": 0
+        },
+        "segunda": {
+          "precision": null,
+          "recall": null,
+          "f1_score": null,
+          "support": 0
+        }
+      },
+      "mean_confidence": null,
+      "confidence_sample_count": 0
+    },
+    "tomate": {
+      "evaluation_status": "insufficient_data",
+      "sample_count": 0,
+      "confusion_matrix": {
+        "primera": {
+          "primera": 0,
+          "segunda": 0
+        },
+        "segunda": {
+          "primera": 0,
+          "segunda": 0
+        }
+      },
+      "accuracy": null,
+      "metrics_by_category": {
+        "primera": {
+          "precision": null,
+          "recall": null,
+          "f1_score": null,
+          "support": 0
+        },
+        "segunda": {
+          "precision": null,
+          "recall": null,
+          "f1_score": null,
+          "support": 0
+        }
+      },
+      "mean_confidence": null,
+      "confidence_sample_count": 0
+    }
+  },
+  "total_records": 18,
+  "valid_sample_count": 0,
+  "non_evaluable_count": 18,
+  "non_evaluable_cases": [
+    {
+      "sample_id": "evaluation-1",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-2",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-3",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-4",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-5",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-6",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-7",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-8",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-9",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-10",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-11",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-12",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-13",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-14",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-15",
+      "product": "mango",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-16",
+      "product": "tomate",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-17",
+      "product": "tomate",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    },
+    {
+      "sample_id": "evaluation-18",
+      "product": "tomate",
+      "reason": "etiqueta_real_no_verificada_o_invalida"
+    }
+  ],
+  "classification_errors": [],
+  "evaluation_status": "insufficient_data",
+  "warning": "Las metricas requieren etiquetas reales verificadas y predicciones independientes del modelo. La confianza no representa exactitud."
+}

@@ -1,2 +1,4 @@
-# Dependencia aislada para AGROP-40. No modifica backend/requirements.txt.
+# Dependencias de vision para AGROP-40 y AGROP-42
 Pillow==12.3.0
+ultralytics==8.4.205
+git+https://github.com/ultralytics/CLIP.git@7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40

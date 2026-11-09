@@ -9,7 +9,7 @@ import {
   validateEvaluationId,
   type TraceabilityRecord,
 } from '../features/traceability/traceabilityService'
-import { ApiConnectionError, ApiResponseError, resolveEvidenceUrl } from '../services/agroscanApi'
+import { ApiConnectionError, ApiResponseError, getSessionRole, markUncertainEvaluationImage, getVisionAssessments, resolveUncertainEvaluation, resolveEvidenceUrl, type VisionAssessment } from '../services/agroscanApi'
 import './TraceabilityPage.css'
 
 type TraceabilityState =
@@ -159,15 +159,48 @@ function TraceabilityDetailContent({ evaluationId }: { evaluationId: string }) {
             <button type="button" className="action-button action-button--secondary" onClick={retry}>Reintentar</button>
           </div>
         )}
-        {state.kind === 'ready' && <TraceabilityRecordContent record={state.record} />}
+        {state.kind === 'ready' && <TraceabilityRecordContent record={state.record} onUpdated={retry} />}
       </section>
     </div>
   )
 }
 
-function TraceabilityRecordContent({ record }: { record: TraceabilityRecord }) {
+function TraceabilityRecordContent({ record, onUpdated }: { record: TraceabilityRecord; onUpdated: () => void }) {
   const timeline = buildTraceabilityTimeline(record)
   const { evaluation } = record
+  const [imageId, setImageId] = useState(record.evaluation.evidence[0]?.id ?? '')
+  const [note, setNote] = useState('')
+  const [decision, setDecision] = useState<'E0'|'E1'|'E2'|'no_evaluable'>('no_evaluable')
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [assessments, setAssessments] = useState<VisionAssessment[]>([])
+  const role = getSessionRole()
+  const isReviewer = role === 'revisor' || role === 'administrador'
+  useEffect(() => {
+    let active = true
+    void getVisionAssessments(evaluation.id).then(data => { if (active) setAssessments(data) }).catch(() => {})
+    return () => { active = false }
+  }, [evaluation.id, record.reviews.length])
+  async function flagUncertain() {
+    if (!isReviewer || !imageId || note.trim().length < 10 || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await markUncertainEvaluationImage(evaluation.id, imageId, note)
+      onUpdated()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo registrar la duda.')
+    } finally { setBusy(false) }
+  }
+  async function resolveUncertain() {
+    if (!isReviewer || evaluation.status !== 'pending_review' || note.trim().length < 10 || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await resolveUncertainEvaluation(evaluation.id, decision, note)
+      onUpdated()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo guardar la resolución.')
+    } finally { setBusy(false) }
+  }
   return (
     <div className="trace-record">
       <dl className="trace-data-grid">
@@ -187,7 +220,54 @@ function TraceabilityRecordContent({ record }: { record: TraceabilityRecord }) {
         {evaluation.evidence.length === 0
           ? <p>No se registraron imágenes asociadas.</p>
           : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <ProtectedEvidenceImage className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
-          <p>Las imágenes se consultan desde la API local. El acceso a evidencias aún no tiene autenticación y no debe exponerse públicamente.</p>
+          <p>Las imágenes se consultan mediante la API autenticada. Nunca se reemplaza el archivo original.</p>
+          {assessments.length > 0 && (
+            <div role="region" aria-label="Evaluaciones automáticas originales">
+              <h4>Resultados de detección originales</h4>
+              <ul>{assessments.map(result => <li key={result.id}>
+                {result.imageId}: {result.reason} · confianza {result.confidence ?? 'sin detección'}
+                · umbral {result.threshold} · modelo {result.modelVersion}
+              </li>)}</ul>
+              <p>Estas predicciones son de detección; NO califican E0/E1/E2.</p>
+            </div>
+          )}
+          {isReviewer && evaluation.evidence.length > 0 && evaluation.status !== 'cancelled' && evaluation.status !== 'error' && (
+            <div className="trace-review-uncertainty">
+              <h4>AG-037 · Revisión de incertidumbre</h4>
+              {evaluation.status !== 'pending_review' && <>
+                <label htmlFor="ag037-image">Fotografía observada</label>
+                <select id="ag037-image" value={imageId} onChange={event => setImageId(event.target.value)} disabled={busy}>
+                  {evaluation.evidence.map(img => <option key={img.id} value={img.id}>{img.view} — {img.id}</option>)}
+                </select>
+              </>}
+              {evaluation.status === 'pending_review' && <>
+                <p>Resultado pendiente. Revisa las fotos y la rúbrica antes de resolver.</p>
+                <label htmlFor="ag037-decision">Decisión humana</label>
+                <select id="ag037-decision" value={decision} onChange={event => setDecision(event.target.value as typeof decision)} disabled={busy}>
+                  <option value="no_evaluable">No evaluable (sin categoría)</option>
+                  <option value="E0">E0 — sin defecto externo relevante</option>
+                  <option value="E1">E1 — requiere valoración</option>
+                  <option value="E2">E2 — revisión prioritaria</option>
+                </select>
+              </>}
+              <label htmlFor="ag037-note">Justificación</label>
+              <textarea id="ag037-note" rows={3} value={note} maxLength={evaluation.status === 'pending_review' ? 500 : 300}
+                onChange={event => setNote(event.target.value)} disabled={busy}
+                placeholder="Describe los defectos o el motivo por el que no puede evaluarse" />
+              {evaluation.status === 'pending_review' ? (
+                <button type="button" className="action-button action-button--primary"
+                  disabled={busy || note.trim().length < 10} onClick={() => void resolveUncertain()}>
+                  {busy ? 'Guardando...' : 'Registrar resolución humana'}
+                </button>
+              ) : (
+                <button type="button" className="action-button action-button--secondary"
+                  disabled={busy || note.trim().length < 10} onClick={() => void flagUncertain()}>
+                  {busy ? 'Guardando...' : 'Marcar como pendiente'}
+                </button>
+              )}
+              {actionError && <p role="alert" className="trace-message--error">{actionError}</p>}
+            </div>
+          )}
       </section>
       <section className="trace-record__section" aria-labelledby="trace-timeline-title">
         <h3 id="trace-timeline-title">Historial de versiones y revisiones</h3>

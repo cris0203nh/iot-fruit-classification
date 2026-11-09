@@ -1,5 +1,6 @@
 import type { EvaluationDetail, EvaluationSummary } from '../features/history/historyService'
 import type { TraceabilityRecord } from '../features/traceability/traceabilityService'
+import { validatePieceAggregates } from '../features/history/pieceHistoryPolicy.ts'
 
 /** Cliente HTTP del frontend. Los endpoints corresponden al backend incluido en main. */
 export type FruitProduct = 'mango' | 'tomate'
@@ -748,4 +749,147 @@ export async function postReviewDecision(evaluationId: string, decision: NewRevi
     throw new ApiDataError()
   }
   return data
+}
+
+// AG-040 / AGROP-48: expediente por lote y pieza (lectura autenticada).
+export type PieceHistorySummary = {
+  lotCode: string
+  pieceCode: string
+  pieceId: number | null
+  identitySource: 'registered' | 'legacy_inferred'
+  attemptCount: number
+  captureCount: number
+  automaticAssessmentCount: number
+  reviewEventCount: number
+  latestEvaluationId: string | null
+  latestStatus: string | null
+}
+
+export type PieceHistoryList = {
+  lotCode: string
+  product: FruitProduct
+  pieceCount: number
+  attemptCount: number
+  captureCount: number
+  pieces: PieceHistorySummary[]
+}
+
+export type PieceHistoryAttempt = {
+  id: string
+  attemptNumber: number
+  createdAt: string
+  status: string
+  product: FruitProduct
+  weightGrams: number | null
+  weightPreGrams: number | null
+  weightPostGrams: number | null
+  deviceId: string | null
+  calibrationReference: string | null
+  declaredModelVersion: string | null
+  declaredRulesVersion: string | null
+  originalVisualCategory: string | null
+  failureReason: string | null
+  captures: Array<{
+    id: string; view: string; createdAt: string; imageUrl: string
+    imageSha256: string | null; hashConflict: boolean
+  }>
+  automaticAssessments: Array<{
+    assessmentId: number; imageId: string; imageSha256: string
+    createdAt: string; modelVersion: string; rulesVersion: string
+    inferenceSize: number; threshold: number; confidence: number | null
+    candidateCount: number; outcome: string; reason: string
+    detections: unknown
+  }>
+  reviews: Array<{
+    id: string; createdAt: string; type: string; actorId: string
+    reason: string; previousValue: string | null; updatedValue: string | null
+    action: string | null; imageId: string | null; imageSha256: string | null
+    requestId: string | null
+  }>
+  dataQualityNotes: string[]
+}
+
+export type PieceHistoryDetail = {
+  lotCode: string
+  piece: PieceHistorySummary
+  attempts: PieceHistoryAttempt[]
+  identityWarning: string | null
+}
+
+function ag040IsRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function ag040IsCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function ag040IsOptionalText(value: unknown): boolean {
+  return value === null || typeof value === 'string'
+}
+
+function ag040Summary(value: unknown, lot: string): value is PieceHistorySummary {
+  if (!ag040IsRecord(value)) return false
+  return value.lotCode === lot
+    && typeof value.pieceCode === 'string' && value.pieceCode.length > 0
+    && (value.pieceId === null || ag040IsCount(value.pieceId))
+    && (value.identitySource === 'registered' || value.identitySource === 'legacy_inferred')
+    && ag040IsCount(value.attemptCount) && ag040IsCount(value.captureCount)
+    && ag040IsCount(value.reviewEventCount) && ag040IsCount(value.automaticAssessmentCount)
+    && ag040IsOptionalText(value.latestEvaluationId) && ag040IsOptionalText(value.latestStatus)
+}
+
+export async function listPieceHistories(lotCode: string): Promise<PieceHistoryList> {
+  const lot = lotCode.trim()
+  if (!lot || lot.length > 32) throw new ApiDataError()
+  const body = await request(`/api/piece-history?lot=${encodeURIComponent(lot)}`)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || !['mango', 'tomate'].includes(String(body.product))
+      || !ag040IsCount(body.pieceCount) || !ag040IsCount(body.attemptCount)
+      || !ag040IsCount(body.captureCount) || !Array.isArray(body.pieces)
+      || !body.pieces.every(value => ag040Summary(value, body.lotCode as string))) {
+    throw new ApiDataError()
+  }
+  const payload = body as PieceHistoryList
+  if (!validatePieceAggregates(payload.pieces, payload)) throw new ApiDataError()
+  return payload
+}
+
+function ag040ValidateAttempt(value: unknown): value is PieceHistoryAttempt {
+  if (!ag040IsRecord(value) || typeof value.id !== 'string' || !/^E-\d{1,9}$/.test(value.id)
+      || !ag040IsCount(value.attemptNumber) || typeof value.createdAt !== 'string'
+      || typeof value.status !== 'string' || !['mango', 'tomate'].includes(String(value.product))
+      || !Array.isArray(value.captures) || !Array.isArray(value.automaticAssessments)
+      || !Array.isArray(value.reviews) || !Array.isArray(value.dataQualityNotes)) return false
+  if (!value.dataQualityNotes.every((item: unknown) => typeof item === 'string')) return false
+  if (!value.captures.every((img: unknown) => ag040IsRecord(img)
+      && typeof img.id === 'string' && /^I-\d{1,9}$/.test(img.id)
+      && typeof img.view === 'string' && typeof img.imageUrl === 'string'
+      && typeof img.createdAt === 'string'
+      && ag040IsOptionalText(img.imageSha256) && typeof img.hashConflict === 'boolean')) return false
+  if (!value.automaticAssessments.every((item: unknown) => ag040IsRecord(item)
+      && ag040IsCount(item.assessmentId) && typeof item.imageId === 'string'
+      && typeof item.modelVersion === 'string' && typeof item.rulesVersion === 'string'
+      && typeof item.createdAt === 'string' && typeof item.reason === 'string'
+      && typeof item.outcome === 'string')) return false
+  return value.reviews.every((event: unknown) => ag040IsRecord(event)
+      && typeof event.id === 'string' && typeof event.actorId === 'string'
+      && typeof event.createdAt === 'string' && typeof event.reason === 'string'
+      && ag040IsOptionalText(event.previousValue) && ag040IsOptionalText(event.updatedValue)
+      && ag040IsOptionalText(event.action))
+}
+
+export async function getPieceHistory(lotCode: string, pieceCode: string): Promise<PieceHistoryDetail> {
+  const lot = lotCode.trim()
+  const piece = pieceCode.trim()
+  if (!lot || lot.length > 32 || !piece || piece.length > 64) throw new ApiDataError()
+  const body = await request(`/api/piece-history/${encodeURIComponent(lot)}/${encodeURIComponent(piece)}`)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || !ag040Summary(body.piece, body.lotCode)
+      || body.piece.pieceCode !== piece
+      || !Array.isArray(body.attempts)
+      || body.attempts.length !== body.piece.attemptCount
+      || !body.attempts.every(ag040ValidateAttempt)
+      || !ag040IsOptionalText(body.identityWarning)) throw new ApiDataError()
+  return body as PieceHistoryDetail
 }

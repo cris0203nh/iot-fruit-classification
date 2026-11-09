@@ -1,6 +1,7 @@
 import type { EvaluationDetail, EvaluationSummary } from '../features/history/historyService'
 import type { TraceabilityRecord } from '../features/traceability/traceabilityService'
 import { validatePieceAggregates } from '../features/history/pieceHistoryPolicy.ts'
+import { validateLotTraceabilityReport, type LotTraceabilityReport } from '../features/history/pieceReportPolicy.ts'
 
 /** Cliente HTTP del frontend. Los endpoints corresponden al backend incluido en main. */
 export type FruitProduct = 'mango' | 'tomate'
@@ -892,4 +893,15 @@ export async function getPieceHistory(lotCode: string, pieceCode: string): Promi
       || !body.attempts.every(ag040ValidateAttempt)
       || !ag040IsOptionalText(body.identityWarning)) throw new ApiDataError()
   return body as PieceHistoryDetail
+}
+
+/** AG-040 / AGROP-48: informe de solo lectura, con los mismos encabezados JWT. */
+export async function getLotTraceabilityReport(lotCode: string): Promise<LotTraceabilityReport> {
+  const lot = lotCode.trim()
+  if (!lot || lot.length > 32) throw new ApiDataError()
+  const body = await request(`/api/piece-history/report?lot=${encodeURIComponent(lot)}`, undefined, 30000)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || body.lotCode.toLowerCase() !== lot.toLowerCase()
+      || !validateLotTraceabilityReport(body, body.lotCode)) throw new ApiDataError()
+  return body as LotTraceabilityReport
 }

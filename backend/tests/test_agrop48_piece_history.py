@@ -209,6 +209,102 @@ class PieceHistoryTests(unittest.TestCase):
         finally:
             app.dependency_overrides[require_authenticated] = lambda: None
 
+    def _report(self, lot=None):
+        return self.client.get("/api/piece-history/report", params={"lot": lot or self.lot_code})
+
+    def test_report_csv_one_row_per_piece_and_linked_attempts(self):
+        import csv
+        import io
+        r = self._report()
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()
+        self.assertEqual(d["reportVersion"], "AG040-02-v1")
+        self.assertEqual(d["counts"], dict(pieceCount=4, attemptCount=5, captureCount=4,
+                                            automaticAssessmentCount=2, reviewEventCount=3))
+        self.assertEqual(len(d["rows"]), 4)
+        rows = list(csv.DictReader(io.StringIO(d["csv"])))
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(len({x["pieza"] for x in rows}), 4)
+        a = next(x for x in d["rows"] if x["pieceCode"] == "FRUTA-001")
+        self.assertEqual(len(a["attemptIds"]), 3)
+        self.assertEqual(len(a["captureIds"]), 4)
+        self.assertEqual(len(a["assessmentIds"]), 2)
+        self.assertEqual(len(a["reviewIds"]), 3)
+        self.assertEqual(a["modelVersions"], ["ag040-1", "ag040-2"])
+        self.assertEqual(r.headers["cache-control"], "no-store")
+
+    def test_report_sha_matches_utf8_content_and_is_repeatable(self):
+        import hashlib
+        first, second = self._report().json(), self._report().json()
+        expected = hashlib.sha256(first["csv"].encode("utf-8")).hexdigest()
+        self.assertEqual(first["csvSha256"], expected)
+        self.assertEqual(first["csvSha256"], second["csvSha256"])
+        self.assertEqual(first["rows"], second["rows"])
+
+    def test_report_includes_piece_without_attempts_and_legacy_warning(self):
+        result = self._report().json()
+        empty = next(x for x in result["rows"] if x["pieceCode"] == "SIN-INTENTOS")
+        legacy = next(x for x in result["rows"] if x["pieceCode"] == "HISTORICA")
+        self.assertEqual(empty["attemptCount"], 0)
+        self.assertEqual(empty["captureIds"], [])
+        self.assertEqual(legacy["identitySource"], "legacy_inferred")
+        self.assertEqual(result["integrity"]["status"], "warning")
+        self.assertTrue(any(x["code"] == "IDENTIDAD_HISTORICA" for x in result["integrity"]["issues"]))
+
+    def test_report_does_not_mix_same_piece_code_across_lots(self):
+        result = self._report("AG040-OTRO-LOTE").json()
+        self.assertEqual(result["counts"]["pieceCount"], 1)
+        self.assertEqual(result["counts"]["attemptCount"], 1)
+        self.assertEqual(result["counts"]["captureCount"], 0)
+
+    def test_report_hash_conflict_is_detected_and_marked_inconsistent(self):
+        with self.Session() as db:
+            meta = db.query(ReviewDecisionEvidence).first()
+            meta.image_sha256 = "c" * 64
+            db.commit()
+        result = self._report().json()
+        self.assertEqual(result["integrity"]["status"], "inconsistent")
+        self.assertTrue(any(x["code"] == "HASH_DIVERGENTE" for x in result["integrity"]["issues"]))
+
+    def test_report_foreign_image_is_not_silently_accepted(self):
+        with self.Session() as db:
+            meta = db.query(ReviewDecisionEvidence).first()
+            meta.image_id = 987654
+            db.commit()
+        result = self._report().json()
+        self.assertEqual(result["integrity"]["status"], "inconsistent")
+        self.assertTrue(any(x["code"] == "FOTO_REVISION_AJENA" for x in result["integrity"]["issues"]))
+
+    def test_report_bad_piece_fk_still_returns_409(self):
+        with self.Session() as db:
+            ev = db.get(Evaluation, self.attempt_ids[0])
+            ev.piece_id = "FRUTA-002"
+            db.commit()
+        self.assertEqual(self._report().status_code, 409)
+
+    def test_report_requires_auth_and_valid_lot(self):
+        self.assertEqual(self._report("INEXISTENTE").status_code, 404)
+        self.assertEqual(self._report("x" * 33).status_code, 422)
+        app.dependency_overrides.pop(require_authenticated)
+        try:
+            self.assertEqual(self._report().status_code, 401)
+        finally:
+            app.dependency_overrides[require_authenticated] = lambda: None
+
+    def test_report_escapes_spreadsheet_formulas(self):
+        from app.routers.piece_history_report import _csv_value
+        self.assertEqual(_csv_value("=HYPERLINK(1)"), "'=HYPERLINK(1)")
+        self.assertEqual(_csv_value(" @cmd"), "' @cmd")
+        self.assertEqual(_csv_value("FRUTA-001"), "FRUTA-001")
+
+    def test_report_get_does_not_change_rows(self):
+        with self.Session() as db:
+            before = db.query(Evaluation).count(), db.query(Image).count(), db.query(Review).count()
+        self._report()
+        with self.Session() as db:
+            after = db.query(Evaluation).count(), db.query(Image).count(), db.query(Review).count()
+        self.assertEqual(before, after)
+
 
 if __name__ == "__main__":
     unittest.main()

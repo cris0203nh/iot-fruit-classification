@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
+import { ReviewDecisionPanel } from '../features/traceability/ReviewDecisionPanel'
 import { formatDate, formatWeight } from '../features/history/historyService'
 import {
   buildTraceabilityTimeline,
@@ -287,6 +288,7 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
         ))}</ol>
         {record.reviews.length === 0 && <p>No se registraron revisiones posteriores.</p>}
       </section>
+      <ReviewDecisionPanel record={record} onUpdated={onUpdated} />
     </div>
   )
 }

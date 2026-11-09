@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+from .vision_assessment_models import VisionAssessment  # noqa: F401
 
 
 def utcnow() -> datetime:

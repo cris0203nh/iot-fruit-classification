@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
+import { PieceHistoryPanel } from '../features/history/PieceHistoryPanel'
 import {
   filterHistory,
   formatDate,
@@ -174,6 +175,8 @@ export function HistoryPage() {
         {state.kind === 'ready' && records.length === 0 && <HistoryStateMessage kind="empty" title="Sin evaluaciones registradas" explanation="El servicio respondió correctamente, pero no devolvió evaluaciones. Los filtros no afectan este resultado." />}
         {state.kind === 'ready' && records.length > 0 && filteredRecords.length === 0 && <HistoryStateMessage kind="empty" title="Sin coincidencias" explanation="No hay registros que cumplan los filtros seleccionados. Prueba con otros criterios." />}
       </section>
+
+      <PieceHistoryPanel suggestedLots={lots} />
 
       <section className="panel history-guide" aria-labelledby="history-guide-title">
         <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="history-guide-title">Información que se conservará</h2></div>

@@ -4,8 +4,9 @@ import { ProtectedEvidenceImage } from '../capture/ProtectedEvidenceImage'
 import { formatDate, formatWeight } from './historyService'
 import {
   ApiConnectionError, ApiResponseError, getPieceHistory, listPieceHistories,
-  resolveEvidenceUrl, type PieceHistoryList, type PieceHistoryDetail,
+  getLotTraceabilityReport, resolveEvidenceUrl, type PieceHistoryList, type PieceHistoryDetail,
 } from '../../services/agroscanApi'
+import type { LotTraceabilityReport } from './pieceReportPolicy'
 import './PieceHistoryPanel.css'
 
 type Load<T> = { state: 'idle' | 'loading' | 'error' | 'ready'; value: T | null; error: string }
@@ -25,8 +26,13 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
   const [refresh, setRefresh] = useState(0)
   const [list, setList] = useState<Load<PieceHistoryList>>(() => idle<PieceHistoryList>())
   const [detail, setDetail] = useState<Load<PieceHistoryDetail>>(() => idle<PieceHistoryDetail>())
+  const [report, setReport] = useState<LotTraceabilityReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState('')
 
   useEffect(() => {
+    setReport(null)
+    setReportError('')
     if (!lot) { setList(idle<PieceHistoryList>()); return }
     let active = true
     setList({ state: 'loading', value: null, error: '' })
@@ -57,6 +63,37 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
     setRefresh(current => current + 1)
   }
 
+  async function prepareReport() {
+    if (!lot || reportLoading) return
+    setReportLoading(true)
+    setReport(null)
+    setReportError('')
+    try {
+      const next = await getLotTraceabilityReport(lot)
+      setReport(next)
+    } catch (error) {
+      setReportError(errorMessage(error))
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  function downloadReport(format: 'csv' | 'json') {
+    if (!report || (format === 'csv' && report.integrity.status === 'inconsistent')) return
+    const safeName = report.lotCode.replace(/[^a-zA-Z0-9_.-]/g, '_')
+    const { csv, ...manifest } = report
+    const content = format === 'csv' ? csv : JSON.stringify(manifest, null, 2) + '\n'
+    const blob = new Blob([content], { type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `AG040_${safeName}_trazabilidad.${format}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
   return (
     <section className="panel ag040" aria-labelledby="ag040-heading">
       <div className="panel-heading">
@@ -77,6 +114,31 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
       {list.state === 'loading' && <p role="status">Consultando piezas del lote…</p>}
       {list.state === 'error' && <p role="alert" className="ag040__error">{list.error}</p>}
       {list.state === 'ready' && list.value && <>
+        <div className="ag040__report">
+          <button type="button" className="action-button action-button--secondary"
+            disabled={reportLoading} onClick={() => void prepareReport()}>
+            {reportLoading ? 'Auditando lote…' : 'Preparar reporte de lote'}
+          </button>
+          {reportError && <p role="alert" className="ag040__error">{reportError}</p>}
+          {report && <>
+            <p role="status">Auditoría: <strong>{report.integrity.status}</strong> ·
+              {report.counts.pieceCount} piezas · {report.counts.attemptCount} intentos ·
+              {report.counts.captureCount} fotos · {report.integrity.issues.length} observaciones</p>
+            <p>SHA256 CSV: <code>{report.csvSha256}</code></p>
+            <div className="ag040__report-actions">
+              <button type="button" className="action-button action-button--primary"
+                disabled={report.integrity.status === 'inconsistent'} onClick={() => downloadReport('csv')}>Exportar CSV</button>
+              <button type="button" className="action-button action-button--secondary"
+                onClick={() => downloadReport('json')}>Exportar manifiesto JSON</button>
+            </div>
+            {report.integrity.status === 'inconsistent' && <p className="ag040__error">CSV bloqueado: revisa las inconsistencias del manifiesto.</p>}
+            {report.integrity.issues.length > 0 && <details><summary>Ver observaciones de integridad</summary>
+              <ul>{report.integrity.issues.map((issue, i) => <li key={i}>
+                {issue.severity}: {issue.pieceCode || 'Lote'} · {issue.message}
+              </li>)}</ul>
+            </details>}
+          </>}
+        </div>
         <p className="ag040__totals"><strong>{list.value.pieceCount} piezas únicas</strong> · {list.value.attemptCount} intentos · {list.value.captureCount} fotografías</p>
         {list.value.pieces.length === 0 && <p>No hay piezas registradas para este lote.</p>}
         <div className="ag040__piece-list">

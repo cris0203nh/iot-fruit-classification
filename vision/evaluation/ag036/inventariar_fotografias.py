@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-from .auditar_etiquetado import AuditError, UNIVERSE_COLS, MAX_IMAGE, safe_file
+from .auditar_etiquetado import AuditError, UNIVERSE_COLS, MAX_IMAGE, MAX_IMAGE_PIXELS, safe_file
 
 SUFFIXES = {'.jpg', '.jpeg', '.png'}
 
@@ -39,7 +39,7 @@ def inventory(images_root: Path, output_csv: Path) -> dict:
         data, sha = safe_file(images_root, rel, MAX_IMAGE)
         try:
             with Image.open(io.BytesIO(data)) as image:
-                if image.format not in ('JPEG', 'PNG') or image.width * image.height > 16_000_000:
+                if image.format not in ('JPEG', 'PNG', 'MPO') or image.width * image.height > MAX_IMAGE_PIXELS:
                     raise AuditError('Formato o dimensiones no admitidos: ' + rel)
                 image.verify()
         except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:

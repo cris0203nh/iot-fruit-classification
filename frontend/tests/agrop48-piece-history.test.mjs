@@ -39,3 +39,53 @@ test('AG040: una pieza registrada sin intentos sigue contando una vez', () => {
     pieceCount: 1, attemptCount: 0, captureCount: 0,
   }), true)
 })
+
+const reportRow = (pieceCode, attemptIds = [], captureIds = []) => ({
+  lotCode: 'L-001', pieceCode, identitySource: 'registered',
+  attemptCount: attemptIds.length, captureCount: captureIds.length,
+  automaticAssessmentCount: 0, reviewEventCount: 0,
+  attemptIds, captureIds, assessmentIds: [], reviewIds: [],
+  modelVersions: [], rulesVersions: [], qualityNotes: [],
+})
+const makeReport = rows => ({
+  reportVersion: 'AG040-02-v1', generatedAt: '2026-11-09T21:00:00+00:00',
+  lotCode: 'L-001', product: 'mango', csvEncoding: 'UTF-8', csv: 'datos\r\n',
+  csvSha256: 'a'.repeat(64), integrity: { status: 'ok', issues: [] },
+  counts: { pieceCount: rows.length, attemptCount: rows.reduce((n, r) => n + r.attemptCount, 0),
+    captureCount: rows.reduce((n, r) => n + r.captureCount, 0),
+    automaticAssessmentCount: 0, reviewEventCount: 0 }, rows,
+})
+
+test('AG040-02: dos intentos y tres fotos pertenecen a una sola pieza', async () => {
+  const { validateLotTraceabilityReport } = await import('../src/features/history/pieceReportPolicy.ts')
+  assert.equal(validateLotTraceabilityReport(makeReport([
+    reportRow('P-001', ['E-000001', 'E-000002'], ['I-000001', 'I-000002', 'I-000003']),
+  ]), 'L-001'), true)
+})
+
+test('AG040-02: rechaza conteos agregados inflados', async () => {
+  const { validateLotTraceabilityReport } = await import('../src/features/history/pieceReportPolicy.ts')
+  const data = makeReport([reportRow('P-001', ['E-000001'])])
+  data.counts.pieceCount = 2
+  assert.equal(validateLotTraceabilityReport(data, 'L-001'), false)
+})
+
+test('AG040-02: rechaza foto o intento contabilizado dos veces', async () => {
+  const { validateLotTraceabilityReport } = await import('../src/features/history/pieceReportPolicy.ts')
+  assert.equal(validateLotTraceabilityReport(makeReport([
+    reportRow('P-001', ['E-000001'], ['I-000001']),
+    reportRow('P-002', ['E-000002'], ['I-000001']),
+  ]), 'L-001'), false)
+})
+
+test('AG040-02: no acepta estado ok con fallos de integridad', async () => {
+  const { validateLotTraceabilityReport } = await import('../src/features/history/pieceReportPolicy.ts')
+  const report = makeReport([reportRow('P-001')])
+  report.integrity.issues.push({ severity: 'error', code: 'ERROR', pieceCode: 'P-001', message: 'dato inconsistente' })
+  assert.equal(validateLotTraceabilityReport(report, 'L-001'), false)
+})
+
+test('AG040-02: acepta lote con pieza sin intentos', async () => {
+  const { validateLotTraceabilityReport } = await import('../src/features/history/pieceReportPolicy.ts')
+  assert.equal(validateLotTraceabilityReport(makeReport([reportRow('SIN-INTENTOS')]), 'L-001'), true)
+})

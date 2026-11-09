@@ -54,7 +54,7 @@ class ReviewEventOut(BaseModel):
     id: str
     performedAt: str
     actorId: str
-    type: Literal["review", "cancellation"]
+    type: Literal["review", "cancellation", "uncertainty"]
     reason: str
     previousValue: str | None
     updatedValue: str | None

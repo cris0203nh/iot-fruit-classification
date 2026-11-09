@@ -298,7 +298,7 @@ function isTraceability(value: unknown): value is TraceabilityRecord {
     && typeof review.id === 'string' && REVIEW_ID_PATTERN.test(review.id)
     && typeof review.performedAt === 'string' && Number.isFinite(Date.parse(review.performedAt))
     && typeof review.actorId === 'string' && typeof review.reason === 'string'
-    && (review.type === 'review' || review.type === 'cancellation')
+    && (review.type === 'review' || review.type === 'cancellation' || review.type === 'uncertainty')
     && nullableString(review.previousValue) && nullableString(review.updatedValue))
 }
 
@@ -599,4 +599,86 @@ export async function detectEvaluationFrame(
   }
 
   return value as unknown as FruitDetectionResult
+}
+
+/** AG-037: detección asociada a una imagen ya guardada (no calidad E0/E1/E2). */
+export type UncertaintyGateResponse = {
+  evaluationId: string
+  imageId: string
+  status: 'processing' | 'completed' | 'pending_review'
+  decision: 'pending_review' | 'ready_to_capture'
+  reason: string
+  imageSha256: string
+  threshold: number
+  assessmentId: number | null
+  originalPreserved: true
+  visualCategoryChanged: false
+  classificationE0E1E2Produced: false
+}
+
+function isGateResponse(value: unknown, evaluationId: string, imageId: string): value is UncertaintyGateResponse {
+  return object(value) && value.evaluationId === evaluationId && value.imageId === imageId
+    && (value.status === 'processing' || value.status === 'completed' || value.status === 'pending_review')
+    && (value.decision === 'pending_review' || value.decision === 'ready_to_capture')
+    && typeof value.reason === 'string' && /^[a-f0-9]{64}$/.test(String(value.imageSha256))
+    && typeof value.threshold === 'number' && value.originalPreserved === true
+    && value.visualCategoryChanged === false && value.classificationE0E1E2Produced === false
+}
+
+/** Evalúa automáticamente una foto persistida sin generar grado de calidad. */
+export async function assessEvaluationImage(evaluationId: string, imageId: string): Promise<UncertaintyGateResponse> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/review-gate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId }),
+  }, 120000)
+  if (!isGateResponse(body, evaluationId, imageId)) throw new ApiDataError()
+  return body
+}
+
+/** Un revisor puede objetar una foto sin modificar la salida automática. */
+export async function markUncertainEvaluationImage(evaluationId: string, imageId: string, note: string): Promise<UncertaintyGateResponse> {
+  const text = note.trim()
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)
+      || text.length < 10 || text.length > 300) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/review-gate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId, forceReview: true, note: text }),
+  })
+  if (!isGateResponse(body, evaluationId, imageId) || body.status !== 'pending_review') throw new ApiDataError()
+  return body
+}
+
+export type VisionAssessment = {
+  id: number
+  imageId: string
+  outcome: 'pending_review' | 'ready_to_capture'
+  reason: string
+  confidence: number | null
+  threshold: number
+  imageSha256: string
+  modelVersion: string
+}
+
+export async function getVisionAssessments(evaluationId: string): Promise<VisionAssessment[]> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/assessments`)
+  if (!Array.isArray(body) || !body.every(item => object(item) && typeof item.id === 'number'
+      && typeof item.imageId === 'string' && typeof item.reason === 'string'
+      && typeof item.imageSha256 === 'string' && typeof item.modelVersion === 'string'
+      && typeof item.threshold === 'number' && (item.confidence === null || typeof item.confidence === 'number')
+      && (item.outcome === 'pending_review' || item.outcome === 'ready_to_capture'))) throw new ApiDataError()
+  return body as VisionAssessment[]
+}
+
+export async function resolveUncertainEvaluation(evaluationId: string, outcome: 'E0' | 'E1' | 'E2' | 'no_evaluable', reason: string): Promise<void> {
+  const note = reason.trim()
+  if (!validEvaluationId(evaluationId) || note.length < 10 || note.length > 500) throw new ApiDataError()
+  const response = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome, reason: note }),
+  })
+  if (!object(response) || response.evaluationId !== evaluationId
+      || response.status !== 'completed' || response.reviewOutcome !== outcome
+      || response.originalPreserved !== true) throw new ApiDataError()
 }

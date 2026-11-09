@@ -20,6 +20,8 @@ from pathlib import Path, PurePosixPath
 
 from PIL import Image, UnidentifiedImageError
 
+from .auditar_etiquetado import MAX_IMAGE_PIXELS
+
 IMAGES = {'.jpg', '.jpeg', '.png'}
 MAX_ENTRY = 12 * 1024 * 1024
 MAX_TOTAL = 1500 * 1024 * 1024
@@ -66,19 +68,28 @@ def _safe_path(name: str) -> tuple[str, ...]:
 
 def _source(parts: tuple[str, ...]):
     # Strip one container root if the archive is distributed inside a folder.
-    if parts and parts[0] == 'AgroScan_Imagenes_Revisadas':
+    if parts and parts[0] in ('AgroScan_Imagenes_Revisadas',
+                               'AgroScan_Imagenes_Revisadas_v2'):
         parts = parts[1:]
     if len(parts) < 4:
         raise IngestionError('Ruta de imagen sin procedencia/grupo identificable')
     folder, subcategory, group = parts[:3]
     if folder == '01_ZIP_Capturas_reales':
         source = 'captura_proyecto_declarada'
-        product = 'mango' if subcategory == 'Mango_variedad_pendiente' else ('tomate' if subcategory == 'Tomate_tipo_pendiente' else None)
+        # Las carpetas declaran producto; NO certifican variedad ni pieza física.
+        product = ('mango' if subcategory in ('Mango_variedad_pendiente', 'Mango_variedad')
+                   else 'tomate' if subcategory in ('Tomate_tipo_pendiente', 'Tomate')
+                   else None)
         variety = ''
     elif folder == '02_Datasets_externos':
         source = 'dataset_externo_declarado'
-        product = 'mango' if subcategory == 'Mango_Kent_COFiLAB_dos_vistas' else ('tomate' if subcategory == 'Tomate_Cherry_Rojo_Fruits360' else None)
-        variety = 'Kent (solo carpeta)' if product == 'mango' else ('Cherry Red (solo carpeta)' if product == 'tomate' else '')
+        product = ('mango' if subcategory == 'Mango_Kent_COFiLAB_dos_vistas'
+                   else 'tomate' if subcategory in ('Tomate_Cherry_Rojo_Fruits360',
+                                                    'Tomate_Rojo_Hohenheim_3_vistas')
+                   else None)
+        variety = ('Kent (solo carpeta)' if product == 'mango'
+                   else 'Cherry Red (solo carpeta)' if subcategory == 'Tomate_Cherry_Rojo_Fruits360'
+                   else 'Rojo (solo carpeta)' if product == 'tomate' else '')
     else:
         raise IngestionError(f'Procedencia no reconocida: {folder}')
     if product is None:
@@ -138,7 +149,7 @@ def ingest(source_zip: Path, output_dir: Path) -> dict:
             try:
                 with Image.open(io.BytesIO(data)) as photo:
                     w, h = photo.size
-                    if photo.format not in ('JPEG', 'PNG') or w*h > 16_000_000:
+                    if photo.format not in ('JPEG', 'PNG', 'MPO') or w*h > MAX_IMAGE_PIXELS:
                         raise IngestionError(f'Formato o dimensiones inválidas: {rel}')
                     photo.verify()
             except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:

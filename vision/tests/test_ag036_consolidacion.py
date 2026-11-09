@@ -88,7 +88,7 @@ class ConsolidacionTests(unittest.TestCase):
 
     def test_blank_forms_do_not_create_labels(self):
         r = self.runit()
-        report = json.loads((self.out / 'AG036_auditoria.json').read_text())
+        report = json.loads((self.out / 'AG036_auditoria.json').read_text(encoding='utf-8'))
         self.assertEqual(r['filas_A'], 0)
         self.assertEqual(r['piezas_sin_revisar_A'], 2)
         self.assertEqual(report['por_producto']['tomate']['pares_incompletos'], 2)
@@ -99,13 +99,13 @@ class ConsolidacionTests(unittest.TestCase):
         self.submit('A','P-1','E0'); self.submit('B','P-1','E0')
         self.submit('A','P-2','E1'); self.submit('B','P-2','E2')
         self.runit()
-        report = json.loads((self.out / 'AG036_auditoria.json').read_text())
+        report = json.loads((self.out / 'AG036_auditoria.json').read_text(encoding='utf-8'))
         item = report['por_producto']['tomate']
         self.assertEqual(item['pares_con_dos_grados'], 2)
         self.assertEqual(item['acuerdo_observado'], .5)
         self.assertEqual(item['discrepancias'], 1)
         self.assertEqual(report['casos_discrepantes'][0]['pieza_id'], 'P-2')
-        self.assertIn('P-2', (self.out / 'AG036_auditoria.md').read_text())
+        self.assertIn('P-2', (self.out / 'AG036_auditoria.md').read_text(encoding='utf-8'))
 
     def test_originals_untouched_and_evidence_isolated(self):
         self.submit('A', 'P-1', 'E1', support='soportes/obs.txt')
@@ -125,7 +125,7 @@ class ConsolidacionTests(unittest.TestCase):
     def test_no_evaluable_is_not_accuracy(self):
         self.submit('A', 'P-1', state='no_evaluable'); self.submit('B','P-1','E0')
         self.runit()
-        item = json.loads((self.out / 'AG036_auditoria.json').read_text())['por_producto']['tomate']
+        item = json.loads((self.out / 'AG036_auditoria.json').read_text(encoding='utf-8'))['por_producto']['tomate']
         self.assertEqual(item['pares_con_algun_no_evaluable'], 1)
         self.assertIsNone(item['kappa_cohen_no_ponderado'])
 
@@ -186,7 +186,7 @@ class ConsolidacionTests(unittest.TestCase):
             for name, blob in entries.items():
                 archive.writestr(name, blob)
         act_path = self.prep / 'AG036_acta_preparacion.json'
-        act = json.loads(act_path.read_text())
+        act = json.loads(act_path.read_text(encoding='utf-8'))
         act['sha256_zips'][slot] = hashlib.sha256(package.read_bytes()).hexdigest()
         act_path.write_text(json.dumps(act), encoding='utf-8')
 
@@ -254,7 +254,7 @@ class ConsolidacionTests(unittest.TestCase):
     def test_receipt_provenance_and_not_certified(self):
         self.submit('A','P-1','E0'); self.submit('B','P-1','E0')
         self.runit()
-        act = json.loads((self.out / 'AG036_acta_recepcion.json').read_text())
+        act = json.loads((self.out / 'AG036_acta_recepcion.json').read_text(encoding='utf-8'))
         self.assertEqual(act['devoluciones']['A']['filas_con_registro'],1)
         self.assertEqual(len(act['devoluciones']['A']['sha256_csv_recibido']),64)
         self.assertFalse(act['autenticidad_e_independencia_humana_verificadas'])

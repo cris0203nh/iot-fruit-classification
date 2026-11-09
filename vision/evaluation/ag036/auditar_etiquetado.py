@@ -34,6 +34,7 @@ ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,89}\Z')
 SHA = re.compile(r'[0-9a-fA-F]{64}\Z')
 MAX_CSV = 4 * 1024 * 1024
 MAX_IMAGE = 12 * 1024 * 1024
+MAX_IMAGE_PIXELS = 24_000_000  # admite 6000x3376 de v2, mantiene límite de decodificación
 
 
 class AuditError(ValueError):
@@ -111,7 +112,7 @@ def load_universe(path: Path, images: Path) -> tuple[dict, dict]:
             raise AuditError(f'Universo fila {n}: SHA256 no coincide')
         try:
             with Image.open(io.BytesIO(data)) as img:
-                if img.format not in ('JPEG', 'PNG') or img.width * img.height > 16_000_000:
+                if img.format not in ('JPEG', 'PNG', 'MPO') or img.width * img.height > MAX_IMAGE_PIXELS:
                     raise AuditError(f'Universo fila {n}: imagen no admitida')
                 img.verify()
         except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:

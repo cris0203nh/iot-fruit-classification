@@ -2,7 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401
-from .routers import auth, evaluations, images, iot, lots, users, uncertainty
+from .routers import auth, evaluations, images, iot, lots, users, uncertainty, review_decisions
 
 app = FastAPI(title="AgroScan API")
 
@@ -20,6 +20,7 @@ app.include_router(evaluations.router)
 app.include_router(iot.router)
 app.include_router(images.router)
 app.include_router(uncertainty.router)
+app.include_router(review_decisions.router)
 
 
 @app.get("/api/health")

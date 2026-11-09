@@ -682,3 +682,70 @@ export async function resolveUncertainEvaluation(evaluationId: string, outcome: 
       || response.status !== 'completed' || response.reviewOutcome !== outcome
       || response.originalPreserved !== true) throw new ApiDataError()
 }
+
+/** AG-038: bitácora de decisiones vinculadas a una fotografía y su SHA256. */
+export type ReviewDecisionAction = 'confirm' | 'correct' | 'initial_label' | 'no_evaluable'
+export type HumanReviewDecision = {
+  id: string
+  evaluationId: string
+  action: ReviewDecisionAction
+  previousValue: string | null
+  newValue: string
+  actorId: string
+  performedAt: string
+  reason: string
+  imageId: string
+  imageSha256: string
+  requestId: string
+}
+export type ReviewDecisionLedger = {
+  evaluationId: string
+  originalValue: string | null
+  currentValue: string | null
+  revisionId: string | null
+  decisions: HumanReviewDecision[]
+}
+export type NewReviewDecision = {
+  action: ReviewDecisionAction
+  imageId: string
+  newValue: string
+  reason: string
+  expectedReviewId: string | null
+  requestId: string
+}
+
+function isReviewDecision(entry: unknown): entry is HumanReviewDecision {
+  return object(entry) && typeof entry.id === 'string' && /^R-\d{1,9}$/.test(entry.id)
+    && typeof entry.evaluationId === 'string' && validEvaluationId(entry.evaluationId)
+    && ['confirm', 'correct', 'initial_label', 'no_evaluable'].includes(String(entry.action))
+    && nullableString(entry.previousValue) && typeof entry.newValue === 'string'
+    && typeof entry.actorId === 'string' && typeof entry.performedAt === 'string'
+    && Number.isFinite(Date.parse(entry.performedAt)) && typeof entry.reason === 'string'
+    && typeof entry.imageId === 'string' && IMAGE_ID_PATTERN.test(entry.imageId)
+    && typeof entry.imageSha256 === 'string' && /^[0-9a-f]{64}$/.test(entry.imageSha256)
+    && typeof entry.requestId === 'string'
+}
+
+export async function getReviewDecisions(evaluationId: string): Promise<ReviewDecisionLedger> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const data = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/review-decisions`)
+  if (!object(data) || data.evaluationId !== evaluationId
+      || !nullableString(data.originalValue) || !nullableString(data.currentValue)
+      || !nullableString(data.revisionId) || (data.revisionId !== null && !/^R-\d{1,9}$/.test(data.revisionId))
+      || !Array.isArray(data.decisions) || !data.decisions.every(isReviewDecision)) throw new ApiDataError()
+  return data as unknown as ReviewDecisionLedger
+}
+
+export async function postReviewDecision(evaluationId: string, decision: NewReviewDecision): Promise<HumanReviewDecision> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(decision.imageId)
+      || decision.reason.trim().length < 10 || decision.reason.trim().length > 500
+      || !['confirm', 'correct', 'initial_label', 'no_evaluable'].includes(decision.action)) throw new ApiDataError()
+  const data = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/review-decisions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(decision),
+  })
+  if (!isReviewDecision(data) || data.evaluationId !== evaluationId || data.requestId !== decision.requestId) {
+    throw new ApiDataError()
+  }
+  return data
+}

@@ -1,5 +1,5 @@
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/layout/Icon'
 import { EvaluationImageCapture } from '../capture/EvaluationImageCapture'
@@ -16,7 +16,12 @@ import {
   type WeightStep,
 } from '../../services/agroscanApi'
 import type { EvaluationDetail } from '../history/historyService'
-import { acquisitionOutcome, hasConfirmedImages, type GuidedStep } from './evaluationFlow'
+import {
+  acquisitionOutcome,
+  hasConfirmedImages,
+  resolveAcquisitionProcessStatus,
+  type GuidedStep,
+} from './evaluationFlow'
 import './EvaluationGuidedAcquisition.css'
 
 type AcquisitionStep = 2 | 3 | 4 | 5
@@ -40,19 +45,33 @@ function operationError(failure: unknown): string {
     return `FastAPI rechazó la operación (HTTP ${failure.status}): ${failure.message}`
   }
 
-  return failure instanceof Error ? failure.message : 'No se pudo confirmar la operación.'
+  return failure instanceof Error
+    ? failure.message
+    : 'No se pudo confirmar la operación.'
 }
 
-function WeightResult({ result, name }: { result: WeightStep; name: string }) {
+function WeightResult({
+  result,
+  name,
+}: {
+  result: WeightStep
+  name: string
+}) {
   return (
     <p className="guided-acquisition__success" role="status">
-      <Icon name="info" size={17} /> {name} confirmado por FastAPI: <strong>{result.weightG} g</strong>
+      <Icon name="info" size={17} /> {name} confirmado por FastAPI:{' '}
+      <strong>{result.weightG} g</strong>
       <span> · {result.deviceId}</span>
     </p>
   )
 }
 
-/** Guía de UI; no crea estados de evaluación ni registra clasificaciones inexistentes. */
+/**
+ * AGROP-50:
+ * Coordina el procedimiento de adquisición de una pieza.
+ * Los estados de confirmación se muestran únicamente cuando FastAPI
+ * devuelve una respuesta válida. Este componente no genera clasificaciones.
+ */
 export function EvaluationGuidedAcquisition({
   evaluation,
   onStepChange,
@@ -61,7 +80,9 @@ export function EvaluationGuidedAcquisition({
   const [step, setStep] = useState<AcquisitionStep>(2)
   const [pre, setPre] = useState<WeightStep | null>(null)
   const [post, setPost] = useState<WeightStep | null>(null)
-  const [imageCount, setImageCount] = useState(evaluation?.evidence.length ?? 0)
+  const [imageCount, setImageCount] = useState(
+    evaluation?.evidence.length ?? 0,
+  )
   const [processing, setProcessing] = useState(false)
   const [serverConfirmation, setServerConfirmation] =
     useState<AcquisitionConfirmation | null>(null)
@@ -69,16 +90,29 @@ export function EvaluationGuidedAcquisition({
   const busy = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [retired, setRetired] = useState(false)
-  const [visionGateState, setVisionGateState] = useState<'idle'|'checking'|'ready'|'pending'|'error'>('idle')
+
+  // Reiniciar los datos locales cuando se inicia una evaluación distinta.
+  useEffect(() => {
+    setStep(2)
+    setPre(null)
+    setPost(null)
+    setImageCount(evaluation?.evidence.length ?? 0)
+    setProcessing(false)
+    setServerConfirmation(null)
+    setError(null)
+    setRetired(false)
+    busy.current = false
+  }, [evaluation?.id])
 
   const onEvidenceChange = useCallback((count: number) => {
     setImageCount(count)
     setServerConfirmation(null)
-    setVisionGateState('idle')
+
   }, [])
 
   function goTo(next: AcquisitionStep) {
-    if (processing) return
+    if (processing || busy.current) return
+
     setStep(next)
     setError(null)
     onStepChange(next)
@@ -97,10 +131,7 @@ export function EvaluationGuidedAcquisition({
         const result = await captureWeightPre(evaluation.id)
         setPre(result)
 
-        // Avanzar automaticamente al paso de fotografias.
-        setStep(3)
-        onStepChange(3)
-      } else {
+        } else {
         const result = await captureWeightPost(evaluation.id)
         setPost(result)
       }
@@ -131,30 +162,31 @@ export function EvaluationGuidedAcquisition({
     serverConfirmation.pieceId === evaluation.pieceId &&
     serverConfirmation.product === evaluation.product
 
-  /** AG-037: evaluar TODAS las vistas persistidas después de confirmar adquisición.
-   * Ningún resultado produce una categoría E0/E1/E2 automáticamente. */
-  async function evaluateSavedImages(evaluationId: string) {
-    setVisionGateState('checking')
-    try {
-      const detail = await getEvaluationById(evaluationId)
-      if (!detail || detail.evidence.length === 0) throw new Error('No se recuperaron fotografías persistidas.')
-      let pending = false
-      for (const image of detail.evidence) {
-        const output = await assessEvaluationImage(evaluationId, image.id)
-        if (output.decision === 'pending_review') pending = true
-      }
-      setVisionGateState(pending ? 'pending' : 'ready')
-    } catch (failure) {
-      setVisionGateState('error')
-      setError(operationError(failure))
-    }
+  // AGROP-50: estado coherente del procedimiento.
+  const status = resolveAcquisitionProcessStatus({
+    hasError: Boolean(error),
+    processing,
+    confirmed: acquisitionConfirmed,
+    capturing: step === 3,
+  })
+
+  const statusLabels = {
+    ready: readyToConfirm ? 'Listo para confirmar' : 'Listo',
+    capturing: 'Capturando',
+    processing: 'Procesando',
+    pending: 'Pendiente de revisión',
+    error: 'Error',
   }
 
-  /**
-   * AGROP-34:
-   * El frontend solicita la confirmación conjunta a FastAPI.
-   * No muestra éxito hasta recibir y validar la respuesta real.
-   */
+  const processStatus = statusLabels[status]
+
+  const processStatusClass =
+    status === 'error'
+      ? 'guided-acquisition__error'
+      : status === 'pending' || status === 'processing'
+        ? 'guided-acquisition__notice'
+        : 'guided-acquisition__success'
+
   async function confirmAcquisitionWithBackend() {
     if (!evaluation || busy.current) return
 
@@ -168,21 +200,23 @@ export function EvaluationGuidedAcquisition({
     busy.current = true
     setProcessing(true)
     setError(null)
+    setServerConfirmation(null)
 
     try {
       const result = await confirmEvaluationAcquisition(evaluation.id)
 
       if (
+        result.evaluationId !== evaluation.id ||
         result.pieceId !== evaluation.pieceId ||
         result.product !== evaluation.product
       ) {
         throw new Error(
-          'La confirmación del backend no corresponde a la pieza y producto seleccionados.',
+          'La confirmación del backend no corresponde a la evaluación, pieza y producto seleccionados.',
         )
       }
 
       setServerConfirmation(result)
-      await evaluateSavedImages(evaluation.id)
+
     } catch (failure) {
       setServerConfirmation(null)
       setError(operationError(failure))
@@ -193,36 +227,55 @@ export function EvaluationGuidedAcquisition({
   }
 
   return (
-    <section className="panel evaluation-acquisition" aria-labelledby="acquisition-heading">
+    <section
+      className="panel evaluation-acquisition"
+      aria-labelledby="acquisition-heading"
+    >
       <div className="evaluation-section-heading">
-        <span className="evaluation-step evaluation-step--muted" aria-hidden="true">
+        <span
+          className="evaluation-step evaluation-step--muted"
+          aria-hidden="true"
+        >
           {evaluation ? step : 2}
         </span>
+
         <div>
           <h2 id="acquisition-heading">Procedimiento guiado</h2>
-          <p>Una pieza por evaluación. Cada confirmación corresponde a una operación real del backend.</p>
+          <p>
+            Una pieza por evaluación. Cada confirmación corresponde a una
+            operación real del backend.
+          </p>
         </div>
       </div>
 
       {!evaluation ? (
         <div className="evaluation-camera-empty">
           <Icon name="clipboard" size={27} />
-          <span>Paso 1: selecciona un lote e identifica la pieza para continuar.</span>
+          <span>
+            Paso 1: selecciona un lote e identifica la pieza para continuar.
+          </span>
         </div>
       ) : (
         <>
           <div className="guided-acquisition__identity">
             <strong>Evaluación {evaluation.id}</strong>
-            <span>Lote: {evaluation.lotId} · Pieza: {evaluation.pieceId}</span>
+            <span>
+              Lote: {evaluation.lotId} · Pieza: {evaluation.pieceId}
+            </span>
             <span>Estado en backend al crear: En proceso</span>
+            <span className={processStatusClass} role="status">
+              Estado del procedimiento: {processStatus}
+            </span>
           </div>
 
           {step === 2 && (
             <div className="guided-acquisition__stage">
               <h3>2. Colocar la pieza y verificar el peso</h3>
+
               <p>
-                Coloca una sola fruta sobre la balanza y espera una lectura reciente y estable.
-                FastAPI validará además la calibración y la tara.
+                Coloca una sola fruta sobre la balanza y espera una lectura
+                reciente y estable. FastAPI validará además la calibración y
+                la tara.
               </p>
 
               <WeightStatusCard />
@@ -236,14 +289,17 @@ export function EvaluationGuidedAcquisition({
                   onClick={() => void confirmWeight('pre')}
                   disabled={processing}
                 >
-                  {processing ? 'Consultando FastAPI…' : 'Registrar peso inicial'}
+                  {processing
+                    ? 'Consultando FastAPI…'
+                    : 'Registrar peso inicial'}
                 </button>
               )}
 
               {!pre && (
                 <p className="guided-acquisition__notice">
-                  Si no hay sensor válido, puedes continuar para guardar fotografías;
-                  el pesaje permanecerá pendiente y no podrá confirmarse la adquisición.
+                  Si no hay sensor válido, puedes continuar para guardar
+                  fotografías; el pesaje permanecerá pendiente y no podrá
+                  confirmarse la adquisición.
                 </p>
               )}
 
@@ -261,6 +317,7 @@ export function EvaluationGuidedAcquisition({
           {step === 3 && (
             <div className="guided-acquisition__stage">
               <h3>3. Capturar fotografías RGB</h3>
+
               <p>
                 Fotografía la misma fruta. Si necesitas otra perspectiva,
                 gírala manualmente sin crear otra evaluación.
@@ -268,7 +325,7 @@ export function EvaluationGuidedAcquisition({
 
               <EvaluationImageCapture
                 evaluationId={evaluation.id}
-                autoStart={pre !== null}
+
                 onEvidenceChange={onEvidenceChange}
               />
 
@@ -277,6 +334,7 @@ export function EvaluationGuidedAcquisition({
                   type="button"
                   className="action-button action-button--secondary"
                   onClick={() => goTo(2)}
+                  disabled={processing}
                 >
                   Volver a peso
                 </button>
@@ -284,18 +342,21 @@ export function EvaluationGuidedAcquisition({
                 <button
                   type="button"
                   className="action-button action-button--primary"
-                  disabled={!hasConfirmedImages(imageCount)}
+                  disabled={!hasConfirmedImages(imageCount) || processing}
                   onClick={() => goTo(4)}
                 >
                   Continuar con {imageCount}{' '}
-                  {imageCount === 1 ? 'imagen guardada' : 'imágenes guardadas'}
+                  {imageCount === 1
+                    ? 'imagen guardada'
+                    : 'imágenes guardadas'}
                   <Icon name="arrow-right" size={17} />
                 </button>
               </div>
 
               {!hasConfirmedImages(imageCount) && (
                 <p className="guided-acquisition__notice">
-                  Para continuar, FastAPI debe confirmar al menos una fotografía.
+                  Para continuar, FastAPI debe confirmar al menos una
+                  fotografía.
                 </p>
               )}
             </div>
@@ -310,17 +371,24 @@ export function EvaluationGuidedAcquisition({
                   <dt>Evaluación</dt>
                   <dd>{evaluation.id}</dd>
                 </div>
+
                 <div>
                   <dt>Fotografías almacenadas</dt>
                   <dd>{imageCount}</dd>
                 </div>
+
                 <div>
                   <dt>Peso inicial</dt>
-                  <dd>{pre ? `${pre.weightG} g · confirmado` : 'Pendiente'}</dd>
+                  <dd>
+                    {pre ? `${pre.weightG} g · confirmado` : 'Pendiente'}
+                  </dd>
                 </div>
+
                 <div>
                   <dt>Peso final</dt>
-                  <dd>{post ? `${post.weightG} g · confirmado` : 'Pendiente'}</dd>
+                  <dd>
+                    {post ? `${post.weightG} g · confirmado` : 'Pendiente'}
+                  </dd>
                 </div>
               </dl>
 
@@ -339,13 +407,18 @@ export function EvaluationGuidedAcquisition({
                     disabled={processing}
                     onClick={() => void confirmWeight('post')}
                   >
-                    {processing ? 'Consultando FastAPI…' : 'Registrar peso de confirmación'}
+                    {processing
+                      ? 'Consultando FastAPI…'
+                      : 'Registrar peso de confirmación'}
                   </button>
                 </>
               )}
 
               {post && (
-                <WeightResult result={post} name="Peso de confirmación" />
+                <WeightResult
+                  result={post}
+                  name="Peso de confirmación"
+                />
               )}
 
               <p
@@ -356,7 +429,7 @@ export function EvaluationGuidedAcquisition({
                 }
                 role="status"
               >
-                {acquisitionConfirmed
+                {acquisitionConfirmed && serverConfirmation
                   ? `FastAPI confirmó que el peso y las ${serverConfirmation.imageCount} fotografías pertenecen a la pieza ${serverConfirmation.pieceId} (${serverConfirmation.product}). Peso validado: ${serverConfirmation.weightGrams} g.`
                   : readyToConfirm
                     ? 'Los dos pesajes y las fotografías están disponibles. Falta confirmar su asociación con FastAPI.'
@@ -366,7 +439,9 @@ export function EvaluationGuidedAcquisition({
               <button
                 type="button"
                 className="action-button action-button--primary"
-                disabled={!readyToConfirm || processing || acquisitionConfirmed}
+                disabled={
+                  !readyToConfirm || processing || acquisitionConfirmed
+                }
                 onClick={() => void confirmAcquisitionWithBackend()}
               >
                 {processing
@@ -375,17 +450,7 @@ export function EvaluationGuidedAcquisition({
                     ? 'Adquisición confirmada'
                     : 'Confirmar peso y fotografía'}
               </button>
-
-              {acquisitionConfirmed && <p role="status" className="guided-acquisition__notice">
-                {visionGateState === 'checking' ? 'Comprobando incertidumbre de detección…'
-                  : visionGateState === 'pending' ? 'Una o más vistas requieren revisión humana. No se asignó E0/E1/E2.'
-                    : visionGateState === 'ready' ? 'Detección revisada: sin alertas automáticas. Calidad E0/E1/E2 aún no determinada.'
-                      : visionGateState === 'error' ? 'No se pudo verificar la detección: vuelve a intentarlo.' : 'Verificación pendiente.'}
-              </p>}
-              {acquisitionConfirmed && visionGateState === 'error' && <button type="button"
-                className="action-button action-button--secondary" disabled={processing}
-                onClick={() => void evaluateSavedImages(evaluation.id)}>Reintentar comprobación de detección</button>}
-              <div className="guided-acquisition__actions">
+                <div className="guided-acquisition__actions">
                 <button
                   type="button"
                   className="action-button action-button--secondary"
@@ -398,7 +463,7 @@ export function EvaluationGuidedAcquisition({
                 <button
                   type="button"
                   className="action-button action-button--primary"
-                  disabled={processing || !acquisitionConfirmed || (visionGateState !== 'ready' && visionGateState !== 'pending')}
+                  disabled={processing || !acquisitionConfirmed}
                   onClick={() => goTo(5)}
                 >
                   Continuar a retiro <Icon name="arrow-right" size={17} />
@@ -412,8 +477,8 @@ export function EvaluationGuidedAcquisition({
               <h3>5. Retirar la pieza</h3>
 
               <p>
-                Retira físicamente la fruta de la zona de captura
-                y deja disponible la estación para la siguiente pieza.
+                Retira físicamente la fruta de la zona de captura y deja
+                disponible la estación para la siguiente pieza.
               </p>
 
               <label className="guided-acquisition__check">
@@ -443,6 +508,7 @@ export function EvaluationGuidedAcquisition({
                   type="button"
                   className="action-button action-button--secondary"
                   onClick={() => goTo(4)}
+                  disabled={processing}
                 >
                   Volver a confirmación
                 </button>
@@ -450,7 +516,9 @@ export function EvaluationGuidedAcquisition({
                 <button
                   type="button"
                   className="action-button action-button--primary"
-                  disabled={!retired || !acquisitionConfirmed}
+                  disabled={
+                    !retired || !acquisitionConfirmed || processing
+                  }
                   onClick={onNextEvaluation}
                 >
                   Terminar recorrido e iniciar otra pieza

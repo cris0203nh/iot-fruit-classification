@@ -1,34 +1,157 @@
-.capture { display: grid; gap: 11px; margin-top: 12px; }
-.capture__reference, .capture__hint { margin: 0 !important; font-size: 12px !important; line-height: 1.5; }
-.capture__reference { overflow-wrap: anywhere; }
-.capture__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.capture__placeholder { min-height: 110px; border: 1px dashed #cddce5; border-radius: 9px; display: grid; place-items: center; color: #637b8e; font-size: 12px; background: #f3f7fa; }
-.capture__result { display: grid; gap: 7px; }
-.capture__result img { display: block; width: 100%; max-height: 275px; object-fit: contain; border-radius: 9px; background: #f3f7fa; }
-.capture__result p { margin: 0 !important; overflow-wrap: anywhere; }
-.capture__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.capture__actions .action-button { flex: 1 1 130px; min-height: 42px; justify-content: center; }
-.capture__error { margin: 0 !important; color: #a12f2f !important; background: #fff6f6; border: 1px solid #efcaca; border-radius: 8px; padding: 9px; }
-.capture__gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 0; margin: 9px 0; list-style: none; }
-.capture__gallery li { display: grid; gap: 4px; min-width: 0; padding: 8px; border: 1px solid #d5e3e9; border-radius: 9px; background: #fff; font-size: 11px; }
-.capture__gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 6px; background: #f3f7fa; }
-.capture__gallery span { color: #5d7286; }
-.capture__rotation { border: 1px solid #c7e4d5; background: #f0faf4; border-radius: 8px; color: #276145 !important; padding: 10px; font-size: 12px !important; }
-.capture__rotation-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #34566a; line-height: 1.5; }
-.capture__rotation-check input { margin-top: 3px; flex-shrink: 0; }
+﻿/* Captura RGB — visor y galería sobre la hoja. */
 
-/* AGROP-26 integrated webcam */
+.capture {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.capture__reference,
+.capture__hint {
+  margin: 0 !important;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm) !important;
+  line-height: 1.55;
+}
+
+.capture__reference {
+  overflow-wrap: anywhere;
+}
+
+.capture__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.capture__placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px dashed var(--rule);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  line-height: 1.6;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.capture__result {
+  display: grid;
+  gap: 8px;
+}
+
+.capture__result img {
+  display: block;
+  width: 100%;
+  max-height: 275px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  object-fit: contain;
+}
+
+.capture__result p {
+  margin: 0 !important;
+  overflow-wrap: anywhere;
+}
+
+.capture__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.capture__actions .action-button {
+  flex: 1 1 140px;
+}
+
+/* Los botones sueltos del bloque no deben estirarse a todo el ancho. */
+.capture > .action-button {
+  justify-self: start;
+}
+
+.capture__error {
+  margin: 0 !important;
+  padding: 9px 11px;
+  border-left: 3px solid var(--tomato);
+  background: #f6e2da;
+  color: #8a2c1c !important;
+  font-size: var(--fs-sm);
+}
+
+.capture__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capture__gallery li {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.capture__gallery img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #fff;
+  object-fit: contain;
+}
+
+.capture__rotation {
+  margin: 0 !important;
+  padding: 9px 11px;
+  border-left: 3px solid var(--ok);
+  background: rgba(44, 106, 76, 0.07);
+  color: #1f5539 !important;
+  font-size: var(--fs-sm) !important;
+  line-height: 1.55;
+}
+
+.capture__rotation-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.capture__rotation-check input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  accent-color: var(--ink);
+}
+
 .capture__camera {
   display: grid;
   gap: 10px;
   width: 100%;
 }
+
 .capture__video {
   display: block;
   width: 100%;
   max-height: 420px;
   aspect-ratio: 4 / 3;
-  object-fit: contain;
+  border: 1px solid var(--ink);
   background: #111;
-  border-radius: 9px;
+  object-fit: contain;
 }

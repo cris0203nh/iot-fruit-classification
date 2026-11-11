@@ -427,15 +427,15 @@ export function AdminDashboard() {
           <SystemStatus
             title="Cámara web RGB"
             description="Captura de imágenes desde la PC"
-            status="Validada"
-            online
+            status="Sin verificar"
+            online={false}
           />
 
           <SystemStatus
             title="Balanza digital ESP32"
             description="Lectura de peso del producto"
-            status="Validada"
-            online
+            status="Sin verificar"
+            online={false}
           />
 
           <SystemStatus
@@ -448,9 +448,9 @@ export function AdminDashboard() {
         </div>
 
         <p className="admin-disclaimer">
-          Los estados de cámara y balanza reflejan las validaciones
-          funcionales realizadas. No representan una comprobación
-          automática de conexión en tiempo real.
+          La cámara y la balanza no cuentan con validación física
+          acreditada. La disponibilidad de FastAPI no confirma que
+          estos dispositivos estén conectados o funcionando.
         </p>
       </section>
 

@@ -1,19 +1,169 @@
-.guided-acquisition__identity { display: grid; gap: 4px; padding: 12px; border-radius: 9px; background: #eef8f1; border: 1px solid #b9dfca; font-size: 12px; color: #2b6048; overflow-wrap: anywhere; }
-.guided-acquisition__identity strong { font-size: 14px; }
-.guided-acquisition__stage { display: grid; align-content: start; gap: 13px; min-width: 0; }
-.guided-acquisition__stage h3 { margin: 0; font-size: 16px; color: #244357; }
-.guided-acquisition__stage > p { margin: 0; font-size: 12px; line-height: 1.65; color: #526c7a; }
-.guided-acquisition__stage > button { justify-self: stretch; }
-.guided-acquisition__actions { display: flex; flex-wrap: wrap; gap: 9px; }
-.guided-acquisition__actions .action-button { flex: 1 1 145px; justify-content: center; }
-.guided-acquisition__notice, .guided-acquisition__success, .guided-acquisition__error { padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.55; }
-.guided-acquisition__notice { background: #fff9ee; border: 1px solid #f0dab2; color: #79592b; }
-.guided-acquisition__success { background: #eef8f2; border: 1px solid #b9ddc7; color: #17643e; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.guided-acquisition__error { margin: 0; background: #fff5f5; border: 1px solid #efbaba; color: #a03030; }
-.guided-acquisition__review { display: grid; gap: 7px; margin: 0; }
-.guided-acquisition__review div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border: 1px solid #e0e9ed; border-radius: 7px; background: #f8fbfc; padding: 9px 11px; }
-.guided-acquisition__review dt { font-size: 11px; color: #6b8190; }
-.guided-acquisition__review dd { margin: 0; font-weight: 700; font-size: 12px; color: #34526a; text-align: right; overflow-wrap: anywhere; }
-.guided-acquisition__check { display: flex; gap: 9px; align-items: flex-start; font-size: 12px; line-height: 1.5; color: #34526a; }
-.guided-acquisition__check input { flex-shrink: 0; margin-top: 2px; }
-@media (max-width: 560px) { .guided-acquisition__review div { flex-direction: column; gap: 3px; } .guided-acquisition__review dd { text-align: left; } }
+﻿/* Procedimiento guiado — pasos impresos sobre la misma hoja. */
+
+.guided-acquisition__identity {
+  display: grid;
+  gap: 5px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.guided-acquisition__identity strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.guided-acquisition__identity strong svg {
+  color: var(--ink-soft);
+}
+
+.guided-acquisition__identity span {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+  text-transform: uppercase;
+}
+
+.guided-acquisition__stage {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-width: 0;
+}
+
+.guided-acquisition__stage h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: var(--fs-h3);
+  font-weight: 760;
+  letter-spacing: -0.025em;
+}
+
+.guided-acquisition__stage h3 svg {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+
+.guided-acquisition__stage > p {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.guided-acquisition__stage > button {
+  justify-self: stretch;
+}
+
+.guided-acquisition__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guided-acquisition__actions .action-button {
+  flex: 1 1 150px;
+}
+
+.guided-acquisition__notice,
+.guided-acquisition__success,
+.guided-acquisition__error {
+  padding: 10px 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+
+.guided-acquisition__notice {
+  margin: 0;
+  border-left: 3px solid var(--mango);
+  background: #f7eeda;
+  color: #6d4f17;
+}
+
+.guided-acquisition__success {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  border-left: 3px solid var(--ok);
+  background: rgba(44, 106, 76, 0.07);
+  color: #1f5539;
+}
+
+.guided-acquisition__error {
+  margin: 0;
+  border-left: 3px solid var(--tomato);
+  background: #f6e2da;
+  color: #8a2c1c;
+}
+
+.guided-acquisition__review {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.guided-acquisition__review div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.guided-acquisition__review dt {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guided-acquisition__review dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.guided-acquisition__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.guided-acquisition__check input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  accent-color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .guided-acquisition__review div {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .guided-acquisition__review dd {
+    text-align: left;
+  }
+}

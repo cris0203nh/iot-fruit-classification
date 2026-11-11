@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
 import { PieceHistoryPanel } from '../features/history/PieceHistoryPanel'
+import { paramsForHistoryView, resolveHistoryView, type HistoryView } from '../features/history/historyView'
 import {
   filterHistory,
   formatDate,
@@ -116,329 +117,166 @@ function StatusLabel({ status }: { status: EvaluationStatus }) {
 export function HistoryPage() {
   const { state, refresh } = useHistoryList()
   const [filters, setFilters] = useState<HistoryFilters>(EMPTY_FILTERS)
-
+  const [searchParams, setSearchParams] = useSearchParams()
+  const currentView = resolveHistoryView(searchParams.get('vista'))
+  function selectView(nextView: HistoryView) {
+    setSearchParams((current) => paramsForHistoryView(current, nextView))
+  }
   const records = state.kind === 'ready' ? state.data : []
   const filteredRecords = filterHistory(records, filters)
-
-  const lots = Array.from(
-    new Set(records.map((record) => record.lotId)),
-  ).sort((a, b) => a.localeCompare(b, 'es-PE'))
-
-  const filtersActive =
-    filters.query !== '' ||
-    filters.lot !== '' ||
-    filters.piece !== '' ||
-    filters.product !== '' ||
-    filters.status !== ''
+  const lots = Array.from(new Set(records.map((record) => record.lotId))).sort((a, b) => a.localeCompare(b, 'es-PE'))
+  const filtersActive = filters.query !== '' || filters.lot !== '' || filters.piece !== '' || filters.product !== '' || filters.status !== ''
 
   return (
-    <div className="page-stack history-page">
-      <div className="page-heading">
-        <span className="eyebrow">Módulo de historial</span>
-        <h1>Historial de evaluaciones</h1>
-        <p>
-          Consulta por lote, pieza y producto los registros que hayan sido
-          almacenados y confirmados por el sistema.
-        </p>
-
+    <div className="historial">
+      <header className="historial__head">
+        <p className="historial__kicker">Módulo de historial</p>
+        <h1 className="historial__title">Historial de evaluaciones</h1>
+        <p className="historial__lede">Consulta evaluaciones individuales o abre el historial integral por pieza y lote, sin alterar los registros guardados.</p>
         {getSessionRole() === 'revisor' && (
-          <p className="history-readonly-note">
-            Modo revisor: consulta de evaluaciones y revisión de evidencias.
-          </p>
+          <p className="historial__tag"><Icon name="info" size={15} /> Modo revisor: consulta de solo lectura. Las evaluaciones y sus evidencias no se modifican.</p>
         )}
-      </div>
+      </header>
 
-      {state.kind === 'unavailable' && (
-        <div className="notice notice--warning" role="status">
-          <Icon name="alert" size={19} />
-          <span>
-            <strong>Sin conexión con FastAPI:</strong> no se pudo consultar el
-            historial. Los registros pueden seguir almacenados en SQLite;
-            inicia el servidor y reintenta.
-          </span>
+      <nav className="historial__vistas" aria-label="Tipos de historial">
+        <button type="button" aria-pressed={currentView === 'evaluaciones'} aria-controls="historial-vista-evaluaciones"
+          onClick={() => selectView('evaluaciones')}>
+          <Icon name="clipboard" size={17} /> Evaluaciones
+        </button>
+        <button type="button" aria-pressed={currentView === 'piezas'} aria-controls="historial-vista-piezas"
+          onClick={() => selectView('piezas')}>
+          <Icon name="boxes" size={17} /> Piezas y lotes · AG-040
+        </button>
+      </nav>
+
+      {state.kind === 'unavailable' && currentView === 'evaluaciones' && (
+        <div className="historial__aviso" role="status">
+          <span className="historial__aviso-icon" aria-hidden="true"><Icon name="alert" size={17} /></span>
+          <p><strong>Sin conexión con FastAPI:</strong> no se pudo consultar el historial. Los registros pueden seguir almacenados en SQLite; inicia el servidor y reintenta.</p>
         </div>
       )}
 
-      <section
-        className="panel history-panel"
-        aria-labelledby="history-list-heading"
-      >
-        <div className="panel-heading history-panel__heading">
-          <span className="round-icon round-icon--green">
-            <Icon name="history" size={20} />
-          </span>
-
+      <section className="historial__panel" id="historial-vista-evaluaciones" hidden={currentView !== 'evaluaciones'} aria-labelledby="history-list-heading" aria-busy={state.kind === 'loading'}>
+        <div className="historial__panel-head">
+          <span className="historial__panel-icon" aria-hidden="true"><Icon name="history" size={18} /></span>
           <div>
             <h2 id="history-list-heading">Evaluaciones registradas</h2>
-            <p>
-              Registros consultados desde FastAPI y almacenados en SQLite.
-            </p>
+            <p>Registros consultados desde FastAPI y almacenados en SQLite.</p>
           </div>
         </div>
 
-        <div
-          className="history-filters"
-          role="search"
-          aria-label="Filtros de historial"
-        >
+        <div className="history-filters" role="search" aria-label="Filtros de historial">
           <div className="history-field history-field--search">
-            <label htmlFor="history-search">
-              Buscar lote, pieza o evaluación
-            </label>
-            <input
-              id="history-search"
-              type="search"
-              value={filters.query}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  query: event.target.value,
-                }))
-              }
-              placeholder="Código o identificador"
-            />
+            <label htmlFor="history-search">Buscar lote, pieza o evaluación</label>
+            <div className="history-field__control">
+              <span className="history-field__icon" aria-hidden="true"><Icon name="search" size={16} /></span>
+              <input
+                id="history-search"
+                type="search"
+                value={filters.query}
+                onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+                placeholder="Código o identificador"
+              />
+            </div>
           </div>
-
           <div className="history-field">
             <label htmlFor="history-lot">Lote</label>
-            <select
-              id="history-lot"
-              value={filters.lot ?? ''}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  lot: event.target.value,
-                }))
-              }
-            >
-              <option value="">Todos los lotes</option>
-              {lots.map((lot) => (
-                <option key={lot} value={lot}>
-                  {lot}
-                </option>
-              ))}
-            </select>
+            <div className="history-field__control">
+              <select id="history-lot" value={filters.lot ?? ''} onChange={(event) => setFilters((current) => ({ ...current, lot: event.target.value }))}>
+                <option value="">Todos los lotes</option>
+                {lots.map((lot) => <option key={lot} value={lot}>{lot}</option>)}
+              </select>
+              <span className="history-field__caret" aria-hidden="true">▾</span>
+            </div>
           </div>
-
           <div className="history-field">
             <label htmlFor="history-piece">Pieza</label>
-            <input
-              id="history-piece"
-              type="search"
-              placeholder="Ej.: PEE_01"
-              value={filters.piece ?? ''}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  piece: event.target.value,
-                }))
-              }
-            />
+            <div className="history-field__control">
+              <input id="history-piece" type="search" placeholder="Ej.: PEE_01" value={filters.piece ?? ''} onChange={(event) => setFilters((current) => ({ ...current, piece: event.target.value }))} />
+            </div>
           </div>
-
           <div className="history-field">
             <label htmlFor="history-product">Producto</label>
-            <select
-              id="history-product"
-              value={filters.product}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  product: event.target.value as HistoryFilters['product'],
-                }))
-              }
-            >
-              <option value="">Todos</option>
-              <option value="mango">Mango</option>
-              <option value="tomate">Tomate</option>
-            </select>
+            <div className="history-field__control">
+              <select id="history-product" value={filters.product} onChange={(event) => setFilters((current) => ({ ...current, product: event.target.value as HistoryFilters['product'] }))}>
+                <option value="">Todos</option>
+                <option value="mango">Mango</option>
+                <option value="tomate">Tomate</option>
+              </select>
+              <span className="history-field__caret" aria-hidden="true">▾</span>
+            </div>
           </div>
-
           <div className="history-field">
             <label htmlFor="history-status">Estado</label>
-            <select
-              id="history-status"
-              value={filters.status}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  status: event.target.value as HistoryFilters['status'],
-                }))
-              }
-            >
-              <option value="">Todos</option>
-              {Object.entries(HISTORY_STATUS_LABELS).map(
-                ([key, label]) => (
-                  <option value={key} key={key}>
-                    {label}
-                  </option>
-                ),
-              )}
-            </select>
+            <div className="history-field__control">
+              <select id="history-status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as HistoryFilters['status'] }))}>
+                <option value="">Todos</option>
+                {Object.entries(HISTORY_STATUS_LABELS).map(([key, label]) => <option value={key} key={key}>{label}</option>)}
+              </select>
+              <span className="history-field__caret" aria-hidden="true">▾</span>
+            </div>
           </div>
-
-          <button
-            className="action-button action-button--secondary history-reset"
-            type="button"
-            onClick={() => setFilters(EMPTY_FILTERS)}
-            disabled={!filtersActive}
-          >
+          <button className="action-button action-button--secondary history-reset" type="button" onClick={() => setFilters(EMPTY_FILTERS)} disabled={!filtersActive}>
             Limpiar filtros
           </button>
         </div>
 
         <div className="history-results-bar" aria-live="polite">
-          <span>
-            {state.kind === 'ready'
-              ? `${filteredRecords.length} ${
-                  filteredRecords.length === 1
-                    ? 'evaluación'
-                    : 'evaluaciones'
-                } encontradas`
-              : state.kind === 'loading'
-                ? 'Consultando backend…'
-                : 'Consulta no disponible'}
-          </span>
-          <span>Datos persistidos, no simulados</span>
+          <span className="history-results-bar__count">{state.kind === 'ready' ? `${filteredRecords.length} ${filteredRecords.length === 1 ? 'evaluación' : 'evaluaciones'} encontradas` : state.kind === 'loading' ? 'Consultando backend…' : 'Consulta no disponible'}</span>
+          <div className="history-results-bar__actions">
+            <span className="history-results-bar__note">Datos consultados desde el servidor</span>
+            <button type="button" className="action-button action-button--secondary" disabled={state.kind === 'loading'} onClick={refresh}>Actualizar registros</button>
+          </div>
         </div>
 
-        <div className="history-table-wrap">
+        {state.kind === 'ready' && <div className="history-table-wrap">
           <table className="history-table">
-            <thead>
-              <tr>
-                <th scope="col">Evaluación / Pieza</th>
-                <th scope="col">Producto</th>
-                <th scope="col">Lote</th>
-                <th scope="col">Fecha</th>
-                <th scope="col">Peso</th>
-                <th scope="col">Imágenes</th>
-                <th scope="col">Estado</th>
-                <th scope="col">Acción</th>
-              </tr>
-            </thead>
-
+            <caption className="history-table__caption">Evaluaciones confirmadas en el historial: selecciona el detalle o la trazabilidad de cada una.</caption>
+            <thead><tr><th scope="col">Evaluación / Pieza</th><th scope="col">Producto</th><th scope="col">Lote</th><th scope="col">Fecha</th><th scope="col">Peso</th><th scope="col">Imágenes</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
             <tbody>
               {filteredRecords.map((record) => (
                 <tr key={record.id}>
-                  <td>
-                    <strong>{record.id}</strong>
-                    <span>{record.pieceId}</span>
-                  </td>
-                  <td>
-                    {record.product === 'mango' ? 'Mango' : 'Tomate'}
-                  </td>
-                  <td>{record.lotId}</td>
-                  <td>{formatDate(record.registeredAt)}</td>
-                  <td>{formatWeight(record.weightGrams)}</td>
-                  <td>{record.imageCount}</td>
-                  <td>
-                    <StatusLabel status={record.status} />
-                  </td>
-                  <td>
-                    <Link
-                      className="history-detail-link"
-                      to={`/historial/${encodeURIComponent(record.id)}`}
-                    >
-                      Ver detalle
-                      <Icon name="arrow-right" size={14} />
-                    </Link>
-                  </td>
+                  <td data-label="Evaluación / Pieza"><strong>{record.id}</strong><span>{record.pieceId}</span></td>
+                  <td data-label="Producto">{record.product === 'mango' ? 'Mango' : 'Tomate'}</td>
+                  <td data-label="Lote">{record.lotId}</td>
+                  <td data-label="Fecha">{formatDate(record.registeredAt)}</td>
+                  <td data-label="Peso">{formatWeight(record.weightGrams)}</td>
+                  <td data-label="Imágenes">{record.imageCount}</td>
+                  <td data-label="Estado"><StatusLabel status={record.status} /></td>
+                  <td data-label="Acción"><div className="history-row-actions">
+                    <Link className="history-detail-link" to={`/historial/${encodeURIComponent(record.id)}`}>Detalle <Icon name="arrow-right" size={14} /></Link>
+                    <Link className="history-detail-link" to={`/trazabilidad/${encodeURIComponent(record.id)}`}>Trazabilidad <Icon name="arrow-right" size={14} /></Link>
+                  </div></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
 
-        {state.kind === 'loading' && (
-          <div className="history-state" role="status">
-            Consultando historial…
-          </div>
-        )}
-
-        {state.kind === 'unavailable' && (
-          <div className="history-state">
-            <HistoryStateMessage
-              kind="unavailable"
-              title="FastAPI no disponible"
-              explanation="No fue posible contactar con el backend. La ausencia de filas no significa que no existan evaluaciones guardadas."
-            />
-            <button
-              type="button"
-              className="action-button action-button--secondary"
-              onClick={refresh}
-            >
-              Reintentar consulta
-            </button>
-          </div>
-        )}
-
-        {state.kind === 'restricted' && (
-          <HistoryStateMessage
-            kind="restricted"
-            title="Acceso no autorizado"
-            explanation="El backend ha denegado esta consulta (401/403). No se mostrarán datos de evaluaciones."
-          />
-        )}
-
+        {state.kind === 'loading' && <div className="history-state" role="status">Consultando historial…</div>}
+        {state.kind === 'unavailable' && <div className="history-state"><HistoryStateMessage kind="unavailable" title="FastAPI no disponible" explanation="No fue posible contactar con el backend. La ausencia de filas no significa que no existan evaluaciones guardadas." /><button type="button" className="action-button action-button--secondary" onClick={refresh}>Reintentar consulta</button></div>}
+        {state.kind === 'restricted' && <HistoryStateMessage kind="restricted" title="Acceso no autorizado" explanation="El backend ha denegado esta consulta (401/403). No se mostrarán datos de evaluaciones." />}
         {state.kind === 'error' && (
           <div className="history-state">
-            <HistoryStateMessage
-              kind="error"
-              title="No se pudo consultar el historial"
-              explanation="Se produjo un error al obtener los registros. El historial no se ha actualizado."
-            />
-            <button
-              type="button"
-              className="action-button action-button--secondary"
-              onClick={refresh}
-            >
-              Reintentar consulta
-            </button>
+            <HistoryStateMessage kind="error" title="No se pudo consultar el historial" explanation="Se produjo un error al obtener los registros. El historial no se ha actualizado." />
+            <button type="button" className="action-button action-button--secondary" onClick={refresh}>Reintentar consulta</button>
           </div>
         )}
-
-        {state.kind === 'ready' && records.length === 0 && (
-          <HistoryStateMessage
-            kind="empty"
-            title="Sin evaluaciones registradas"
-            explanation="El servicio respondió correctamente, pero no devolvió evaluaciones. Los filtros no afectan este resultado."
-          />
-        )}
-
-        {state.kind === 'ready' &&
-          records.length > 0 &&
-          filteredRecords.length === 0 && (
-            <HistoryStateMessage
-              kind="empty"
-              title="Sin coincidencias"
-              explanation="No hay registros que cumplan los filtros seleccionados. Prueba con otros criterios."
-            />
-          )}
+        {state.kind === 'ready' && records.length === 0 && <HistoryStateMessage kind="empty" title="Sin evaluaciones registradas" explanation="El servicio respondió correctamente, pero no devolvió evaluaciones. Los filtros no afectan este resultado." />}
+        {state.kind === 'ready' && records.length > 0 && filteredRecords.length === 0 && <HistoryStateMessage kind="empty" title="Sin coincidencias" explanation="No hay registros que cumplan los filtros seleccionados. Prueba con otros criterios." />}
       </section>
 
-      <PieceHistoryPanel suggestedLots={lots} />
+      <div id="historial-vista-piezas" className="historial__piece-view" hidden={currentView !== 'piezas'}>
+        <PieceHistoryPanel suggestedLots={lots} />
+      </div>
 
-      <section className="panel history-guide" aria-labelledby="history-guide-title">
-        <div className="panel-heading">
-          <span className="round-icon round-icon--green">
-            <Icon name="info" size={20} />
-          </span>
-          <h2 id="history-guide-title">Información que se conservará</h2>
+      <section className="historial__nota" aria-labelledby="history-guide-title">
+        <h2 className="historial__kicker" id="history-guide-title">Información que se conservará</h2>
+        <div className="historial__nota-body">
+          <span className="historial__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
+          <p>Las consultas muestran registros persistidos. Tras reiniciar FastAPI, vuelve a iniciar sesión y busca el mismo ID: los registros se recuperan desde SQLite. Las evaluaciones en proceso pueden no tener peso ni imágenes.</p>
         </div>
-
-        <p>
-          Las consultas muestran registros persistidos. Tras reiniciar FastAPI,
-          vuelve a iniciar sesión y busca el mismo ID: los registros se
-          recuperan desde SQLite. Las evaluaciones en proceso pueden no tener
-          peso ni imágenes.
-        </p>
-
-        {getSessionRole() !== 'revisor' && (
-          <Link className="text-link" to="/evaluacion">
-            Ir a Evaluación
-            <Icon name="arrow-right" size={16} />
-          </Link>
-        )}
+        {getSessionRole() !== 'revisor' && <Link className="historial__link" to="/evaluacion">Ir a Evaluación <Icon name="arrow-right" size={15} /></Link>}
       </section>
     </div>
   )

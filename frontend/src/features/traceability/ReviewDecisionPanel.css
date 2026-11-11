@@ -1,12 +1,114 @@
-.ag038-review { display: grid; gap: 12px; }
-.ag038-review h4 { margin: 10px 0 0; font-size: 13px; }
-.ag038-review__history { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.ag038-review__history li { padding: 12px; border: 1px solid var(--color-border, #dbe5eb); border-radius: 8px; overflow-wrap: anywhere; }
-.ag038-review__history strong { font-size: 12px; }
-.ag038-review__history p { font-size: 12px; color: var(--color-muted, #50687e); margin: 6px 0 0; }
-.ag038-review__history code { overflow-wrap: anywhere; font-size: 11px; }
-.ag038-review__form { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--color-border, #dbe5eb); border-radius: 8px; }
-.ag038-review__form label { font-size: 12px; font-weight: 700; }
-.ag038-review__form select, .ag038-review__form textarea { width: 100%; min-height: 42px; padding: 10px; border: 1px solid #ccdbe5; border-radius: 7px; font: inherit; color: var(--color-ink, #26394a); background: #fff; }
-.ag038-review__form p { font-size: 12px; color: var(--color-muted, #50687e); margin: 4px 0 10px; }
-.ag038-review__form button { justify-self: start; }
+/* AG-038 · Bitácora de decisiones humanas sobre la hoja. */
+
+.ag038-review {
+  display: grid;
+  gap: 12px;
+}
+
+.ag038-review > h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 760;
+  letter-spacing: -0.015em;
+}
+
+.ag038-review h4 {
+  margin: 14px 0 6px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ag038-review__history {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+
+.ag038-review__history li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  overflow-wrap: anywhere;
+}
+
+.ag038-review__history strong {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+}
+
+.ag038-review__history p {
+  margin: 5px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.ag038-review__history code {
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
+}
+
+.ag038-review__form {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+}
+
+.ag038-review__form label {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ag038-review__form select,
+.ag038-review__form textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 9px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.ag038-review__form textarea {
+  resize: vertical;
+}
+
+.ag038-review__form select:focus,
+.ag038-review__form textarea:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.ag038-review__form p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.ag038-review__form button {
+  justify-self: start;
+}
+
+/* I04: la selección y la justificación requieren foco reconocible. */
+.ag038-review__form select:focus-visible,
+.ag038-review__form textarea:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}

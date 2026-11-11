@@ -11,10 +11,18 @@ const ACTION_LABELS: Record<ReviewAction, string> = {
   no_evaluable: 'Declarar no evaluable',
 }
 
-export function ReviewDecisionPanel({ record, onUpdated }: {
-  record: TraceabilityRecord
-  onUpdated: () => void
-}) {
+type Props = { record: TraceabilityRecord; onUpdated: () => void }
+
+export function ReviewDecisionPanel(props: Props) {
+  // Cada revisión o evaluación tiene su propio ciclo de carga y formulario.
+  // La clave reinicia el estado sin setState sincrónico dentro de useEffect.
+  return <ReviewDecisionPanelContent
+    key={JSON.stringify([props.record.evaluation.id, props.record.reviews.length])}
+    {...props}
+  />
+}
+
+function ReviewDecisionPanelContent({ record, onUpdated }: Props) {
   const evaluation = record.evaluation
   const [ledger, setLedger] = useState<ReviewDecisionLedger | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +39,6 @@ export function ReviewDecisionPanel({ record, onUpdated }: {
 
   useEffect(() => {
     let active = true
-    setLoading(true)
     getReviewDecisions(evaluation.id).then(value => {
       if (!active) return
       setLedger(value)

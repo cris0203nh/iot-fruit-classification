@@ -4,7 +4,7 @@ import {
   createEvaluationReview,
   getEvaluationTraceability,
   type EvaluationReviewInput,
-} from '../../services/agroscanApi'
+} from '../../services/agroscanApi.ts'
 
 
 export type ReviewEvent = {

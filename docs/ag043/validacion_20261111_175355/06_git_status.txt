@@ -1,0 +1,71 @@
+﻿ M backend/tests/test_agrop45_flujo_integral_simulado.py
+ M backend/tests/test_agrop46_cierre_auditoria.py
+ M frontend/.gitignore
+ M frontend/index.html
+ M frontend/package.json
+ M frontend/public/favicon.svg
+ M frontend/src/App.css
+ M frontend/src/App.tsx
+ M frontend/src/components/layout/AppLayout.css
+ M frontend/src/components/layout/AppLayout.tsx
+ M frontend/src/components/layout/Icon.tsx
+ M frontend/src/features/auth/AuthGate.css
+ M frontend/src/features/auth/AuthGate.tsx
+ M frontend/src/features/capture/EvaluationImageCapture.css
+ M frontend/src/features/capture/EvaluationImageCapture.tsx
+ M frontend/src/features/evaluation/EvaluationGuidedAcquisition.css
+ M frontend/src/features/evaluation/EvaluationGuidedAcquisition.tsx
+ M frontend/src/features/evaluation/EvaluationProgress.css
+ M frontend/src/features/evaluation/evaluationFlow.ts
+ M frontend/src/features/history/PieceHistoryPanel.css
+ M frontend/src/features/history/PieceHistoryPanel.tsx
+ M frontend/src/features/iot/WeightCaptureCard.css
+ M frontend/src/features/iot/WeightStatusCard.css
+ M frontend/src/features/traceability/ReviewDecisionPanel.css
+ M frontend/src/features/traceability/ReviewDecisionPanel.tsx
+ M frontend/src/features/traceability/traceabilityService.ts
+ M frontend/src/index.css
+ M frontend/src/pages/EvaluationPage.css
+ M frontend/src/pages/EvaluationPage.tsx
+ M frontend/src/pages/HistoryPage.css
+ M frontend/src/pages/HistoryPage.tsx
+ M frontend/src/pages/HomePage.css
+ M frontend/src/pages/HomePage.tsx
+ M frontend/src/pages/LotsPage.css
+ M frontend/src/pages/LotsPage.tsx
+ M frontend/src/pages/SectionPage.tsx
+ M frontend/src/pages/TraceabilityPage.css
+ M frontend/src/pages/TraceabilityPage.tsx
+ M frontend/tests/agrop33-flow.test.mjs
+ M vision/evaluation/ag036/preparar_paquetes_revision.py
+?? ATRIBUCIONES.md
+?? INFORME.md
+?? backend/tests/test_agrop51_e2e_mango_tomate.py
+?? carga_fotos.csv
+?? dataset_fotos.template.csv
+?? docs/ag043/
+?? entrada_fotos/
+?? frontend/src/components/FruitMark.tsx
+?? frontend/src/components/layout/menuFocus.ts
+?? frontend/src/features/history/historyView.ts
+?? frontend/src/features/lots/
+?? frontend/src/pages/SectionPage.css
+?? frontend/tests/ux-evaluation-lots.test.mjs
+?? frontend/tests/ux-history-traceability.test.mjs
+?? frontend/tests/ux-layout.test.mjs
+?? frontend/tests/ux-responsive-accessibility.test.mjs
+?? vision/evaluation/ag036/AG036_INCREMENTO_08_REVISION_HUMANA_V2.md
+?? vision/evaluation/ag036/construir_universo_v2.py
+?? vision/evaluation/ag036/formulario_revision_offline.py
+?? vision/evaluation/agrop42/AG034_INCREMENTO_10_RENDIMIENTO.md
+?? vision/evaluation/agrop42/AG034_INCREMENTO_11_CONSOLIDACION.md
+?? vision/evaluation/agrop42/AG034_INCREMENTO_12_REVISION_CALIDAD.md
+?? vision/evaluation/agrop42/AG034_INFORME_REVISION_IA.md
+?? vision/evaluation/agrop42/AG034_benchmark_auxiliar.json
+?? vision/evaluation/agrop42/AG034_resumen_30_ejemplares.csv
+?? vision/evaluation/agrop42/AG034_revision_visual_90_vistas_IA.csv
+?? vision/evaluation/agrop42/AGROP42_INCREMENTO_06.md
+?? vision/evaluation/agrop42/AGROP42_INCREMENTO_07.md
+?? vision/evaluation/agrop42/AGROP42_INCREMENTO_08.md
+?? vision/evaluation/agrop42/capturas_propias.template.csv
+?? vision/tests/test_ag036_construir_universo_v2.py

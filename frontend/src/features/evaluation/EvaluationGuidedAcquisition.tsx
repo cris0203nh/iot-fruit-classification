@@ -10,8 +10,6 @@ import {
   captureWeightPost,
   captureWeightPre,
   confirmEvaluationAcquisition,
-  getEvaluationById,
-  assessEvaluationImage,
   type AcquisitionConfirmation,
   type WeightStep,
 } from '../../services/agroscanApi'
@@ -19,6 +17,7 @@ import type { EvaluationDetail } from '../history/historyService'
 import {
   acquisitionOutcome,
   hasConfirmedImages,
+  MIN_CONFIRMED_IMAGES,
   resolveAcquisitionProcessStatus,
   type GuidedStep,
 } from './evaluationFlow'
@@ -192,7 +191,7 @@ export function EvaluationGuidedAcquisition({
 
     if (!pre || !post || !hasConfirmedImages(imageCount)) {
       setError(
-        'No se puede confirmar: se requieren ambos pesajes válidos y al menos una fotografía guardada.',
+        'No se puede confirmar: se requieren ambos pesajes válidos y al menos dos fotografías guardadas.',
       )
       return
     }
@@ -319,8 +318,8 @@ export function EvaluationGuidedAcquisition({
               <h3>3. Capturar fotografías RGB</h3>
 
               <p>
-                Fotografía la misma fruta. Si necesitas otra perspectiva,
-                gírala manualmente sin crear otra evaluación.
+                Registra al menos dos fotografías de la misma fruta desde perspectivas diferentes.
+                Gírala manualmente sin crear otra evaluación.
               </p>
 
               <EvaluationImageCapture
@@ -328,6 +327,9 @@ export function EvaluationGuidedAcquisition({
 
                 onEvidenceChange={onEvidenceChange}
               />
+              <p className="guided-acquisition__notice" role="status">
+                Fotografías persistidas: {imageCount}. Mínimo obligatorio: {MIN_CONFIRMED_IMAGES}.
+              </p>
 
               <div className="guided-acquisition__actions">
                 <button
@@ -355,8 +357,8 @@ export function EvaluationGuidedAcquisition({
 
               {!hasConfirmedImages(imageCount) && (
                 <p className="guided-acquisition__notice">
-                  Para continuar, FastAPI debe confirmar al menos una
-                  fotografía.
+                  Para continuar, FastAPI debe confirmar al menos dos
+                  fotografías de esta evaluación.
                 </p>
               )}
             </div>
@@ -364,7 +366,7 @@ export function EvaluationGuidedAcquisition({
 
           {step === 4 && (
             <div className="guided-acquisition__stage">
-              <h3>4. Confirmar peso y fotografía de la misma pieza</h3>
+              <h3>4. Confirmar peso y fotografías de la misma pieza</h3>
 
               <dl className="guided-acquisition__review">
                 <div>
@@ -433,7 +435,7 @@ export function EvaluationGuidedAcquisition({
                   ? `FastAPI confirmó que el peso y las ${serverConfirmation.imageCount} fotografías pertenecen a la pieza ${serverConfirmation.pieceId} (${serverConfirmation.product}). Peso validado: ${serverConfirmation.weightGrams} g.`
                   : readyToConfirm
                     ? 'Los dos pesajes y las fotografías están disponibles. Falta confirmar su asociación con FastAPI.'
-                    : 'No se puede confirmar la adquisición hasta tener peso inicial, peso final y al menos una fotografía válida.'}
+                    : 'No se puede confirmar la adquisición hasta tener peso inicial, peso final y al menos dos fotografías guardadas.'}
               </p>
 
               <button
@@ -448,7 +450,7 @@ export function EvaluationGuidedAcquisition({
                   ? 'Confirmando con FastAPI…'
                   : acquisitionConfirmed
                     ? 'Adquisición confirmada'
-                    : 'Confirmar peso y fotografía'}
+                    : 'Confirmar peso y fotografías'}
               </button>
                 <div className="guided-acquisition__actions">
                 <button

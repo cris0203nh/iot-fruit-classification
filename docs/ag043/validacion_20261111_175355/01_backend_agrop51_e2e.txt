@@ -1,0 +1,8 @@
+﻿test_fuera_de_alcance_producto_y_fotografia_ajena (test_agrop51_e2e_mango_tomate.AG043E2ETests.test_fuera_de_alcance_producto_y_fotografia_ajena) ... ok
+test_mango_y_tomate_cadena_completa_y_reporte (test_agrop51_e2e_mango_tomate.AG043E2ETests.test_mango_y_tomate_cadena_completa_y_reporte) ... ok
+test_misma_pieza_dos_intentos_se_cuenta_una_vez (test_agrop51_e2e_mango_tomate.AG043E2ETests.test_misma_pieza_dos_intentos_se_cuenta_una_vez) ... ok
+System.Management.Automation.RemoteException
+----------------------------------------------------------------------
+Ran 3 tests in 0.804s
+System.Management.Automation.RemoteException
+OK

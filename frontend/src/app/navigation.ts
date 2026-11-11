@@ -13,6 +13,7 @@ export const operatorNavigation: NavigationItem[] = [
   { path: '/evaluacion', label: 'Nueva evaluación', icon: 'scan' },
   { path: '/lotes', label: 'Mis lotes', icon: 'boxes' },
   { path: '/historial', label: 'Historial', icon: 'history' },
+  { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
 ]
 
 // Funciones exclusivas del revisor

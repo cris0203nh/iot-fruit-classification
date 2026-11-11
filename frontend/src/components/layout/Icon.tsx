@@ -21,6 +21,8 @@ export type IconName =
   | 'clipboard'
   | 'clock'
   | 'user'
+  | 'check'
+  | 'search'
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {
   name: IconName
@@ -49,6 +51,8 @@ export function Icon({ name, size = 20, ...props }: IconProps) {
     user: <><circle cx="12" cy="8" r="4" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
     clipboard: <><rect x="5" y="4" width="14" height="18" rx="2" /><path d="M9 4.5h6M9 11h6M9 15h6" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l4 2" /></>,
+    check: <path d="m4.5 12.5 5 5 10-11" />,
+    search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
   }
 
   return (

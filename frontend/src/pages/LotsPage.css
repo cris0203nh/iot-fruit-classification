@@ -1,42 +1,764 @@
-.lots-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr); gap: 14px; align-items: start; }
-.lots-side, .lots-form-panel, .lots-form { display: grid; gap: 16px; }
-.lots-side { gap: 14px; }
-.lots-form-panel .panel-heading, .lots-list .panel-heading, .lots-guide .panel-heading { margin-bottom: 0; }
-.lots-intro { font-size: 12px; line-height: 1.6; color: var(--color-muted); margin: 0; }
-.lots-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-.lots-fieldset legend, .lots-field label { display: block; font-size: 13px; font-weight: 700; color: #34485c; margin-bottom: 9px; }
-.lots-fieldset legend span, .lots-field label span { color: #b35431; }
-.lots-product-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.lots-product { border: 1px solid var(--color-border); background: #fff; border-radius: 10px; padding: 16px 12px; min-height: 96px; display: grid; align-content: center; justify-items: center; gap: 7px; color: var(--color-ink); }
-.lots-product span { font-size: 25px; }
-.lots-product strong { font-size: 13px; }
-.lots-product:hover { border-color: #73c39c; background: #f5fbf8; }
-.lots-product--selected { border: 2px solid var(--color-green); background: #effaf3; padding: 15px 11px; }
-.lots-field input { width: 100%; padding: 12px 11px; min-height: 44px; border: 1px solid #cdd9e2; border-radius: 8px; color: var(--color-ink); background: white; font-size: 13px; }
-.lots-field input[aria-invalid="true"] { border-color: #c24949; background: #fffafa; }
-.lots-hint, .lots-error { margin: 7px 0 0; font-size: 11px; line-height: 1.5; }
-.lots-hint { color: var(--color-muted); }
-.lots-error { color: #ad3434; }
-.lots-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.lots-prepared { padding: 15px; border: 1px solid #dfebee; border-radius: 10px; background: #f5f9fb; min-height: 100px; font-size: 12px; line-height: 1.6; }
-.lots-prepared strong { color: #31566b; font-size: 13px; }
-.lots-prepared p { color: #435e73; margin: 5px 0; overflow-wrap: anywhere; }
-.lots-prepared span { color: #637b8e; }
-.lots-continue { margin-top: 13px; width: fit-content; }
-.lots-unavailable { background: #f5f8fb; border: 1px dashed #d5e3eb; border-radius: 10px; padding: 26px 16px; display: grid; justify-items: center; gap: 10px; text-align: center; color: #71869b; }
-.lots-unavailable strong { color: #456276; font-size: 14px; }
-.lots-unavailable p { font-size: 12px; line-height: 1.6; margin: 0; max-width: 32ch; }
-.lots-guide ol { display: grid; gap: 9px; padding-left: 20px; margin: 14px 0; font-size: 12px; line-height: 1.6; color: #465d71; }
-.lots-guide > p { font-size: 11px; color: var(--color-muted); }
-@media (max-width: 1050px) { .lots-grid { grid-template-columns: 1fr; } }
-@media (max-width: 550px) { .lots-product-options { grid-template-columns: 1fr 1fr; } .lots-actions button { flex: 1 1 150px; } .lots-continue { width: 100%; } }
+﻿/* Lotes — alta de lote y registro impreso de la hoja. */
 
-.lots-records { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-.lots-record { display: flex; gap: 12px; justify-content: space-between; align-items: center; border: 1px solid var(--color-border); border-radius: 9px; padding: 10px; min-width: 0; }
-.lots-record > div { min-width: 0; display: grid; gap: 4px; }
-.lots-record strong { color: var(--color-ink); font-size: 13px; overflow-wrap: anywhere; }
-.lots-record span { font-size: 11px; color: var(--color-muted); }
-.lots-record button { flex-shrink: 0; }
-@media (max-width: 420px) { .lots-record { align-items: stretch; flex-direction: column; } }
+.lotes {
+  display: flex;
+  flex-direction: column;
+  max-width: 1160px;
+  color: var(--ink);
+}
 
-.lots-refresh { margin-left: auto; }
+/* --- Encabezado -------------------------------------------------------- */
+
+.lotes__head {
+  padding-bottom: 18px;
+  animation: lotes-in 420ms ease both;
+}
+
+.lotes__kicker {
+  margin: 0;
+  color: var(--tomato-ink);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.lotes__title {
+  margin: 10px 0 8px;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+
+.lotes__lede {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* --- Aviso -------------------------------------------------------------- */
+
+.lotes__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 15px;
+  margin-bottom: 18px;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--tomato);
+  background: #f6e2da;
+}
+
+.lotes__aviso-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--tomato);
+  color: var(--tomato);
+}
+
+.lotes__aviso p {
+  margin: 0;
+  color: #8a2c1c;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.lotes__aviso strong {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* --- Rejilla ------------------------------------------------------------ */
+
+.lotes__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 0 26px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--ink);
+  animation: lotes-in 420ms ease 90ms both;
+}
+
+.lotes__panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.lotes__side {
+  display: grid;
+  align-content: start;
+  gap: 26px;
+  padding-left: 26px;
+  border-left: 1px solid var(--rule);
+}
+
+.lotes__panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lotes__panel-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+}
+
+.lotes__panel-head h2 {
+  margin: 0;
+  font-size: var(--fs-h2);
+  font-weight: 780;
+  letter-spacing: -0.025em;
+}
+
+.lotes__panel-head p {
+  margin: 5px 0 0;
+  max-width: 52ch;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.lotes__refresh {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* --- Formulario --------------------------------------------------------- */
+
+.lotes__form {
+  display: grid;
+  gap: 16px;
+}
+
+.lotes__fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.lotes__fieldset legend,
+.lotes__field label {
+  display: block;
+  margin: 0 0 9px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lotes__fieldset legend > span,
+.lotes__field label > span {
+  color: var(--tomato);
+}
+
+.lotes__productos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lotes__producto {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.lotes__producto:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.lotes__producto--selected {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--card);
+}
+
+.lotes__producto-fig {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  color: var(--ink);
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.lotes__producto--selected .lotes__producto-fig {
+  border-color: rgba(247, 242, 231, 0.3);
+  background: rgba(247, 242, 231, 0.08);
+  color: var(--card);
+}
+
+.lotes__producto-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lotes__producto-code {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.16em;
+  opacity: 0.6;
+}
+
+.lotes__producto-text strong {
+  font-size: var(--fs-h2);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.lotes__producto-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 1px solid currentColor;
+}
+
+.lotes__producto:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lotes__producto--selected:disabled {
+  opacity: 1;
+}
+
+.lotes__field {
+  display: grid;
+  align-content: start;
+}
+
+.lotes__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--ink);
+}
+
+.lotes__control::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--tomato);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.lotes__control:focus-within::after {
+  transform: scaleX(1);
+}
+
+.lotes__control input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  outline: none;
+}
+
+.lotes__control input::placeholder {
+  color: #a79c88;
+  letter-spacing: 0;
+}
+
+.lotes__control input:disabled {
+  color: var(--rule-strong);
+}
+
+.lotes__hint {
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+}
+
+.lotes__error {
+  margin: 7px 0 0;
+  color: var(--tomato);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.lotes__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --- Comprobante del lote ---------------------------------------------- */
+
+.lotes__preparado {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--rule);
+  color: var(--ink-soft);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.lotes__preparado strong {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lotes__preparado p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lotes__preparado--confirmado {
+  border-style: solid;
+  border-color: rgba(44, 106, 76, 0.45);
+  background: rgba(44, 106, 76, 0.06);
+}
+
+.lotes__preparado--confirmado strong {
+  color: var(--ok);
+}
+
+.lotes__datos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 2px 0 0;
+}
+
+.lotes__datos div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--rule-soft);
+  min-width: 0;
+}
+
+.lotes__datos dt {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lotes__datos dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.lotes__continuar {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+/* --- Listado ------------------------------------------------------------ */
+
+.lotes__registros {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+
+.lotes__registro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.lotes__registro-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lotes__registro-info strong {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.lotes__registro-info > span {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+
+.lotes__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lotes__estado::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+}
+
+.lotes__estado--open {
+  color: var(--ok);
+}
+
+.lotes__estado--closed {
+  color: var(--ink-soft);
+}
+
+/* --- Estados vacíos ----------------------------------------------------- */
+
+.lotes__vacio {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 26px 18px;
+  border: 1px dashed var(--rule);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.lotes__vacio-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-soft);
+}
+
+.lotes__vacio strong {
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+
+.lotes__vacio p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+
+/* --- Flujo de trabajo --------------------------------------------------- */
+
+.lotes__flujo {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+
+.lotes__flujo li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.lotes__num {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+}
+
+.lotes__guia-nota {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+
+/* --- Botones ------------------------------------------------------------ */
+
+.lotes .action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 15px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.lotes .action-button--primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--card);
+}
+
+.lotes .action-button--primary:hover:not(:disabled) {
+  border-color: var(--tomato);
+  background: var(--tomato);
+}
+
+.lotes .action-button--secondary {
+  border-color: var(--rule-strong);
+}
+
+.lotes .action-button--secondary:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--card);
+}
+
+.lotes .action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Animación y adaptación --------------------------------------------- */
+
+@keyframes lotes-in {
+  from {
+    opacity: 0;
+    translate: 0 7px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (max-width: 1050px) {
+  .lotes__grid {
+    grid-template-columns: 1fr;
+    gap: 26px 0;
+  }
+
+  .lotes__side {
+    padding-top: 22px;
+    padding-left: 0;
+    border-top: 1px solid var(--rule);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 550px) {
+  .lotes__productos {
+    grid-template-columns: 1fr;
+  }
+
+  .lotes__producto {
+    padding: 11px 12px;
+  }
+
+  .lotes__actions .action-button {
+    flex: 1 1 150px;
+  }
+
+  .lotes__datos {
+    grid-template-columns: 1fr;
+  }
+
+  .lotes__continuar {
+    width: 100%;
+  }
+
+  .lotes__refresh {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lotes *,
+  .lotes *::before,
+  .lotes *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* I02 — Búsqueda local, selección de lote y claridad del siguiente paso. */
+.lotes__list-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lotes__list-heading p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.lotes__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.6fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--rule-soft);
+  background: var(--card);
+}
+
+.lotes__filter-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lotes__filter-field label {
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.lotes__filter-field input,
+.lotes__filter-field select {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  background: #fffdf7;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+}
+
+.lotes__filter-field input::placeholder {
+  color: var(--ink-soft);
+}
+
+.lotes__results-count {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
+.lotes__registro--selected {
+  border-left: 3px solid var(--ok);
+  padding-left: 12px;
+  background: rgba(44, 106, 76, 0.07);
+}
+
+.lotes .lotes__fieldset legend,
+.lotes .lotes__field label {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.05em;
+}
+
+.lotes .lotes__hint,
+.lotes .lotes__error {
+  font-size: var(--fs-sm);
+}
+
+.lotes .action-button {
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+  text-transform: none;
+}
+
+.lotes__producto:focus-visible {
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .lotes__panel-head {
+    flex-wrap: wrap;
+  }
+  .lotes__filters {
+    grid-template-columns: 1fr;
+  }
+  .lotes__registro--selected {
+    padding-left: 8px;
+  }
+}
+
+/* I04: el campo conserva foco visible incluso sin borde completo. */
+.lotes__control:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+/* I04: la ayuda de entrada se lee sobre el papel, sin reemplazar las etiquetas. */
+.lotes__control input::placeholder { color: var(--ink-soft); opacity: 1; }

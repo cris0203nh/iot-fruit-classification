@@ -530,8 +530,11 @@ useEffect(() => {
     closeCamera()
   }
 
-  // Referencia actual para la captura automática.
-  capturePhotoRef.current = capturePhoto
+  // La referencia se sincroniza tras el render, nunca durante él.
+  // El bucle de detección utiliza siempre la implementación confirmada más reciente.
+  useEffect(() => {
+    capturePhotoRef.current = capturePhoto
+  })
 
   // Descartar fotografía.
   function discard() {

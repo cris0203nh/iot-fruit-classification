@@ -22,3 +22,28 @@ export function acquisitionOutcome(input: {
   if (!hasConfirmedImages(input.imageCount)) return 'without-images'
   return input.initialWeightConfirmed && input.finalWeightConfirmed ? 'confirmed' : 'partial'
 }
+
+export type AcquisitionProcessStatus =
+  | 'ready'
+  | 'capturing'
+  | 'processing'
+  | 'pending'
+  | 'error'
+
+export type AcquisitionProcessState = {
+  hasError: boolean
+  processing: boolean
+  confirmed: boolean
+  capturing: boolean
+}
+
+export function resolveAcquisitionProcessStatus(
+  state: AcquisitionProcessState,
+): AcquisitionProcessStatus {
+  if (state.hasError) return 'error'
+  if (state.processing) return 'processing'
+  if (state.confirmed) return 'pending'
+  if (state.capturing) return 'capturing'
+  return 'ready'
+}
+

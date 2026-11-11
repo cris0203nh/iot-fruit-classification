@@ -25,3 +25,59 @@ test('AGROP-33: adquisiciones confirmadas exigen imágenes y ambas etapas de pes
   assert.equal(acquisitionOutcome({ imageCount: 2, initialWeightConfirmed: true, finalWeightConfirmed: true }), 'confirmed')
   assert.equal(acquisitionOutcome({ imageCount: 0, initialWeightConfirmed: true, finalWeightConfirmed: true }), 'without-images')
 })
+
+import { resolveAcquisitionProcessStatus } from '../src/features/evaluation/evaluationFlow.ts'
+
+test('AGROP-50: transición a listo', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: false,
+    processing: false,
+    confirmed: false,
+    capturing: false,
+  }), 'ready')
+})
+
+test('AGROP-50: transición a capturando', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: false,
+    processing: false,
+    confirmed: false,
+    capturing: true,
+  }), 'capturing')
+})
+
+test('AGROP-50: transición a procesando', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: false,
+    processing: true,
+    confirmed: false,
+    capturing: false,
+  }), 'processing')
+})
+
+test('AGROP-50: transición a pendiente de revisión', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: false,
+    processing: false,
+    confirmed: true,
+    capturing: false,
+  }), 'pending')
+})
+
+test('AGROP-50: transición a error', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: true,
+    processing: false,
+    confirmed: false,
+    capturing: false,
+  }), 'error')
+})
+
+test('AGROP-50: el error tiene prioridad sobre los demás estados', () => {
+  assert.equal(resolveAcquisitionProcessStatus({
+    hasError: true,
+    processing: true,
+    confirmed: true,
+    capturing: true,
+  }), 'error')
+})

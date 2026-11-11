@@ -10,6 +10,8 @@ import {
   captureWeightPost,
   captureWeightPre,
   confirmEvaluationAcquisition,
+  getEvaluationById,
+  assessEvaluationImage,
   type AcquisitionConfirmation,
   type WeightStep,
 } from '../../services/agroscanApi'
@@ -67,10 +69,12 @@ export function EvaluationGuidedAcquisition({
   const busy = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [retired, setRetired] = useState(false)
+  const [visionGateState, setVisionGateState] = useState<'idle'|'checking'|'ready'|'pending'|'error'>('idle')
 
   const onEvidenceChange = useCallback((count: number) => {
     setImageCount(count)
     setServerConfirmation(null)
+    setVisionGateState('idle')
   }, [])
 
   function goTo(next: AcquisitionStep) {
@@ -127,6 +131,25 @@ export function EvaluationGuidedAcquisition({
     serverConfirmation.pieceId === evaluation.pieceId &&
     serverConfirmation.product === evaluation.product
 
+  /** AG-037: evaluar TODAS las vistas persistidas después de confirmar adquisición.
+   * Ningún resultado produce una categoría E0/E1/E2 automáticamente. */
+  async function evaluateSavedImages(evaluationId: string) {
+    setVisionGateState('checking')
+    try {
+      const detail = await getEvaluationById(evaluationId)
+      if (!detail || detail.evidence.length === 0) throw new Error('No se recuperaron fotografías persistidas.')
+      let pending = false
+      for (const image of detail.evidence) {
+        const output = await assessEvaluationImage(evaluationId, image.id)
+        if (output.decision === 'pending_review') pending = true
+      }
+      setVisionGateState(pending ? 'pending' : 'ready')
+    } catch (failure) {
+      setVisionGateState('error')
+      setError(operationError(failure))
+    }
+  }
+
   /**
    * AGROP-34:
    * El frontend solicita la confirmación conjunta a FastAPI.
@@ -159,6 +182,7 @@ export function EvaluationGuidedAcquisition({
       }
 
       setServerConfirmation(result)
+      await evaluateSavedImages(evaluation.id)
     } catch (failure) {
       setServerConfirmation(null)
       setError(operationError(failure))
@@ -352,6 +376,15 @@ export function EvaluationGuidedAcquisition({
                     : 'Confirmar peso y fotografía'}
               </button>
 
+              {acquisitionConfirmed && <p role="status" className="guided-acquisition__notice">
+                {visionGateState === 'checking' ? 'Comprobando incertidumbre de detección…'
+                  : visionGateState === 'pending' ? 'Una o más vistas requieren revisión humana. No se asignó E0/E1/E2.'
+                    : visionGateState === 'ready' ? 'Detección revisada: sin alertas automáticas. Calidad E0/E1/E2 aún no determinada.'
+                      : visionGateState === 'error' ? 'No se pudo verificar la detección: vuelve a intentarlo.' : 'Verificación pendiente.'}
+              </p>}
+              {acquisitionConfirmed && visionGateState === 'error' && <button type="button"
+                className="action-button action-button--secondary" disabled={processing}
+                onClick={() => void evaluateSavedImages(evaluation.id)}>Reintentar comprobación de detección</button>}
               <div className="guided-acquisition__actions">
                 <button
                   type="button"
@@ -365,7 +398,7 @@ export function EvaluationGuidedAcquisition({
                 <button
                   type="button"
                   className="action-button action-button--primary"
-                  disabled={processing || !acquisitionConfirmed}
+                  disabled={processing || !acquisitionConfirmed || (visionGateState !== 'ready' && visionGateState !== 'pending')}
                   onClick={() => goTo(5)}
                 >
                   Continuar a retiro <Icon name="arrow-right" size={17} />

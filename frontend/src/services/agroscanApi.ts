@@ -1,5 +1,7 @@
 import type { EvaluationDetail, EvaluationSummary } from '../features/history/historyService'
 import type { TraceabilityRecord } from '../features/traceability/traceabilityService'
+import { validatePieceAggregates } from '../features/history/pieceHistoryPolicy.ts'
+import { validateLotTraceabilityReport, type LotTraceabilityReport } from '../features/history/pieceReportPolicy.ts'
 
 /** Cliente HTTP del frontend. Los endpoints corresponden al backend incluido en main. */
 export type FruitProduct = 'mango' | 'tomate'
@@ -298,7 +300,7 @@ function isTraceability(value: unknown): value is TraceabilityRecord {
     && typeof review.id === 'string' && REVIEW_ID_PATTERN.test(review.id)
     && typeof review.performedAt === 'string' && Number.isFinite(Date.parse(review.performedAt))
     && typeof review.actorId === 'string' && typeof review.reason === 'string'
-    && (review.type === 'review' || review.type === 'cancellation')
+    && (review.type === 'review' || review.type === 'cancellation' || review.type === 'uncertainty')
     && nullableString(review.previousValue) && nullableString(review.updatedValue))
 }
 
@@ -683,6 +685,7 @@ export async function detectEvaluationFrame(
 
   return value as unknown as FruitDetectionResult
 }
+
 // AGROSCAN: consulta de usuarios para el Dashboard administrativo.
 
 export type AdminUser = {
@@ -717,9 +720,9 @@ export async function listAdminUsers(): Promise<AdminUser[]> {
   return body as AdminUser[]
 }
 
-// =====================================================
+// ====
 // GESTIÓN ADMINISTRATIVA DE USUARIOS
-// =====================================================
+// ====
 
 export type AdminRole = 'administrador' | 'operador' | 'revisor'
 
@@ -823,4 +826,307 @@ export async function updateAdminUserStatus(
   }
 
   return body as AdminUser
+}
+
+/** AG-037: detección asociada a una imagen ya guardada (no calidad E0/E1/E2). */
+export type UncertaintyGateResponse = {
+  evaluationId: string
+  imageId: string
+  status: 'processing' | 'completed' | 'pending_review'
+  decision: 'pending_review' | 'ready_to_capture'
+  reason: string
+  imageSha256: string
+  threshold: number
+  assessmentId: number | null
+  originalPreserved: true
+  visualCategoryChanged: false
+  classificationE0E1E2Produced: false
+}
+
+function isGateResponse(value: unknown, evaluationId: string, imageId: string): value is UncertaintyGateResponse {
+  return object(value) && value.evaluationId === evaluationId && value.imageId === imageId
+    && (value.status === 'processing' || value.status === 'completed' || value.status === 'pending_review')
+    && (value.decision === 'pending_review' || value.decision === 'ready_to_capture')
+    && typeof value.reason === 'string' && /^[a-f0-9]{64}$/.test(String(value.imageSha256))
+    && typeof value.threshold === 'number' && value.originalPreserved === true
+    && value.visualCategoryChanged === false && value.classificationE0E1E2Produced === false
+}
+
+/** Evalúa automáticamente una foto persistida sin generar grado de calidad. */
+export async function assessEvaluationImage(evaluationId: string, imageId: string): Promise<UncertaintyGateResponse> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/review-gate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId }),
+  }, 120000)
+  if (!isGateResponse(body, evaluationId, imageId)) throw new ApiDataError()
+  return body
+}
+
+/** Un revisor puede objetar una foto sin modificar la salida automática. */
+export async function markUncertainEvaluationImage(evaluationId: string, imageId: string, note: string): Promise<UncertaintyGateResponse> {
+  const text = note.trim()
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)
+      || text.length < 10 || text.length > 300) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/review-gate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId, forceReview: true, note: text }),
+  })
+  if (!isGateResponse(body, evaluationId, imageId) || body.status !== 'pending_review') throw new ApiDataError()
+  return body
+}
+
+export type VisionAssessment = {
+  id: number
+  imageId: string
+  outcome: 'pending_review' | 'ready_to_capture'
+  reason: string
+  confidence: number | null
+  threshold: number
+  imageSha256: string
+  modelVersion: string
+}
+
+export async function getVisionAssessments(evaluationId: string): Promise<VisionAssessment[]> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/assessments`)
+  if (!Array.isArray(body) || !body.every(item => object(item) && typeof item.id === 'number'
+      && typeof item.imageId === 'string' && typeof item.reason === 'string'
+      && typeof item.imageSha256 === 'string' && typeof item.modelVersion === 'string'
+      && typeof item.threshold === 'number' && (item.confidence === null || typeof item.confidence === 'number')
+      && (item.outcome === 'pending_review' || item.outcome === 'ready_to_capture'))) throw new ApiDataError()
+  return body as VisionAssessment[]
+}
+
+export async function resolveUncertainEvaluation(evaluationId: string, outcome: 'E0' | 'E1' | 'E2' | 'no_evaluable', reason: string): Promise<void> {
+  const note = reason.trim()
+  if (!validEvaluationId(evaluationId) || note.length < 10 || note.length > 500) throw new ApiDataError()
+  const response = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome, reason: note }),
+  })
+  if (!object(response) || response.evaluationId !== evaluationId
+      || response.status !== 'completed' || response.reviewOutcome !== outcome
+      || response.originalPreserved !== true) throw new ApiDataError()
+}
+
+/** AG-038: bitácora de decisiones vinculadas a una fotografía y su SHA256. */
+export type ReviewDecisionAction = 'confirm' | 'correct' | 'initial_label' | 'no_evaluable'
+export type HumanReviewDecision = {
+  id: string
+  evaluationId: string
+  action: ReviewDecisionAction
+  previousValue: string | null
+  newValue: string
+  actorId: string
+  performedAt: string
+  reason: string
+  imageId: string
+  imageSha256: string
+  requestId: string
+}
+export type ReviewDecisionLedger = {
+  evaluationId: string
+  originalValue: string | null
+  currentValue: string | null
+  revisionId: string | null
+  decisions: HumanReviewDecision[]
+}
+export type NewReviewDecision = {
+  action: ReviewDecisionAction
+  imageId: string
+  newValue: string
+  reason: string
+  expectedReviewId: string | null
+  requestId: string
+}
+
+function isReviewDecision(entry: unknown): entry is HumanReviewDecision {
+  return object(entry) && typeof entry.id === 'string' && /^R-\d{1,9}$/.test(entry.id)
+    && typeof entry.evaluationId === 'string' && validEvaluationId(entry.evaluationId)
+    && ['confirm', 'correct', 'initial_label', 'no_evaluable'].includes(String(entry.action))
+    && nullableString(entry.previousValue) && typeof entry.newValue === 'string'
+    && typeof entry.actorId === 'string' && typeof entry.performedAt === 'string'
+    && Number.isFinite(Date.parse(entry.performedAt)) && typeof entry.reason === 'string'
+    && typeof entry.imageId === 'string' && IMAGE_ID_PATTERN.test(entry.imageId)
+    && typeof entry.imageSha256 === 'string' && /^[0-9a-f]{64}$/.test(entry.imageSha256)
+    && typeof entry.requestId === 'string'
+}
+
+export async function getReviewDecisions(evaluationId: string): Promise<ReviewDecisionLedger> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const data = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/review-decisions`)
+  if (!object(data) || data.evaluationId !== evaluationId
+      || !nullableString(data.originalValue) || !nullableString(data.currentValue)
+      || !nullableString(data.revisionId) || (data.revisionId !== null && !/^R-\d{1,9}$/.test(data.revisionId))
+      || !Array.isArray(data.decisions) || !data.decisions.every(isReviewDecision)) throw new ApiDataError()
+  return data as unknown as ReviewDecisionLedger
+}
+
+export async function postReviewDecision(evaluationId: string, decision: NewReviewDecision): Promise<HumanReviewDecision> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(decision.imageId)
+      || decision.reason.trim().length < 10 || decision.reason.trim().length > 500
+      || !['confirm', 'correct', 'initial_label', 'no_evaluable'].includes(decision.action)) throw new ApiDataError()
+  const data = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/review-decisions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(decision),
+  })
+  if (!isReviewDecision(data) || data.evaluationId !== evaluationId || data.requestId !== decision.requestId) {
+    throw new ApiDataError()
+  }
+  return data
+}
+
+// AG-040 / AGROP-48: expediente por lote y pieza (lectura autenticada).
+export type PieceHistorySummary = {
+  lotCode: string
+  pieceCode: string
+  pieceId: number | null
+  identitySource: 'registered' | 'legacy_inferred'
+  attemptCount: number
+  captureCount: number
+  automaticAssessmentCount: number
+  reviewEventCount: number
+  latestEvaluationId: string | null
+  latestStatus: string | null
+}
+
+export type PieceHistoryList = {
+  lotCode: string
+  product: FruitProduct
+  pieceCount: number
+  attemptCount: number
+  captureCount: number
+  pieces: PieceHistorySummary[]
+}
+
+export type PieceHistoryAttempt = {
+  id: string
+  attemptNumber: number
+  createdAt: string
+  status: string
+  product: FruitProduct
+  weightGrams: number | null
+  weightPreGrams: number | null
+  weightPostGrams: number | null
+  deviceId: string | null
+  calibrationReference: string | null
+  declaredModelVersion: string | null
+  declaredRulesVersion: string | null
+  originalVisualCategory: string | null
+  failureReason: string | null
+  captures: Array<{
+    id: string; view: string; createdAt: string; imageUrl: string
+    imageSha256: string | null; hashConflict: boolean
+  }>
+  automaticAssessments: Array<{
+    assessmentId: number; imageId: string; imageSha256: string
+    createdAt: string; modelVersion: string; rulesVersion: string
+    inferenceSize: number; threshold: number; confidence: number | null
+    candidateCount: number; outcome: string; reason: string
+    detections: unknown
+  }>
+  reviews: Array<{
+    id: string; createdAt: string; type: string; actorId: string
+    reason: string; previousValue: string | null; updatedValue: string | null
+    action: string | null; imageId: string | null; imageSha256: string | null
+    requestId: string | null
+  }>
+  dataQualityNotes: string[]
+}
+
+export type PieceHistoryDetail = {
+  lotCode: string
+  piece: PieceHistorySummary
+  attempts: PieceHistoryAttempt[]
+  identityWarning: string | null
+}
+
+function ag040IsRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function ag040IsCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function ag040IsOptionalText(value: unknown): boolean {
+  return value === null || typeof value === 'string'
+}
+
+function ag040Summary(value: unknown, lot: string): value is PieceHistorySummary {
+  if (!ag040IsRecord(value)) return false
+  return value.lotCode === lot
+    && typeof value.pieceCode === 'string' && value.pieceCode.length > 0
+    && (value.pieceId === null || ag040IsCount(value.pieceId))
+    && (value.identitySource === 'registered' || value.identitySource === 'legacy_inferred')
+    && ag040IsCount(value.attemptCount) && ag040IsCount(value.captureCount)
+    && ag040IsCount(value.reviewEventCount) && ag040IsCount(value.automaticAssessmentCount)
+    && ag040IsOptionalText(value.latestEvaluationId) && ag040IsOptionalText(value.latestStatus)
+}
+
+export async function listPieceHistories(lotCode: string): Promise<PieceHistoryList> {
+  const lot = lotCode.trim()
+  if (!lot || lot.length > 32) throw new ApiDataError()
+  const body = await request(`/api/piece-history?lot=${encodeURIComponent(lot)}`)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || !['mango', 'tomate'].includes(String(body.product))
+      || !ag040IsCount(body.pieceCount) || !ag040IsCount(body.attemptCount)
+      || !ag040IsCount(body.captureCount) || !Array.isArray(body.pieces)
+      || !body.pieces.every(value => ag040Summary(value, body.lotCode as string))) {
+    throw new ApiDataError()
+  }
+  const payload = body as PieceHistoryList
+  if (!validatePieceAggregates(payload.pieces, payload)) throw new ApiDataError()
+  return payload
+}
+
+function ag040ValidateAttempt(value: unknown): value is PieceHistoryAttempt {
+  if (!ag040IsRecord(value) || typeof value.id !== 'string' || !/^E-\d{1,9}$/.test(value.id)
+      || !ag040IsCount(value.attemptNumber) || typeof value.createdAt !== 'string'
+      || typeof value.status !== 'string' || !['mango', 'tomate'].includes(String(value.product))
+      || !Array.isArray(value.captures) || !Array.isArray(value.automaticAssessments)
+      || !Array.isArray(value.reviews) || !Array.isArray(value.dataQualityNotes)) return false
+  if (!value.dataQualityNotes.every((item: unknown) => typeof item === 'string')) return false
+  if (!value.captures.every((img: unknown) => ag040IsRecord(img)
+      && typeof img.id === 'string' && /^I-\d{1,9}$/.test(img.id)
+      && typeof img.view === 'string' && typeof img.imageUrl === 'string'
+      && typeof img.createdAt === 'string'
+      && ag040IsOptionalText(img.imageSha256) && typeof img.hashConflict === 'boolean')) return false
+  if (!value.automaticAssessments.every((item: unknown) => ag040IsRecord(item)
+      && ag040IsCount(item.assessmentId) && typeof item.imageId === 'string'
+      && typeof item.modelVersion === 'string' && typeof item.rulesVersion === 'string'
+      && typeof item.createdAt === 'string' && typeof item.reason === 'string'
+      && typeof item.outcome === 'string')) return false
+  return value.reviews.every((event: unknown) => ag040IsRecord(event)
+      && typeof event.id === 'string' && typeof event.actorId === 'string'
+      && typeof event.createdAt === 'string' && typeof event.reason === 'string'
+      && ag040IsOptionalText(event.previousValue) && ag040IsOptionalText(event.updatedValue)
+      && ag040IsOptionalText(event.action))
+}
+
+export async function getPieceHistory(lotCode: string, pieceCode: string): Promise<PieceHistoryDetail> {
+  const lot = lotCode.trim()
+  const piece = pieceCode.trim()
+  if (!lot || lot.length > 32 || !piece || piece.length > 64) throw new ApiDataError()
+  const body = await request(`/api/piece-history/${encodeURIComponent(lot)}/${encodeURIComponent(piece)}`)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || !ag040Summary(body.piece, body.lotCode)
+      || body.piece.pieceCode !== piece
+      || !Array.isArray(body.attempts)
+      || body.attempts.length !== body.piece.attemptCount
+      || !body.attempts.every(ag040ValidateAttempt)
+      || !ag040IsOptionalText(body.identityWarning)) throw new ApiDataError()
+  return body as PieceHistoryDetail
+}
+
+/** AG-040 / AGROP-48: informe de solo lectura, con los mismos encabezados JWT. */
+export async function getLotTraceabilityReport(lotCode: string): Promise<LotTraceabilityReport> {
+  const lot = lotCode.trim()
+  if (!lot || lot.length > 32) throw new ApiDataError()
+  const body = await request(`/api/piece-history/report?lot=${encodeURIComponent(lot)}`, undefined, 30000)
+  if (!ag040IsRecord(body) || typeof body.lotCode !== 'string'
+      || body.lotCode.toLowerCase() !== lot.toLowerCase()
+      || !validateLotTraceabilityReport(body, body.lotCode)) throw new ApiDataError()
+  return body as LotTraceabilityReport
 }

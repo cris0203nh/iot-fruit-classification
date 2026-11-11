@@ -1,9 +1,132 @@
-.evaluation-progress { overflow-x: auto; padding-bottom: 2px; }
-.evaluation-progress ol { display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0; }
-.evaluation-progress li { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #d8e5ec; border-radius: 9px; background: #f8fafb; color: #637789; font-size: 11px; font-weight: 650; min-width: 0; }
-.evaluation-progress__number { display: grid; flex: 0 0 23px; height: 23px; place-items: center; border-radius: 50%; background: #e7eef3; color: #566d7b; font-size: 12px; }
-.evaluation-progress li.evaluation-progress__active { border-color: #83c7a5; background: #e9f7ef; color: #14643d; }
-.evaluation-progress__active .evaluation-progress__number { background: #087645; color: white; }
-.evaluation-progress li.evaluation-progress__passed { border-color: #c5e1d2; color: #47795c; }
-.evaluation-progress__passed .evaluation-progress__number { background: #bce8cf; color: #175b35; }
-@media (max-width: 720px) { .evaluation-progress ol { min-width: 680px; } }
+/* Ruta de evaluación — franja impresa de cinco pasos. */
+
+.evaluation-progress {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.evaluation-progress ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  list-style: none;
+}
+
+.evaluation-progress li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 11px 12px;
+  border-left: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.evaluation-progress li:first-child {
+  border-left: 0;
+}
+
+.evaluation-progress__number {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-soft);
+  font-size: var(--fs-micro);
+}
+
+.evaluation-progress__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+
+.evaluation-progress__label {
+  min-width: 0;
+}
+
+.evaluation-progress__active .evaluation-progress__icon {
+  color: var(--card);
+}
+
+.evaluation-progress__passed .evaluation-progress__icon {
+  color: var(--ok);
+}
+
+.evaluation-progress li.evaluation-progress__active {
+  border-left-color: var(--ink);
+  background: var(--ink);
+  color: var(--card);
+}
+
+.evaluation-progress__active .evaluation-progress__number {
+  border-color: var(--card);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.evaluation-progress li.evaluation-progress__passed {
+  color: var(--ok);
+}
+
+.evaluation-progress__passed .evaluation-progress__number {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+@media (max-width: 760px) {
+  .evaluation-progress {
+    overflow: visible;
+  }
+
+  .evaluation-progress ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .evaluation-progress li {
+    border-left: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .evaluation-progress li:nth-child(odd) {
+    border-right: 1px solid var(--rule);
+  }
+
+  .evaluation-progress ol li:last-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+  }
+
+  .evaluation-progress__label {
+    white-space: normal;
+  }
+}
+
+/* I02: una etapa visitada no equivale a una adquisición confirmada. */
+.evaluation-progress li.evaluation-progress__passed,
+.evaluation-progress__passed .evaluation-progress__number,
+.evaluation-progress__passed .evaluation-progress__icon {
+  color: var(--ink-soft);
+}
+
+.evaluation-progress__passed .evaluation-progress__number {
+  border-color: var(--rule-strong);
+}
+
+.evaluation-progress li {
+  font-size: var(--fs-label);
+  letter-spacing: 0.045em;
+  line-height: 1.5;
+}

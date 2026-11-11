@@ -89,3 +89,13 @@
   margin: 5px 0 0;
   color: #315e49;
 }
+
+/* I04: las indicaciones y errores de pesaje son contenido operativo, no microtexto. */
+.weight-capture__step-heading, .weight-capture__pending,
+.weight-capture__error, .weight-capture__completed {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.weight-capture__hint { font-size: var(--fs-sm) !important; line-height: 1.55; }
+.weight-capture__registered { font-size: 1.375rem; }
+.weight-capture__steps, .weight-capture__step { min-width: 0; }

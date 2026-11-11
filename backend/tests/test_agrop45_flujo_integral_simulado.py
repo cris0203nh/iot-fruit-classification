@@ -124,11 +124,11 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
             ))
             db.commit()
 
-    def upload(self, idem="a" * 64):
+    def upload(self, idem="a" * 64, view="vista-1"):
         response = self.client.post(
             f"/api/evaluations/{self.evaluation_id}/images",
             headers={**self.auth("operador"), "Idempotency-Key": idem},
-            data={"view": "vista-1"},
+            data={"view": view},
             files={"file": ("mango_simulado.jpg", self.photo, "image/jpeg")},
         )
         if response.status_code == 201:
@@ -146,6 +146,9 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
 
         image = self.upload()
         self.assertEqual(image.status_code, 201, image.text)
+        second = self.upload(idem="b" * 64, view="vista-2")
+        self.assertEqual(second.status_code, 201, second.text)
+        self.assertNotEqual(image.json()["id"], second.json()["id"])
 
         self.measurement(2, weight=251.0)
         post = self.client.post(
@@ -161,7 +164,7 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
         )
         self.assertEqual(confirmation.status_code, 200, confirmation.text)
         self.assertTrue(confirmation.json()["confirmed"])
-        self.assertEqual(confirmation.json()["imageCount"], 1)
+        self.assertEqual(confirmation.json()["imageCount"], 2)
 
     def gate(self, simulated_prediction, *, role="operador"):
         with patch.object(gate_router, "_infer", return_value=simulated_prediction):
@@ -211,7 +214,7 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200, detail.text)
         self.assertEqual(detail.json()["status"], "completed")
         self.assertIsNone(detail.json()["visualCategory"])
-        self.assertEqual(detail.json()["imageCount"], 1)
+        self.assertEqual(detail.json()["imageCount"], 2)
 
         image = self.client.get(
             f"/api/images/{self.image_id}", headers=self.auth("revisor")
@@ -261,6 +264,30 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
             self.assertIsNone(evaluation.visual_category)
             self.assertEqual(evaluation.status, "completed")
             self.assertEqual(len(db.scalars(select(VisionAssessment)).all()), 1)
+
+    def test_one_photo_with_valid_weights_is_rejected(self):
+        # Aun con dos pesajes válidos, una sola evidencia persistida no cumple contrato.
+        self.measurement(1)
+        pre = self.client.post(
+            f"/api/evaluations/{self.evaluation_id}/weight/pre",
+            headers=self.auth("operador"),
+        )
+        self.assertEqual(pre.status_code, 200, pre.text)
+        self.assertEqual(self.upload().status_code, 201)
+        self.measurement(2, weight=251.0)
+        post = self.client.post(
+            f"/api/evaluations/{self.evaluation_id}/weight/post",
+            headers=self.auth("operador"),
+        )
+        self.assertEqual(post.status_code, 200, post.text)
+        confirmation = self.client.post(
+            f"/api/evaluations/{self.evaluation_id}/acquisition/confirm",
+            headers=self.auth("operador"),
+        )
+        self.assertEqual(confirmation.status_code, 409, confirmation.text)
+        self.assertIn("dos", confirmation.json()["detail"])
+        with self.Session() as db:
+            self.assertEqual(db.get(Evaluation, self.evaluation_pk).status, "processing")
 
     def test_missing_weight_blocks_confirmation_even_with_photo(self):
         self.assertEqual(self.upload().status_code, 201)

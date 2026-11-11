@@ -1,294 +1,127 @@
-
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
-import { getBackendHealth } from '../services/agroscanApi'
+import { getBackendHealth, getSessionRole } from '../services/agroscanApi'
 import './HomePage.css'
 
-type ApiStatus = 'checking' | 'online' | 'offline'
+const devices = [
+  { label: 'Cámara RGB', value: 'sin verificar', tone: 'wait', icon: 'camera' as const },
+  { label: 'Pesaje ESP32', value: 'sin lectura confirmada', tone: 'wait', icon: 'scale' as const },
+  { label: 'Calibración', value: 'sin verificar', tone: 'wait', icon: 'settings' as const },
+  { label: 'Almacenamiento', value: 'sin diagnóstico', tone: 'idle', icon: 'database' as const },
+] as const
 
 export function HomePage() {
-  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
+  const reviewer = getSessionRole() === 'revisor'
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let active = true
-
     getBackendHealth().then(
-      () => {
-        if (active) setApiStatus('online')
-      },
-      () => {
-        if (active) setApiStatus('offline')
-      },
+      () => { if (active) setApiStatus('online') },
+      () => { if (active) setApiStatus('offline') },
     )
-
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [retry])
 
-  const today = new Intl.DateTimeFormat('es-PE', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date())
+  const apiTone = apiStatus === 'online' ? 'ok' : apiStatus === 'offline' ? 'off' : 'wait'
+  const apiTitle = apiStatus === 'online' ? 'Backend disponible' : apiStatus === 'checking' ? 'Comprobando backend' : 'Backend no disponible'
+  const apiText = apiStatus === 'online'
+    ? 'La API respondió correctamente. Esto no confirma sensores conectados ni evaluaciones guardadas.'
+    : apiStatus === 'checking'
+      ? 'Verificando la API local…'
+      : 'Inicia FastAPI para poder consultar y registrar lotes y evaluaciones.'
+  const apiValue = apiStatus === 'online' ? 'disponible' : apiStatus === 'checking' ? 'verificando' : 'no disponible'
 
   return (
-    <div className="operator-home">
+    <div className="inicio">
+      <header className="inicio__head">
+        <p className="inicio__eyebrow">Panel general</p>
+        <h1 className="inicio__title">{reviewer ? 'Inicio: revisión y consulta' : 'Inicio: preparar la estación'}</h1>
+        <p className="inicio__lede">{reviewer ? 'Consulta las evaluaciones y su trazabilidad, sin modificar registros ni capturas.' : 'Supervisa el proceso antes de comenzar a evaluar frutas.'}</p>
+      </header>
 
-      {/* ENCABEZADO */}
-      <section className="operator-welcome">
-        <div className="operator-welcome__content">
-          <span className="operator-eyebrow">
-            AGROSCAN · ÁREA DE OPERACIONES
-          </span>
-
-          <h1>Bienvenido a tu estación de trabajo</h1>
-
-          <p>
-            Registra, pesa y captura tus productos agrícolas
-            desde una sola plataforma.
-          </p>
-
-          <span className="operator-date">
-            <Icon name="clock" size={15} />
-            {today}
-          </span>
-
-          <Link
-            to="/evaluacion"
-            className="operator-primary-button"
-          >
-            <Icon name="scan" size={19} />
-            Iniciar nueva evaluación
-            <Icon name="arrow-right" size={18} />
-          </Link>
+      <div className="inicio__aviso" data-tone={apiTone}>
+        <span className="inicio__aviso-icon" aria-hidden="true"><Icon name="alert" size={17} /></span>
+        <div className="inicio__aviso-body" role="status">
+          <p className="inicio__aviso-title">{apiTitle}</p>
+          <p className="inicio__aviso-text">{apiText}</p>
         </div>
-
-        <div className="operator-welcome__visual">
-          <div className="fruit-orbit fruit-orbit--one" />
-          <div className="fruit-orbit fruit-orbit--two" />
-
-          <div className="fruit-illustration fruit-illustration--mango">
-            <span className="fruit-leaf" />
-          </div>
-
-          <div className="fruit-illustration fruit-illustration--tomato">
-            <span className="tomato-leaf">✦</span>
-          </div>
-
-          <span className="fruit-label fruit-label--mango">
-            MANGO
-          </span>
-
-          <span className="fruit-label fruit-label--tomato">
-            TOMATE
-          </span>
-        </div>
-      </section>
-
-      {/* ACCESOS PRINCIPALES */}
-      <section className="operator-section">
-        <div className="operator-section-heading">
-          <div>
-            <span className="operator-eyebrow">
-              TU ESPACIO DE TRABAJO
-            </span>
-            <h2>¿Qué deseas realizar?</h2>
-          </div>
-        </div>
-
-        <div className="operator-actions-grid">
-
-          <Link
-            to="/evaluacion"
-            className="operator-action-card operator-action-card--featured"
-          >
-            <div className="operator-action-icon">
-              <Icon name="camera" size={25} />
-            </div>
-
-            <div>
-              <h3>Nueva evaluación</h3>
-              <p>
-                Registra una fruta, realiza el pesaje
-                y captura sus fotografías.
-              </p>
-            </div>
-
-            <span className="operator-action-link">
-              Comenzar <Icon name="arrow-right" size={17} />
-            </span>
-          </Link>
-
-          <Link
-            to="/lotes"
-            className="operator-action-card"
-          >
-            <div className="operator-action-icon operator-action-icon--orange">
-              <Icon name="boxes" size={25} />
-            </div>
-
-            <div>
-              <h3>Mis lotes</h3>
-              <p>
-                Registra nuevos lotes y selecciona
-                los productos que vas a evaluar.
-              </p>
-            </div>
-
-            <span className="operator-action-link">
-              Gestionar lotes <Icon name="arrow-right" size={17} />
-            </span>
-          </Link>
-
-          <Link
-            to="/historial"
-            className="operator-action-card"
-          >
-            <div className="operator-action-icon operator-action-icon--blue">
-              <Icon name="history" size={25} />
-            </div>
-            <div>
-              <h3>Historial</h3>
-              <p>
-                Consulta las evaluaciones y los
-                registros realizados.
-              </p>
-            </div>
-
-            <span className="operator-action-link">
-              Ver historial <Icon name="arrow-right" size={17} />
-            </span>
-          </Link>
-
-        </div>
-      </section>
-
-      {/* ESTADO DE CONEXIONES */}
-      <section className="operator-section">
-        <div className="operator-section-heading">
-          <div>
-            <span className="operator-eyebrow">
-              ESTADO DE CONEXIONES
-            </span>
-            <h2>Disponibilidad de la estación</h2>
-          </div>
-
-          <button
-            type="button"
-            className="operator-refresh"
-            onClick={() => {
-              setApiStatus('checking')
-              setRetry(value => value + 1)
-            }}
-            aria-label="Actualizar estado del backend"
-          >
-            <Icon name="history" size={17} />
-            Actualizar
+        {apiStatus === 'offline' && (
+          <button type="button" className="inicio__aviso-btn" onClick={() => { setApiStatus('checking'); setRetry((n) => n + 1) }}>
+            Reintentar
           </button>
+        )}
+      </div>
+
+      <section className="inicio__siguiente" aria-labelledby="inicio-siguiente">
+        <div className="inicio__siguiente-head">
+          <div>
+            <h2 id="inicio-siguiente">¿Qué necesitas hacer?</h2>
+            <p>{reviewer ? 'Accede a las evaluaciones registradas o revisa su trazabilidad.' : 'Empieza con un lote, registra una pieza o consulta las evaluaciones guardadas.'}</p>
+          </div>
         </div>
-
-        <div className="operator-device-grid">
-
-          <article className="operator-device-card">
-            <div className="operator-device-icon">
-              <Icon name="network" size={21} />
-            </div>
-
-            <div className="operator-device-info">
-              <strong>Backend AgroScan</strong>
-              <span>
-                {apiStatus === 'online'
-                  ? 'API disponible'
-                  : apiStatus === 'checking'
-                    ? 'Comprobando conexión'
-                    : 'Sin conexión'}
-              </span>
-            </div>
-
-            <span
-              className={`operator-status operator-status--${apiStatus}`}
-            >
-              {apiStatus === 'online'
-                ? 'Disponible'
-                : apiStatus === 'checking'
-                  ? 'Verificando'
-                  : 'Desconectado'}
-            </span>
-          </article>
-
-          <article className="operator-device-card">
-            <div className="operator-device-icon operator-device-icon--blue">
-              <Icon name="camera" size={21} />
-            </div>
-
-            <div className="operator-device-info">
-              <strong>Cámara web RGB</strong>
-              <span>Captura de fotografías desde la PC</span>
-            </div>
-
-            <span className="operator-status operator-status--unknown">
-              Validado
-            </span>
-          </article>
-
-          <article className="operator-device-card">
-            <div className="operator-device-icon operator-device-icon--orange">
-              <Icon name="scale" size={21} />
-            </div>
-
-            <div className="operator-device-info">
-              <strong>Balanza digital ESP32</strong>
-              <span>Lectura de peso y calibración</span>
-            </div>
-
-            <span className="operator-status operator-status--unknown">
-              Validada
-            </span>
-          </article>
-
-        </div>
-
-        <p className="operator-disclaimer">
-          La cámara web RGB y la balanza ESP32 cuentan con validaciones
-          funcionales realizadas durante las pruebas reales
-        </p>
+        <nav className="inicio__acciones" aria-label="Accesos rápidos de trabajo">
+          {!reviewer && (
+            <>
+              <Link className="inicio__accion inicio__accion--primaria" to="/evaluacion">
+                <span className="inicio__accion-icon" aria-hidden="true"><Icon name="plus" size={17} /></span>
+                <span className="inicio__accion-label">Iniciar evaluación</span>
+                <span className="inicio__accion-arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
+              </Link>
+              <Link className="inicio__accion" to="/lotes">
+                <span className="inicio__accion-icon" aria-hidden="true"><Icon name="boxes" size={17} /></span>
+                <span className="inicio__accion-label">Gestionar lotes</span>
+                <span className="inicio__accion-arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
+              </Link>
+            </>
+          )}
+          <Link className="inicio__accion" to="/historial">
+            <span className="inicio__accion-icon" aria-hidden="true"><Icon name="history" size={17} /></span>
+            <span className="inicio__accion-label">Consultar historial</span>
+            <span className="inicio__accion-arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
+          </Link>
+          <Link className="inicio__accion" to="/trazabilidad">
+            <span className="inicio__accion-icon" aria-hidden="true"><Icon name="network" size={17} /></span>
+            <span className="inicio__accion-label">Consultar trazabilidad</span>
+            <span className="inicio__accion-arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
+          </Link>
+        </nav>
       </section>
 
-      {/* PRODUCTOS */}
-      <section className="operator-products">
-        <div>
-          <span className="operator-eyebrow">
-            PRODUCTOS COMPATIBLES
-          </span>
-          <h2>Trabajamos con productos agrícolas</h2>
-          <p>
-            Selecciona el producto correspondiente al crear
-            una nueva evaluación.
-          </p>
+      <div className="inicio__grid">
+        <section className="inicio__bloque" aria-labelledby="inicio-ultima">
+          <h2 className="inicio__kicker" id="inicio-ultima">Registros y expedientes</h2>
+          <p className="inicio__copy">Consulta las evaluaciones confirmadas y los expedientes por lote en Historial. Aquí no se muestran cifras que aún no se hayan consultado.</p>
+          <div className="inicio__consultas"><Link to="/historial">Ver evaluaciones registradas <Icon name="arrow-right" size={15} /></Link><Link to="/historial?vista=piezas">Consultar piezas por lote <Icon name="arrow-right" size={15} /></Link></div>
+        </section>
+
+        <section className="inicio__bloque" aria-labelledby="inicio-disponibilidad">
+          <h2 className="inicio__kicker" id="inicio-disponibilidad">Disponibilidad de la estación</h2>
+          <dl className="inicio__estado">
+            <div data-tone={apiTone}>
+              <dt><span className="inicio__estado-icon" aria-hidden="true"><Icon name="network" size={15} /></span>API local</dt>
+              <dd><span className="inicio__dot" aria-hidden="true" />{apiValue}</dd>
+            </div>
+            {devices.map((device) => (
+              <div key={device.label} data-tone={device.tone}>
+                <dt><span className="inicio__estado-icon" aria-hidden="true"><Icon name={device.icon} size={15} /></span>{device.label}</dt>
+                <dd><span className="inicio__dot" aria-hidden="true" />{device.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="inicio__micro">Estas etiquetas no sustituyen una verificación real de hardware y servicios.</p>
+        </section>
+      </div>
+
+      <section className="inicio__bloque inicio__bloque--nota" aria-labelledby="inicio-antes">
+        <h2 className="inicio__kicker" id="inicio-antes">Antes de empezar</h2>
+        <div className="inicio__nota">
+          <span className="inicio__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
+          <p className="inicio__copy">{reviewer ? 'Este perfil es de consulta y revisión. No puede crear lotes, registrar pesajes ni capturar fotografías.' : 'Para registrar una pieza, selecciona producto y lote. El pesaje, la captura y la persistencia solo se consideran confirmados cuando sus respectivos pasos obtienen evidencia del sistema. El estado del hardware no se deduce de la respuesta de la API.'}</p>
         </div>
-
-        <div className="operator-product-tags">
-          <span className="operator-product-tag">
-            <span className="product-dot product-dot--mango" />
-            Mango
-          </span>
-
-          <span className="operator-product-tag">
-            <span className="product-dot product-dot--tomato" />
-            Tomate
-          </span>
-        </div>
-
       </section>
-
-      <footer className="operator-footer">
-        AgroScan · Plataforma de evaluación de calidad agrícola
-      </footer>
-
     </div>
   )
 }

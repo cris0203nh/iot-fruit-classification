@@ -11,13 +11,59 @@
   --color-muted: #64758b;
   --color-border: #e3eaf0;
   --color-panel: #fff;
+
+  /* Paleta editorial AgroScan: hoja impresa, tinta y sellos. */
+  --paper: #e3dac8;
+  --sheet: #efe8da;
+  --card: #f7f2e7;
+  --ink: #17201b;
+  --ink-soft: #4e564c;
+  --rule: #c9c0ad;
+  --rule-soft: #d9d0be;
+  --rule-strong: #a99f8b;
+  --tomato: #bf3f2a;
+  --mango: #c08427;
+  --ok: #2c6a4c;
+  --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
+  --sans: Inter, 'Helvetica Neue', Arial, system-ui, sans-serif;
+
+  /* Escala de lectura compartida: incrementos graduales, sin cambiar los componentes.
+     1rem = 16 px con la configuración predeterminada del navegador.
+     Micro y label solo para metadatos breves; no para instrucciones extensas. */
+  --fs-micro: 0.75rem;  /* 12 px */
+  --fs-label: 0.8125rem; /* 13 px */
+  --fs-sm: 0.875rem;    /* 14 px */
+  --fs-body: 0.9375rem; /* 15 px */
+  --fs-md: 1rem;        /* 16 px */
+  --fs-h3: 1.125rem;    /* 18 px */
+  --fs-h2: 1.375rem;    /* 22 px */
+  --fs-title: clamp(1.8rem, 2.9vw, 2.6rem);
+  --tap: 46px;
+  /* Variantes de color para texto sobre papel (contraste AA). */
+  --mango-ink: #7f5410;
+  --tomato-ink: #a8361f;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { min-width: 320px; }
-body { margin: 0; min-width: 320px; }
-button, input, select { font: inherit; }
+html { min-width: 320px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; min-width: 320px; line-height: 1.5; }
+button, input, select, textarea { font: inherit; }
 a { color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid #349e77; outline-offset: 3px; }
 #root { min-height: 100vh; }
+
+/* Los campos usan 16px para que iOS no haga zoom al enfocar. */
+input, select, textarea { font-size: 1rem; }
+
+/* I04: contenido legible y sin animaciones para personas que las reducen. */
+input::placeholder, textarea::placeholder { color: #575f56; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

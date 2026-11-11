@@ -11,7 +11,7 @@ export type ReviewEvent = {
   id: string
   performedAt: string
   actorId: string
-  type: 'review' | 'cancellation'
+  type: 'review' | 'cancellation' | 'uncertainty'
   reason: string
   previousValue: string | null
   updatedValue: string | null
@@ -77,7 +77,9 @@ export function buildTraceabilityTimeline(
       kind: event.type,
       title: event.type === 'review'
         ? 'Revisión registrada'
-        : 'Anulación registrada',
+        : event.type === 'uncertainty'
+          ? 'Resultado incierto: revisión pendiente'
+          : 'Anulación registrada',
       actorId: event.actorId,
       reason: event.reason,
       previousValue: event.previousValue,

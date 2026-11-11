@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
+import { PieceHistoryPanel } from '../features/history/PieceHistoryPanel'
 import {
   filterHistory,
   formatDate,
@@ -414,6 +415,8 @@ export function HistoryPage() {
             />
           )}
       </section>
+
+      <PieceHistoryPanel suggestedLots={lots} />
 
       <section className="panel history-guide" aria-labelledby="history-guide-title">
         <div className="panel-heading">

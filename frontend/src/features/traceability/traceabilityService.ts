@@ -1,10 +1,15 @@
-import type { EvaluationDetail } from '../history/historyService'
-import { getEvaluationTraceability } from '../../services/agroscanApi.ts'
 
-/** Contrato de lectura alineado con TraceabilityOut de FastAPI. */
+import type { EvaluationDetail } from '../history/historyService'
+import {
+  createEvaluationReview,
+  getEvaluationTraceability,
+  type EvaluationReviewInput,
+} from '../../services/agroscanApi'
+
+
 export type ReviewEvent = {
   id: string
-  performedAt: string // ISO-8601
+  performedAt: string
   actorId: string
   type: 'review' | 'cancellation'
   reason: string
@@ -33,24 +38,27 @@ export type TimelineEntry = {
 
 export interface TraceabilityService {
   getByEvaluationId(evaluationId: string): Promise<TraceabilityRecord | null>
+  addReview(
+    evaluationId: string,
+    input: EvaluationReviewInput,
+  ): Promise<ReviewEvent>
 }
 
-/** No habilita POST de revisiones ni anulaciones: requieren autorización real. */
+
 export const traceabilityService: TraceabilityService = {
   getByEvaluationId: getEvaluationTraceability,
+  addReview: createEvaluationReview,
 }
 
-/** Identificador publicado por FastAPI (backend/app/routers/evaluations.py). */
+
 export function validateEvaluationId(input: string): string | null {
   const id = input.trim()
   return /^E-\d{1,9}$/.test(id) ? id : null
 }
 
-/**
- * La primera entrada corresponde siempre al registro original.
- * Las revisiones se agregan sin alterar los datos originales.
- */
-export function buildTraceabilityTimeline(record: TraceabilityRecord): TimelineEntry[] {
+export function buildTraceabilityTimeline(
+  record: TraceabilityRecord,
+): TimelineEntry[] {
   const original: TimelineEntry = {
     id: `original:${record.evaluation.id}`,
     at: record.evaluation.registeredAt,
@@ -61,17 +69,21 @@ export function buildTraceabilityTimeline(record: TraceabilityRecord): TimelineE
     previousValue: null,
     updatedValue: record.evaluation.visualCategory,
   }
+
   const reviews: TimelineEntry[] = record.reviews
     .map((event) => ({
       id: event.id,
       at: event.performedAt,
       kind: event.type,
-      title: event.type === 'review' ? 'Revisión registrada' : 'Anulación registrada',
+      title: event.type === 'review'
+        ? 'Revisión registrada'
+        : 'Anulación registrada',
       actorId: event.actorId,
       reason: event.reason,
       previousValue: event.previousValue,
       updatedValue: event.updatedValue,
     }))
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+
   return [original, ...reviews]
 }

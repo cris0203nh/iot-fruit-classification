@@ -1,4 +1,4 @@
-﻿import re
+import re
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -511,6 +511,7 @@ def weight_post(
     db.commit()
 
     return weight_step("post", m)
+
 @router.post("/{evaluation_id}/acquisition/confirm")
 def confirm_acquisition(
     evaluation_id: str,
@@ -522,10 +523,9 @@ def confirm_acquisition(
     if ev.status != "processing":
         raise HTTPException(
             status_code=409,
-            detail="La evaluación ya no está en proceso."
+            detail="La evaluaci?n ya no est? en proceso."
         )
 
-    # Verificar los dos registros de peso.
     if (
         ev.weight_pre_g is None
         or ev.weight_post_g is None
@@ -535,10 +535,9 @@ def confirm_acquisition(
     ):
         raise HTTPException(
             status_code=409,
-            detail="Falta completar la captura y confirmación del peso."
+            detail="Falta completar la captura y confirmaci?n del peso."
         )
 
-    # Recuperar las mediciones originales.
     pre = db.get(Measurement, ev.weight_pre_measurement_id)
     post = db.get(Measurement, ev.weight_post_measurement_id)
 
@@ -548,7 +547,6 @@ def confirm_acquisition(
             detail="No se encontraron las mediciones originales."
         )
 
-    # Verificar que ambas mediciones sean del mismo dispositivo y sesión.
     if (
         pre.device_id != post.device_id
         or pre.boot_id != post.boot_id
@@ -557,29 +555,33 @@ def confirm_acquisition(
     ):
         raise HTTPException(
             status_code=409,
-            detail="Las mediciones no corresponden al mismo dispositivo y sesión."
+            detail="Las mediciones no corresponden al mismo dispositivo y sesi?n."
         )
 
-    # Comprobar que existen fotografías asociadas a esta evaluación.
     images = db.scalars(
         select(Image).where(Image.evaluation_id == ev.id)
     ).all()
 
-    if not images:
+    if len(images) < 2:
         raise HTTPException(
             status_code=409,
-            detail="Debe guardar al menos una fotografía de la pieza."
+            detail="Se requieren las dos fotograf?as de la pieza."
         )
 
-    # Verificar que los archivos asociados continúen disponibles.
     for image in images:
         image_path = DATA_DIR / image.relative_path
 
         if not image_path.is_file() or image.size_bytes <= 0:
             raise HTTPException(
                 status_code=409,
-                detail="Existe una fotografía no disponible o inválida."
+                detail="Existe una fotograf?a no disponible o inv?lida."
             )
+
+    # Enviar la evaluaci?n a la bandeja del revisor.
+    ev.status = "pending_review"
+
+    db.commit()
+    db.refresh(ev)
 
     return {
         "confirmed": True,
@@ -589,4 +591,5 @@ def confirm_acquisition(
         "weightGrams": ev.weight_grams,
         "imageCount": len(images),
         "deviceId": ev.device_id,
+        "status": ev.status,
     }

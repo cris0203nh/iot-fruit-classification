@@ -1,0 +1,91 @@
+{
+  "version": "agrop42-comparacion-v1",
+  "tarea": "AGROP-42",
+  "estado": "bloqueado_por_datos_insuficientes",
+  "auditoria": {
+    "version": "agrop42-gate-v1",
+    "origen_csv": "vision\\evaluation\\agrop42\\AGROP42_revisiones_texto_aprobado_v2.csv",
+    "cantidad_registros": 19,
+    "errores_integridad": [],
+    "productos": {
+      "mango": {
+        "fotografias": 4,
+        "notas_revisadas": 1,
+        "no_evaluables": 3,
+        "etiquetas_elegibles": 0,
+        "grupos_independientes": 0,
+        "clases_elegibles": {},
+        "estado": "bloqueado_por_datos_insuficientes",
+        "motivos": [
+          "menos_de_tres_grupos_independientes",
+          "menos_de_dos_clases_con_etiquetas_revisadas_y_sesion"
+        ]
+      },
+      "tomate": {
+        "fotografias": 15,
+        "notas_revisadas": 11,
+        "no_evaluables": 4,
+        "etiquetas_elegibles": 0,
+        "grupos_independientes": 0,
+        "clases_elegibles": {},
+        "estado": "bloqueado_por_datos_insuficientes",
+        "motivos": [
+          "menos_de_tres_grupos_independientes",
+          "menos_de_dos_clases_con_etiquetas_revisadas_y_sesion"
+        ]
+      }
+    },
+    "estado_global": "bloqueado_por_datos_insuficientes",
+    "evaluacion_ejecutada": false,
+    "metricas_estimadas": null
+  },
+  "configuracion": {
+    "splits_solicitados": 5,
+    "test_size": 0.2,
+    "semilla": 42,
+    "repeticiones_inferencia": 30
+  },
+  "hardware_ejecucion": {
+    "sistema": "Windows-10-10.0.26300-SP0",
+    "procesador": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",
+    "cpu_logicas": 8,
+    "python": "3.11.5"
+  },
+  "huellas_sha256": {
+    "anotaciones": "2b5f9551ede4311914f2258528f50b52e2dc530b69b779f4d7583db5d9c39cb4",
+    "atributos": null,
+    "reglas": null
+  },
+  "productos": {
+    "mango": {
+      "estado": "bloqueado",
+      "fotografias": 4,
+      "etiquetas_elegibles": 0,
+      "grupos_independientes": 0,
+      "clases": {},
+      "motivos": [
+        "menos_de_tres_grupos_independientes",
+        "menos_de_dos_clases_con_etiquetas_revisadas_y_sesion"
+      ],
+      "splits_validos": 0,
+      "resultados": [],
+      "resumen": null
+    },
+    "tomate": {
+      "estado": "bloqueado",
+      "fotografias": 15,
+      "etiquetas_elegibles": 0,
+      "grupos_independientes": 0,
+      "clases": {},
+      "motivos": [
+        "menos_de_tres_grupos_independientes",
+        "menos_de_dos_clases_con_etiquetas_revisadas_y_sesion"
+      ],
+      "splits_validos": 0,
+      "resultados": [],
+      "resumen": null
+    }
+  },
+  "comparacion_mismo_conjunto_prueba": false,
+  "limitacion_rendimiento": "La latencia corresponde a atributos en memoria. RSS y flujo completo se miden con el perfilador AG-034 existente."
+}

@@ -92,6 +92,10 @@ export function EvaluationGuidedAcquisition({
       if (kind === 'pre') {
         const result = await captureWeightPre(evaluation.id)
         setPre(result)
+
+        // Avanzar automaticamente al paso de fotografias.
+        setStep(3)
+        onStepChange(3)
       } else {
         const result = await captureWeightPost(evaluation.id)
         setPost(result)
@@ -240,6 +244,7 @@ export function EvaluationGuidedAcquisition({
 
               <EvaluationImageCapture
                 evaluationId={evaluation.id}
+                autoStart={pre !== null}
                 onEvidenceChange={onEvidenceChange}
               />
 

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>AGROP-43 revisi?n final</title>
+<style>
+body{font-family:Arial;margin:25px;background:#f3f4f6}
+article{background:white;padding:20px;margin:20px 0;border-radius:12px}
+.photos{display:flex;gap:20px;flex-wrap:wrap}
+figure{margin:0}
+img{width:300px;max-height:280px;object-fit:contain}
+select,button{padding:12px;margin-top:12px}
+</style>
+</head>
+<body>
+<h1>AGROP-43 ? Etiquetado de muestras finales</h1>
+<p>Revisa las cuatro fotograf?as utilizando las r?bricas existentes.</p>
+
+    <article>
+      <h2>MANGO ? evaluation-48</h2>
+      <p>Peso inicial: 163.942 g |
+      Peso final: 167.28 g</p>
+      <div class="photos"><figure><img src="imagenes/48_44.jpg"><figcaption>Imagen 44</figcaption></figure><figure><img src="imagenes/48_45.jpg"><figcaption>Imagen 45</figcaption></figure></div>
+      <label>Etiqueta real seg?n la r?brica:
+        <select data-id="evaluation-48">
+          <option value="">Pendiente</option>
+          <option value="primera">Primera categor?a</option>
+          <option value="segunda">Segunda categor?a</option>
+        </select>
+      </label>
+    </article>
+
+    <article>
+      <h2>TOMATE ? evaluation-49</h2>
+      <p>Peso inicial: 112.034 g |
+      Peso final: 120.397 g</p>
+      <div class="photos"><figure><img src="imagenes/49_46.jpg"><figcaption>Imagen 46</figcaption></figure><figure><img src="imagenes/49_47.jpg"><figcaption>Imagen 47</figcaption></figure></div>
+      <label>Etiqueta real seg?n la r?brica:
+        <select data-id="evaluation-49">
+          <option value="">Pendiente</option>
+          <option value="primera">Primera categor?a</option>
+          <option value="segunda">Segunda categor?a</option>
+        </select>
+      </label>
+    </article>
+
+<button onclick="exportar()">Exportar etiquetas finales</button>
+<script>
+const rows=[{"sample_id": "evaluation-48", "source_evaluation_id": "48", "piece_id": "MANGO-12", "product": "mango", "source_status": "processing", "weight_pre_g": "163.942", "weight_post_g": "167.28", "image_count": "2", "image_records": "[{\"id\": 44, \"evaluation_id\": 48, \"view\": \"vista-1\", \"relative_path\": \"images/E-000048/387d3ef37fdc423bbe037ea956c0987b.jpg\", \"content_type\": \"image/jpeg\", \"size_bytes\": 34716, \"created_at\": \"2026-11-07 20:26:16.090748\", \"idempotency_key\": \"5f466609854fd121182307224ff50b4221702ea775c95e55a4fd84ef998493c9\"}, {\"id\": 45, \"evaluation_id\": 48, \"view\": \"vista-2\", \"relative_path\": \"images/E-000048/3e781b1d58ed4d849ed4dc29328949e8.jpg\", \"content_type\": \"image/jpeg\", \"size_bytes\": 36069, \"created_at\": \"2026-11-07 20:27:15.009996\", \"idempotency_key\": \"0a98a5febd86b68b3ab65f5da4fe894de4b2aa3cd9b71e6014905296b142f1cf\"}]", "y_true": "", "label_verification": "pending", "y_pred": "", "prediction_verification": "pending", "confidence": ""}, {"sample_id": "evaluation-49", "source_evaluation_id": "49", "piece_id": "TOMATE-013", "product": "tomate", "source_status": "processing", "weight_pre_g": "112.034", "weight_post_g": "120.397", "image_count": "2", "image_records": "[{\"id\": 46, \"evaluation_id\": 49, \"view\": \"vista-1\", \"relative_path\": \"images/E-000049/d8a0f9245db14b21bb7ffbf102db9e92.jpg\", \"content_type\": \"image/jpeg\", \"size_bytes\": 34922, \"created_at\": \"2026-11-07 20:28:28.962722\", \"idempotency_key\": \"6af4ff25ce50dadb71ff008eecb001d69a9066ac1ab55877b5601fb987fdee3d\"}, {\"id\": 47, \"evaluation_id\": 49, \"view\": \"vista-2\", \"relative_path\": \"images/E-000049/52f80f814a974b9492dea985b7fd41d7.jpg\", \"content_type\": \"image/jpeg\", \"size_bytes\": 33596, \"created_at\": \"2026-11-07 20:28:56.414776\", \"idempotency_key\": \"79923bd315da61fd00d0f869c644016076d7c77022eb7885cd6dee5f2758c95f\"}]", "y_true": "", "label_verification": "pending", "y_pred": "", "prediction_verification": "pending", "confidence": ""}];
+function exportar(){
+ const selections=Object.fromEntries(
+ [...document.querySelectorAll('select[data-id]')]
+ .map(s=>[s.dataset.id,s.value])
+ );
+ const headers=Object.keys(rows[0]);
+ const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ const lines=[headers.map(esc).join(',')];
+ for(const r of rows){
+   const label=selections[r.sample_id];
+   if(!label){alert('Falta etiquetar '+r.sample_id);return;}
+   r.y_true=label;
+   r.label_verification='verified';
+   lines.push(headers.map(h=>esc(r[h])).join(','));
+ }
+ const blob=new Blob(['\ufeff'+lines.join('\r\n')],
+ {type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='agrop43_muestras_finales_etiquetadas.csv';
+ a.click();
+}
+</script>
+</body>
+</html>

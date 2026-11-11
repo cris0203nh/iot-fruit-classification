@@ -1,0 +1,192 @@
+{
+  "tarea": "AGROP-39",
+  "semilla": 39,
+  "particiones": {
+    "entrenamiento": [
+      {
+        "imagen_id": 16,
+        "evaluacion_id": 24,
+        "pieza_id": 19,
+        "codigo_pieza": "MANGO-003",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "19fafb4a724b713727535103f8326b61",
+        "ruta_archivo": "data\\images\\E-000024\\88b8ef80fdee4a78a2e1f78eb962856a.jpg"
+      },
+      {
+        "imagen_id": 17,
+        "evaluacion_id": 24,
+        "pieza_id": 19,
+        "codigo_pieza": "MANGO-003",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "19fafb4a724b713727535103f8326b61",
+        "ruta_archivo": "data\\images\\E-000024\\199bc5444d9b48839797b546f3229b71.jpg"
+      },
+      {
+        "imagen_id": 18,
+        "evaluacion_id": 27,
+        "pieza_id": 20,
+        "codigo_pieza": "TOMATE-005",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "a7abcca6f82abd02f4d522ca6c0ee77d",
+        "ruta_archivo": "data\\images\\E-000027\\d48bddda37564031874f41b10df1ac13.jpg"
+      },
+      {
+        "imagen_id": 19,
+        "evaluacion_id": 27,
+        "pieza_id": 20,
+        "codigo_pieza": "TOMATE-005",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "a7abcca6f82abd02f4d522ca6c0ee77d",
+        "ruta_archivo": "data\\images\\E-000027\\d048be54b23e4c8d829658ef7dffa3ff.jpg"
+      },
+      {
+        "imagen_id": 20,
+        "evaluacion_id": 28,
+        "pieza_id": 20,
+        "codigo_pieza": "TOMATE-005",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "a7abcca6f82abd02f4d522ca6c0ee77d",
+        "ruta_archivo": "data\\images\\E-000028\\5059b96fd9e3449b8aba9f73e16ccad8.jpg"
+      },
+      {
+        "imagen_id": 21,
+        "evaluacion_id": 28,
+        "pieza_id": 20,
+        "codigo_pieza": "TOMATE-005",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "a7abcca6f82abd02f4d522ca6c0ee77d",
+        "ruta_archivo": "data\\images\\E-000028\\e90f97013fb34a8694e3be38d7457399.jpg"
+      },
+      {
+        "imagen_id": 26,
+        "evaluacion_id": 33,
+        "pieza_id": 22,
+        "codigo_pieza": "MANGO-007",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "d2f28637bb2a96334dcbf6d39ce75df2",
+        "ruta_archivo": "data\\images\\E-000033\\fb3a8cb4f1e642ae8db0b9ce86aa3f21.jpg"
+      },
+      {
+        "imagen_id": 27,
+        "evaluacion_id": 33,
+        "pieza_id": 22,
+        "codigo_pieza": "MANGO-007",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "d2f28637bb2a96334dcbf6d39ce75df2",
+        "ruta_archivo": "data\\images\\E-000033\\123d9c913c914d1aa71bbcf6620a8b8e.jpg"
+      },
+      {
+        "imagen_id": 28,
+        "evaluacion_id": 35,
+        "pieza_id": 22,
+        "codigo_pieza": "MANGO-007",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "6400bda977b38c001323ae4c4b4e072f",
+        "ruta_archivo": "data\\images\\E-000035\\0f9b6659f4b249bf8d4ccbf03767aa40.jpg"
+      },
+      {
+        "imagen_id": 29,
+        "evaluacion_id": 36,
+        "pieza_id": 22,
+        "codigo_pieza": "MANGO-007",
+        "producto": "mango",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "ae842036ecc55e18f245533c816c8927",
+        "ruta_archivo": "data\\images\\E-000036\\f9cbdce226b749488febbb29f7ee4683.jpg"
+      },
+      {
+        "imagen_id": 36,
+        "evaluacion_id": 44,
+        "pieza_id": 26,
+        "codigo_pieza": "TOMATE-0011",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "3f86df1110f0d9d6b16b244efbf71db5",
+        "ruta_archivo": "data\\images\\E-000044\\f4a4becd8bcf4022bc4b35e237dd5e5c.jpg"
+      },
+      {
+        "imagen_id": 37,
+        "evaluacion_id": 44,
+        "pieza_id": 26,
+        "codigo_pieza": "TOMATE-0011",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "3f86df1110f0d9d6b16b244efbf71db5",
+        "ruta_archivo": "data\\images\\E-000044\\8de988b3565b416a98689c1de4bc5a28.jpg"
+      },
+      {
+        "imagen_id": 1,
+        "evaluacion_id": 4,
+        "pieza_id": 4,
+        "codigo_pieza": "P-IMG-5",
+        "producto": "mango",
+        "device_id": "station-001",
+        "boot_id": "boot-t10",
+        "ruta_archivo": "data\\images\\E-000004\\6f3fb1774ed740a5897a4ff9570de4f3.jpg"
+      }
+    ],
+    "validacion": [
+      {
+        "imagen_id": 30,
+        "evaluacion_id": 37,
+        "pieza_id": 24,
+        "codigo_pieza": "TOMATE-009",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "33aece4f1317f655e091208a46b64f7b",
+        "ruta_archivo": "data\\images\\E-000037\\27320b1a5b06444ab23e48311fc5de2e.jpg"
+      }
+    ],
+    "prueba": [
+      {
+        "imagen_id": 31,
+        "evaluacion_id": 38,
+        "pieza_id": 25,
+        "codigo_pieza": "TOMATE-010",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "6e98c79aff3a03bd1058a683916a02dc",
+        "ruta_archivo": "data\\images\\E-000038\\75d8e447380e4852a1c25dd21aab3de1.jpg"
+      },
+      {
+        "imagen_id": 32,
+        "evaluacion_id": 38,
+        "pieza_id": 25,
+        "codigo_pieza": "TOMATE-010",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "6e98c79aff3a03bd1058a683916a02dc",
+        "ruta_archivo": "data\\images\\E-000038\\c99d2907dbbc4beaaaf6da3e99a17b2e.jpg"
+      },
+      {
+        "imagen_id": 34,
+        "evaluacion_id": 41,
+        "pieza_id": 25,
+        "codigo_pieza": "TOMATE-010",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "bb50e0d9e0736d9704276db4ff13e872",
+        "ruta_archivo": "data\\images\\E-000041\\f5740f69293942f384b478c348616b7f.jpg"
+      },
+      {
+        "imagen_id": 35,
+        "evaluacion_id": 41,
+        "pieza_id": 25,
+        "codigo_pieza": "TOMATE-010",
+        "producto": "tomate",
+        "device_id": "esp32-e42970d33fb0",
+        "boot_id": "bb50e0d9e0736d9704276db4ff13e872",
+        "ruta_archivo": "data\\images\\E-000041\\439bad881b3344aca0ab8ee23f4ba0ce.jpg"
+      }
+    ]
+  }
+}

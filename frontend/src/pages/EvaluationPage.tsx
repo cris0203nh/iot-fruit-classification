@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
-import { Icon } from '../components/layout/Icon'
+import { FruitMark } from '../components/FruitMark'
+import { Icon, type IconName } from '../components/layout/Icon'
 import { EvaluationGuidedAcquisition } from '../features/evaluation/EvaluationGuidedAcquisition'
 import { GUIDED_STEP_LABELS, type GuidedStep } from '../features/evaluation/evaluationFlow'
 import '../features/evaluation/EvaluationProgress.css'
@@ -25,6 +26,8 @@ type SubmissionError = { message: string; uncertain: boolean }
 
 const EMPTY_DRAFT: Draft = { product: '', lot: '', piece: '' }
 
+const STEP_ICONS: readonly IconName[] = ['clipboard', 'scale', 'camera', 'check', 'boxes']
+
 function ProductOption({ value, selected, disabled, onSelect }: {
   value: FruitProduct
   selected: boolean
@@ -39,9 +42,13 @@ function ProductOption({ value, selected, disabled, onSelect }: {
       disabled={disabled}
       onClick={() => onSelect(value)}
     >
-      <span className="evaluation-product__symbol" aria-hidden="true">{value === 'mango' ? '🥭' : '🍅'}</span>
-      <span className="evaluation-product__label">{value === 'mango' ? 'Mango' : 'Tomate'}</span>
-      <span className="evaluation-product__hint">Evaluación externa</span>
+      <span className="evaluation-product__figure"><FruitMark product={value} /></span>
+      <span className="evaluation-product__text">
+        <span className="evaluation-product__code" aria-hidden="true">{value === 'mango' ? 'M-01' : 'T-01'}</span>
+        <span className="evaluation-product__label">{value === 'mango' ? 'Mango' : 'Tomate'}</span>
+        <span className="evaluation-product__hint">Evaluación externa</span>
+      </span>
+      {selected && <span className="evaluation-product__check" aria-hidden="true"><Icon name="check" size={14} /></span>}
     </button>
   )
 }
@@ -81,6 +88,14 @@ export function EvaluationPage() {
   const pieceValid = isValidPieceId(draft.piece)
   const canCreate = selectedLot !== null && pieceValid && !creating && !created
   const locked = creating || created !== null
+  const readyToRegister = draft.product !== '' && selectedLot !== null && pieceValid
+  const currentStepLabel = GUIDED_STEP_LABELS[guideStep - 1]
+  const relevantLotCount = draft.product ? availableLots.length : openLots.length
+  const lotAvailabilityLabel = lotsState.kind === 'loading'
+    ? 'Cargando lotes registrados…'
+    : lotsState.kind === 'ready'
+      ? `${relevantLotCount} lote${relevantLotCount === 1 ? '' : 's'} abierto${relevantLotCount === 1 ? '' : 's'} ${draft.product ? `para ${draft.product}` : 'en total'}`
+      : 'No se pudo verificar la disponibilidad de lotes'
 
   function updateDraft(next: Draft) {
     if (locked) return
@@ -131,39 +146,46 @@ export function EvaluationPage() {
   }
 
   return (
-    <div className="page-stack evaluation-page">
-      <div className="page-heading">
-        <span className="eyebrow">Módulo de evaluación</span>
-        <h1>Evaluación externa de frutas</h1>
-        <p>Registra la identificación de una pieza en un lote existente. El peso se consulta desde FastAPI; las fotografías pueden capturarse y vincularse a una evaluación en proceso. El pesaje físico y la clasificación requieren validación independiente.</p>
-      </div>
+    <div className="evaluacion">
+      <header className="evaluacion__head">
+        <p className="evaluacion__kicker">Módulo de evaluación</p>
+        <h1 className="evaluacion__title">Evaluación externa de frutas</h1>
+        <p className="evaluacion__lede">Selecciona un lote abierto, identifica la pieza y registra su evaluación. Después podrás vincular pesos y fotografías, siempre sujetos a verificación.</p>
+      </header>
+
+      <section className="evaluation-current-step" role="status" aria-live="polite">
+        <span className="evaluation-current-step__counter">Etapa {guideStep} de {GUIDED_STEP_LABELS.length}</span>
+        <strong>{currentStepLabel}</strong>
+        <span>La etapa indica la posición en la guía, no confirma automáticamente una medición o clasificación.</span>
+      </section>
 
       <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
         <ol>
           {GUIDED_STEP_LABELS.map((label, index) => {
             const number = (index + 1) as GuidedStep
             return (
-              <li key={label} className={number === guideStep ? 'evaluation-progress__active' : number < guideStep ? 'evaluation-progress__passed' : ''} aria-current={number === guideStep ? 'step' : undefined}>
+              <li key={label} className={number === guideStep ? 'evaluation-progress__active' : number < guideStep ? 'evaluation-progress__passed' : ''} aria-current={number === guideStep ? 'step' : undefined} aria-label={`${label}, ${number === guideStep ? 'etapa actual' : number < guideStep ? 'etapa visitada' : 'etapa siguiente'}`}>
                 <span className="evaluation-progress__number">{number}</span>
-                <span>{label}</span>
+                <span className="evaluation-progress__icon" aria-hidden="true"><Icon name={STEP_ICONS[index]} size={15} /></span>
+                <span className="evaluation-progress__label">{label}</span>
               </li>
             )
           })}
         </ol>
       </nav>
 
-      <div className="notice notice--warning" role="status">
-        <Icon name="alert" size={19} />
-        <span><strong>Registro conectado:</strong> crear una evaluación guarda un registro real en SQLite con estado «En proceso». No implica que se haya pesado, fotografiado o clasificado la fruta.</span>
+      <div className="evaluacion__aviso" role="status">
+        <span className="evaluacion__aviso-mark" aria-hidden="true" />
+        <p><strong>Qué se registra ahora:</strong> la identificación de la pieza quedará guardada con estado «En proceso» cuando el servidor confirme el registro. El pesaje, las fotografías y la clasificación se verifican por separado.</p>
       </div>
 
       <div className="evaluation-grid">
-        <form className="panel evaluation-form" noValidate onSubmit={handleCreate}>
+        <form className="evaluation-form" noValidate onSubmit={handleCreate}>
           <div className="evaluation-section-heading">
-            <span className="evaluation-step" aria-hidden="true">1</span>
+            <span className="evaluation-step" aria-hidden="true">01</span>
             <div>
               <h2>Identificar y registrar la muestra</h2>
-              <p>Una solicitud crea una evaluación. El backend asigna el identificador.</p>
+              <p>Completa los tres datos y registra una única pieza. El identificador se genera al guardar.</p>
             </div>
           </div>
 
@@ -177,7 +199,7 @@ export function EvaluationPage() {
           </fieldset>
 
           <div className="evaluation-lot-tools">
-            <span>Los lotes disponibles se obtienen de SQLite mediante FastAPI.</span>
+            <span role="status">{lotAvailabilityLabel}</span>
             <button type="button" className="action-button action-button--secondary" onClick={refreshLots} disabled={locked || lotsState.kind === 'loading'}>Actualizar lotes</button>
           </div>
 
@@ -192,48 +214,70 @@ export function EvaluationPage() {
           <div className="evaluation-inputs">
             <div className="evaluation-field">
               <label htmlFor="lot-reference">Lote registrado y abierto <span aria-hidden="true">*</span></label>
-              <select
-                id="lot-reference"
-                name="lotReference"
-                value={selectedLot?.code ?? ''}
-                disabled={locked || lotsState.kind !== 'ready' || !draft.product}
-                aria-invalid={attempted && !selectedLot}
-                aria-describedby="lot-reference-hint"
-                onChange={(event) => updateDraft({ ...draft, lot: event.target.value })}
-              >
-                <option value="">{lotsState.kind === 'loading' ? 'Consultando lotes…' : 'Selecciona un lote abierto'}</option>
-                {availableLots.map((lot) => <option key={lot.id} value={lot.code}>{lot.code}</option>)}
-              </select>
-              {attempted && !selectedLot && <p className="evaluation-error" role="alert">Selecciona un lote abierto confirmado por la API.</p>}
+              <div className="evaluation-field__control">
+                <select
+                  id="lot-reference"
+                  name="lotReference"
+                  value={selectedLot?.code ?? ''}
+                  disabled={locked || lotsState.kind !== 'ready' || !draft.product}
+                  aria-invalid={attempted && !selectedLot}
+                  aria-describedby={attempted && !selectedLot ? 'lot-reference-error lot-reference-hint' : 'lot-reference-hint'}
+                  onChange={(event) => updateDraft({ ...draft, lot: event.target.value })}
+                >
+                  <option value="">{lotsState.kind === 'loading' ? 'Consultando lotes…' : 'Selecciona un lote abierto'}</option>
+                  {availableLots.map((lot) => <option key={lot.id} value={lot.code}>{lot.code}</option>)}
+                </select>
+                <span className="evaluation-field__caret" aria-hidden="true">▾</span>
+              </div>
+              {attempted && !selectedLot && <p id="lot-reference-error" className="evaluation-error" role="alert">Selecciona un lote abierto confirmado por el servidor.</p>}
               <p id="lot-reference-hint" className="evaluation-help">
-                {lotsState.kind === 'ready' && availableLots.length === 0
-                  ? 'No hay lotes abiertos para este producto. Registra uno en Gestión de lotes.'
-                  : 'Solo se muestran lotes abiertos recuperados de FastAPI.'}
+                {!draft.product
+                  ? 'Primero elige Mango o Tomate para consultar sus lotes.'
+                  : lotsState.kind === 'ready' && availableLots.length === 0
+                    ? 'Este producto no tiene lotes abiertos.'
+                    : selectedLot
+                      ? `Lote ${selectedLot.code} · Abierto y disponible para nuevas evaluaciones.`
+                      : 'Elige un lote abierto de la lista verificada por el servidor.'}
+                {draft.product && lotsState.kind === 'ready' && availableLots.length === 0 && (
+                  <>{' '}<Link className="evaluation-inline-link" to="/lotes">Crear un lote <Icon name="arrow-right" size={13} /></Link></>
+                )}
               </p>
             </div>
             <div className="evaluation-field">
               <label htmlFor="piece-reference">Referencia de pieza <span aria-hidden="true">*</span></label>
-              <input
-                id="piece-reference"
-                name="pieceReference"
-                placeholder="Ej.: P-001"
-                autoComplete="off"
-                maxLength={64}
-                value={draft.piece}
-                disabled={locked}
-                aria-invalid={attempted && !pieceValid}
-                aria-describedby={attempted && !pieceValid ? 'piece-reference-error' : 'piece-reference-hint'}
-                onChange={(event) => updateDraft({ ...draft, piece: event.target.value })}
-              />
+              <div className="evaluation-field__control">
+                <input
+                  id="piece-reference"
+                  name="pieceReference"
+                  placeholder="Ej.: P-001"
+                  autoComplete="off"
+                  maxLength={64}
+                  value={draft.piece}
+                  disabled={locked}
+                  aria-invalid={attempted && !pieceValid}
+                  aria-describedby={attempted && !pieceValid ? 'piece-reference-error' : 'piece-reference-hint'}
+                  onChange={(event) => updateDraft({ ...draft, piece: event.target.value })}
+                />
+              </div>
               {attempted && !pieceValid ? (
                 <p id="piece-reference-error" className="evaluation-error" role="alert">Entre 1 y 64 caracteres: letras, números, punto, guion o guion bajo; inicia con letra o número.</p>
               ) : <p id="piece-reference-hint" className="evaluation-help">Identificador de la pieza; verifica que no se haya registrado ya para evitar evaluaciones involuntarias.</p>}
             </div>
           </div>
 
+          <div className={`evaluation-readiness${readyToRegister ? ' evaluation-readiness--ready' : ''}`} aria-label="Comprobación de datos para registrar la pieza">
+            <span className="evaluation-readiness__title">{created ? 'Registro confirmado' : readyToRegister ? 'Datos preparados para registrar' : 'Antes de registrar'}</span>
+            <ul>
+              <li className={draft.product ? 'evaluation-readiness__done' : ''}>{draft.product ? <Icon name="check" size={14} /> : <span className="evaluation-readiness__pending" aria-hidden="true" />} Producto elegido</li>
+              <li className={selectedLot ? 'evaluation-readiness__done' : ''}>{selectedLot ? <Icon name="check" size={14} /> : <span className="evaluation-readiness__pending" aria-hidden="true" />} Lote abierto seleccionado</li>
+              <li className={pieceValid ? 'evaluation-readiness__done' : ''}>{pieceValid ? <Icon name="check" size={14} /> : <span className="evaluation-readiness__pending" aria-hidden="true" />} Referencia de pieza válida</li>
+            </ul>
+            <p>Estos controles validan el formulario; el registro solo se confirma con la respuesta del servidor.</p>
+          </div>
+
           <div className="evaluation-form__actions">
             <button className="action-button action-button--primary" type="submit" disabled={locked || lotsState.kind !== 'ready'}>
-              <Icon name="clipboard" size={18} /> {creating ? 'Registrando…' : 'Registrar evaluación'}
+              <Icon name="clipboard" size={16} /> {creating ? 'Registrando…' : 'Registrar evaluación'}
             </button>
             <button className="action-button action-button--secondary" type="button" onClick={clearForm} disabled={creating}>
               {created ? 'Nueva evaluación' : 'Limpiar'}
@@ -244,20 +288,20 @@ export function EvaluationPage() {
           {submitError && (
             <div className="evaluation-submit-error" role="alert">
               <strong>{submitError.message}</strong>
-              {submitError.uncertain && <Link className="text-link" to="/historial">Consultar Historial <Icon name="arrow-right" size={16} /></Link>}
+              {submitError.uncertain && <Link className="text-link" to="/historial">Consultar Historial <Icon name="arrow-right" size={15} /></Link>}
             </div>
           )}
 
           <div className={`evaluation-preparation${created ? ' evaluation-preparation--confirmed' : ''}`} aria-live="polite" aria-atomic="true">
             {created ? (
               <>
-                <strong>Evaluación registrada en el backend</strong>
-                <p>
-                  ID: <b>{created.id}</b> ·
-                  {created.product === 'mango' ? 'Mango' : 'Tomate'} ·
-                  Lote: {created.lotId} ·
-                  Pieza: {created.pieceId}
-                </p>
+                <strong>Evaluación registrada correctamente</strong>
+                <dl className="evaluation-prep__grid">
+                  <div><dt>ID</dt><dd>{created.id}</dd></div>
+                  <div><dt>Producto</dt><dd>{created.product === 'mango' ? 'Mango' : 'Tomate'}</dd></div>
+                  <div><dt>Lote</dt><dd>{created.lotId}</dd></div>
+                  <div><dt>Pieza</dt><dd>{created.pieceId}</dd></div>
+                </dl>
                 <p>
                   Estado inicial: <b>En proceso</b>. La evaluación existe en SQLite.
                   Los pesos y fotografías deben asociarse a esta misma evaluación.
@@ -265,7 +309,7 @@ export function EvaluationPage() {
                 </p>
                 <div className="evaluation-record-links">
                   <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>
-                    Ver detalle <Icon name="arrow-right" size={16} />
+                    Ver detalle <Icon name="arrow-right" size={15} />
                   </Link>
                   <Link className="action-button action-button--secondary" to={`/trazabilidad/${created.id}`}>
                     Ver trazabilidad
@@ -274,9 +318,8 @@ export function EvaluationPage() {
               </>
             ) : (
               <>
-                <strong>Sin evaluación iniciada</strong>
-                <p>Selecciona un lote abierto, identifica la pieza y pulsa «Registrar evaluación».</p>
-                <span>El registro solo se confirma cuando FastAPI devuelve su identificador real.</span>
+                <strong>La evaluación aún no se ha creado</strong>
+                <p>Completa los campos y pulsa «Registrar evaluación». No se creará ningún registro hasta que el servidor confirme la operación.</p>
               </>
             )}
           </div>
@@ -288,16 +331,16 @@ export function EvaluationPage() {
           onStepChange={setGuideStep}
           onNextEvaluation={clearForm}
         />
-
-
       </div>
 
-      <section className="panel evaluation-next" aria-labelledby="next-steps-heading">
-        <div className="panel-heading"><span className="round-icon round-icon--green"><Icon name="info" size={20} /></span><h2 id="next-steps-heading">Siguiente etapa</h2></div>
-        <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
-        <Link to="/historial" className="text-link">Ver historial de evaluaciones <Icon name="arrow-right" size={16} /></Link>
+      <section className="evaluacion__nota" aria-labelledby="next-steps-heading">
+        <h2 className="evaluacion__kicker" id="next-steps-heading">Siguiente etapa</h2>
+        <div className="evaluacion__nota-body">
+          <span className="evaluacion__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
+          <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
+        </div>
+        <Link to="/historial" className="evaluacion__link">Ver historial de evaluaciones <Icon name="arrow-right" size={15} /></Link>
       </section>
     </div>
   )
 }
-

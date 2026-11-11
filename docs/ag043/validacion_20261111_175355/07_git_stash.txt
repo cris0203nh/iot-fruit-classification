@@ -1,0 +1,1 @@
+﻿stash@{0}: On feature/AGROP-42-comparacion-metodos: AG043 respaldo UX frontend antes de actualizar main

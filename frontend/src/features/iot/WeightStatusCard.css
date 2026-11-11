@@ -1,13 +1,127 @@
-.weight-card__state { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0 4px; }
-.weight-card__value { font-size: clamp(24px, 3vw, 33px); font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: #243d52; }
-.weight-card__badge { border-radius: 100px; padding: 5px 11px; background: #eaf0f4; color: #4d6674; font-size: 11px; font-weight: 750; }
-.weight-card__state--stable .weight-card__badge { background: #ddf4e6; color: #106c43; }
-.weight-card__state--unstable .weight-card__badge, .weight-card__state--stale .weight-card__badge { background: #fff0d8; color: #88520a; }
-.weight-card__state--error .weight-card__badge { background: #ffe4e5; color: #972d39; }
-.weight-card__meta { display: grid; gap: 8px; margin: 12px 0 0; font-size: 11px; }
-.weight-card__meta div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
-.weight-card__meta dt { color: #677e90; }
-.weight-card__meta dd { margin: 0; color: #2c475b; font-weight: 650; overflow-wrap: anywhere; }
-.weight-card .weight-card__description { margin-top: 7px; }
-.weight-card .weight-card__notice { margin-top: 12px; padding: 8px 10px; background: #f0f5f8; border-radius: 8px; color: #3d596b; }
-.weight-card .weight-card__origin { padding-top: 9px; border-top: 1px solid #dbe5eb; color: #60798b; }
+﻿/* Tarjeta de pesaje — lectura impresa de la báscula. */
+
+.evaluation-acquisition__card {
+  padding: 14px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+}
+
+.evaluation-acquisition__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.evaluation-acquisition__top strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.evaluation-acquisition__top svg {
+  color: var(--ink);
+}
+
+.weight-card__state {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+
+.weight-card__value {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: clamp(24px, 3vw, 32px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.weight-card__badge {
+  padding: 4px 8px;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.weight-card__state--stable .weight-card__badge {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.weight-card__state--unstable .weight-card__badge,
+.weight-card__state--stale .weight-card__badge {
+  border-color: var(--mango);
+  color: #7a5410;
+}
+
+.weight-card__state--error .weight-card__badge {
+  border-color: var(--tomato);
+  color: var(--tomato);
+}
+
+.weight-card__description {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.weight-card__meta {
+  display: grid;
+  margin: 12px 0 0;
+}
+
+.weight-card__meta div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 0;
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.weight-card__meta dt {
+  color: var(--ink-soft);
+}
+
+.weight-card__meta dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.weight-card__notice {
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border-left: 2px solid var(--mango);
+  background: #f7eeda;
+  color: #6d4f17;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.weight-card__origin {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+}

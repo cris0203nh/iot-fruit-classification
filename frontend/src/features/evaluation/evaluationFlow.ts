@@ -9,8 +9,11 @@ export const GUIDED_STEP_LABELS = [
   'Retirar pieza',
 ] as const
 
+// Contrato de /acquisition/confirm: dos imágenes persistidas de la misma evaluación.
+export const MIN_CONFIRMED_IMAGES = 2
+
 export function hasConfirmedImages(count: number): boolean {
-  return Number.isInteger(count) && count > 0
+  return Number.isInteger(count) && count >= MIN_CONFIRMED_IMAGES
 }
 
 /** "confirmed" describe únicamente las adquisiciones de peso e imagen, no una clasificación. */
@@ -19,7 +22,8 @@ export function acquisitionOutcome(input: {
   initialWeightConfirmed: boolean
   finalWeightConfirmed: boolean
 }): 'without-images' | 'partial' | 'confirmed' {
-  if (!hasConfirmedImages(input.imageCount)) return 'without-images'
+  if (!Number.isInteger(input.imageCount) || input.imageCount <= 0) return 'without-images'
+  if (!hasConfirmedImages(input.imageCount)) return 'partial'
   return input.initialWeightConfirmed && input.finalWeightConfirmed ? 'confirmed' : 'partial'
 }
 

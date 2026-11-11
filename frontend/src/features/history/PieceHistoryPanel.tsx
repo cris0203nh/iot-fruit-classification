@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ProtectedEvidenceImage } from '../capture/ProtectedEvidenceImage'
 import { formatDate, formatWeight } from './historyService'
@@ -24,40 +24,65 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
   const [lot, setLot] = useState('')
   const [piece, setPiece] = useState('')
   const [refresh, setRefresh] = useState(0)
-  const [list, setList] = useState<Load<PieceHistoryList>>(() => idle<PieceHistoryList>())
-  const [detail, setDetail] = useState<Load<PieceHistoryDetail>>(() => idle<PieceHistoryDetail>())
+  // Los resultados se identifican por consulta: no se muestran datos de otro lote/pieza
+  // mientras llega la nueva respuesta, ni se necesita reiniciar estado en un efecto.
+  const [listResponse, setListResponse] = useState<{
+    key: string; result: Load<PieceHistoryList>
+  } | null>(null)
+  const [detailResponse, setDetailResponse] = useState<{
+    key: string; result: Load<PieceHistoryDetail>
+  } | null>(null)
   const [report, setReport] = useState<LotTraceabilityReport | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
+  const reportRequestId = useRef(0)
+
+  const listKey = JSON.stringify([lot, refresh])
+  const detailKey = JSON.stringify([lot, piece, refresh])
+  const list: Load<PieceHistoryList> = !lot
+    ? idle<PieceHistoryList>()
+    : listResponse?.key === listKey
+      ? listResponse.result
+      : { state: 'loading', value: null, error: '' }
+  const detail: Load<PieceHistoryDetail> = !lot || !piece
+    ? idle<PieceHistoryDetail>()
+    : detailResponse?.key === detailKey
+      ? detailResponse.result
+      : { state: 'loading', value: null, error: '' }
 
   useEffect(() => {
+    if (!lot) return
+    let active = true
+    void listPieceHistories(lot).then(
+      value => { if (active) setListResponse({ key: listKey, result: { state: 'ready', value, error: '' } }) },
+      error => { if (active) setListResponse({ key: listKey, result: { state: 'error', value: null, error: errorMessage(error) } }) },
+    )
+    return () => { active = false }
+  }, [lot, listKey])
+
+  useEffect(() => {
+    if (!lot || !piece) return
+    let active = true
+    void getPieceHistory(lot, piece).then(
+      value => { if (active) setDetailResponse({ key: detailKey, result: { state: 'ready', value, error: '' } }) },
+      error => { if (active) setDetailResponse({ key: detailKey, result: { state: 'error', value: null, error: errorMessage(error) } }) },
+    )
+    return () => { active = false }
+  }, [lot, piece, detailKey])
+
+  function invalidateReport() {
+    // Una respuesta antigua no puede devolver al usuario un reporte de otro lote.
+    reportRequestId.current += 1
     setReport(null)
     setReportError('')
-    if (!lot) { setList(idle<PieceHistoryList>()); return }
-    let active = true
-    setList({ state: 'loading', value: null, error: '' })
-    void listPieceHistories(lot).then(
-      value => { if (active) setList({ state: 'ready', value, error: '' }) },
-      error => { if (active) setList({ state: 'error', value: null, error: errorMessage(error) }) },
-    )
-    return () => { active = false }
-  }, [lot, refresh])
-
-  useEffect(() => {
-    if (!lot || !piece) { setDetail(idle<PieceHistoryDetail>()); return }
-    let active = true
-    setDetail({ state: 'loading', value: null, error: '' })
-    void getPieceHistory(lot, piece).then(
-      value => { if (active) setDetail({ state: 'ready', value, error: '' }) },
-      error => { if (active) setDetail({ state: 'error', value: null, error: errorMessage(error) }) },
-    )
-    return () => { active = false }
-  }, [lot, piece, refresh])
+    setReportLoading(false)
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const next = draft.trim()
     if (!next || next.length > 32) return
+    invalidateReport()
     setPiece('')
     setLot(next)
     setRefresh(current => current + 1)
@@ -65,16 +90,17 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
 
   async function prepareReport() {
     if (!lot || reportLoading) return
+    const requestId = ++reportRequestId.current
     setReportLoading(true)
     setReport(null)
     setReportError('')
     try {
       const next = await getLotTraceabilityReport(lot)
-      setReport(next)
+      if (reportRequestId.current === requestId) setReport(next)
     } catch (error) {
-      setReportError(errorMessage(error))
+      if (reportRequestId.current === requestId) setReportError(errorMessage(error))
     } finally {
-      setReportLoading(false)
+      if (reportRequestId.current === requestId) setReportLoading(false)
     }
   }
 
@@ -109,7 +135,7 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
         </datalist>
         <button type="submit" className="action-button action-button--primary">Consultar piezas</button>
         {lot && <button className="action-button action-button--secondary" type="button"
-          onClick={() => setRefresh(current => current + 1)}>Actualizar desde SQLite</button>}
+          onClick={() => { invalidateReport(); setRefresh(current => current + 1) }}>Actualizar desde SQLite</button>}
       </form>
       {list.state === 'loading' && <p role="status">Consultando piezas del lote…</p>}
       {list.state === 'error' && <p role="alert" className="ag040__error">{list.error}</p>}

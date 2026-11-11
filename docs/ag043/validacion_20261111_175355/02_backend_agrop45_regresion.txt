@@ -1,0 +1,13 @@
+﻿test_detector_unavailable_must_be_reviewed (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_detector_unavailable_must_be_reviewed) ... ok
+test_missing_weight_blocks_confirmation_even_with_photo (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_missing_weight_blocks_confirmation_even_with_photo) ... ok
+test_no_evaluable_does_not_invent_grade (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_no_evaluable_does_not_invent_grade) ... ok
+test_one_photo_with_valid_weights_is_rejected (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_one_photo_with_valid_weights_is_rejected) ... ok
+test_ready_detection_does_not_generate_e0_e1_e2 (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_ready_detection_does_not_generate_e0_e1_e2) ... ok
+test_uncertain_result_to_review_and_resume_with_original_intact (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_uncertain_result_to_review_and_resume_with_original_intact) ... ok
+test_unstable_sensor_is_rejected_without_bypass (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_unstable_sensor_is_rejected_without_bypass) ... ok
+test_upload_replay_is_idempotent (test_agrop45_flujo_integral_simulado.AG037FlujoIntegralSimuladoTests.test_upload_replay_is_idempotent) ... ok
+System.Management.Automation.RemoteException
+----------------------------------------------------------------------
+Ran 8 tests in 1.762s
+System.Management.Automation.RemoteException
+OK

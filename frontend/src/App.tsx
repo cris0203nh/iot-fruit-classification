@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 import { AppLayout } from './components/layout/AppLayout'
+import { Icon } from './components/layout/Icon'
 import { AuthGate } from './features/auth/AuthGate'
 import { getSessionRole } from './services/agroscanApi'
 
@@ -51,30 +52,26 @@ function RoleHome() {
 function OperatorRoute({ children }: { children: ReactNode }) {
   if (getSessionRole() === 'revisor') {
     return (
-      <section className="panel" aria-label="Acceso restringido">
-        <h1>Solo consulta</h1>
-
-        <p>
-          El rol revisor no puede registrar evaluaciones ni modificar lotes.
-          Puedes consultar el historial sin alterar los registros.
-        </p>
-
-        <Link
-          className="action-button action-button--primary"
-          to="/historial"
-        >
-          Abrir historial
-        </Link>
+      <section className="seccion" aria-label="Acceso restringido">
+        <header className="seccion__head">
+          <p className="seccion__kicker">Acceso restringido</p>
+          <h1 className="seccion__title">Solo consulta</h1>
+          <p className="seccion__lede">El rol revisor no puede registrar evaluaciones ni modificar lotes. Puedes consultar el historial sin alterar los registros.</p>
+        </header>
+        <div className="seccion__estado seccion__estado--restringido">
+          <span className="seccion__estado-icon" aria-hidden="true"><Icon name="info" size={22} /></span>
+          <div className="seccion__estado-body">
+            <p className="seccion__estado-kicker">Rol revisor</p>
+            <h2>Tu cuenta no tiene permisos de operación</h2>
+            <p>Las altas, ediciones y capturas están deshabilitadas para este perfil. La consulta de historial y trazabilidad sigue disponible.</p>
+          </div>
+        </div>
+        <Link to="/historial" className="action-button action-button--primary">Abrir historial</Link>
       </section>
     )
   }
-
   return children
 }
-
-// ==========================================
-// PROTECCIÓN DE FUNCIONES DEL ADMINISTRADOR
-// ==========================================
 
 function AdminRoute({ children }: { children: ReactNode }) {
   const role = getSessionRole()

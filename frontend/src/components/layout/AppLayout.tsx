@@ -1,6 +1,11 @@
+
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { primaryNavigation, secondaryNavigation } from '../../app/navigation'
+import {
+  operatorNavigation,
+  reviewerNavigation,
+  administratorNavigation,
+} from '../../app/navigation'
 import type { NavigationItem } from '../../app/navigation'
 import { getSessionRole } from '../../services/agroscanApi'
 import { Icon } from './Icon'
@@ -8,7 +13,25 @@ import './AppLayout.css'
 
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const reviewer = getSessionRole() === 'revisor'
+
+  const role = getSessionRole()
+
+  let roleTitle = 'Panel de operaciones'
+  let roleDescription = 'Gestión de productos agrícolas'
+  let roleBadge = 'OPERADOR'
+  let navigation: NavigationItem[] = operatorNavigation
+
+  if (role === 'revisor') {
+    roleTitle = 'Panel de revisión'
+    roleDescription = 'Control de evaluaciones'
+    roleBadge = 'REVISOR'
+    navigation = reviewerNavigation
+  } else if (role === 'administrador') {
+    roleTitle = 'Panel administrativo'
+    roleDescription = 'Supervisión de AgroScan'
+    roleBadge = 'ADMINISTRADOR'
+    navigation = administratorNavigation
+  }
 
   function renderLinks(items: NavigationItem[]) {
     return items.map(({ path, label, icon }) => (
@@ -16,7 +39,9 @@ export function AppLayout() {
         key={path}
         to={path}
         end={path === '/'}
-        className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}
+        className={({ isActive }) =>
+          `nav-link${isActive ? ' nav-link--active' : ''}`
+        }
         onClick={() => setMenuOpen(false)}
       >
         <Icon name={icon} size={19} />
@@ -27,7 +52,9 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">Saltar al contenido</a>
+      <a className="skip-link" href="#main-content">
+        Saltar al contenido
+      </a>
 
       {menuOpen && (
         <button
@@ -38,36 +65,58 @@ export function AppLayout() {
         />
       )}
 
-      <aside className={`sidebar${menuOpen ? ' sidebar--open' : ''}`} id="primary-sidebar">
+      <aside
+        className={`sidebar${menuOpen ? ' sidebar--open' : ''}`}
+        id="primary-sidebar"
+      >
         <div className="brand">
-          <div className="brand-mark"><Icon name="leaf" size={21} /></div>
+          <div className="brand-mark">
+            <Icon name="leaf" size={22} />
+          </div>
+
           <div>
             <strong>AgroScan</strong>
-            <span>Evaluación externa</span>
+            <span>Inteligencia agrícola</span>
           </div>
         </div>
 
         <div className="station-context">
-          <span className="station-context__marker" aria-hidden="true" />
+          <span className="station-context__marker" />
+
           <div>
-            <strong>Estación local</strong>
-            <span>Mango y tomate</span>
+            <strong>{roleTitle}</strong>
+            <span>{roleDescription}</span>
           </div>
         </div>
 
-        <nav aria-label="Navegación principal" className="sidebar-nav">
-          {renderLinks(reviewer ? primaryNavigation.filter((item) => item.path === '/historial' || item.path === '/trazabilidad') : primaryNavigation)}
+        <div className="sidebar-section-label">
+          MENÚ PRINCIPAL
+        </div>
+
+        <nav
+          aria-label="Navegación principal"
+          className="sidebar-nav"
+        >
+          {renderLinks(navigation)}
         </nav>
 
         <div className="sidebar-bottom">
-          {!reviewer && (
-            <nav aria-label="Configuración de la estación" className="sidebar-nav">
-              {renderLinks(secondaryNavigation)}
-            </nav>
-          )}
+          <div className="sidebar-role-card">
+            <div className="sidebar-role-icon">
+              <Icon name="info" size={19} />
+            </div>
+
+            <div>
+              <strong>Sesión activa</strong>
+              <span>{roleBadge}</span>
+            </div>
+          </div>
+
           <div className="sidebar-disclaimer">
             <Icon name="info" size={17} />
-            <span>Integración por módulos<br />Hardware sin verificar</span>
+            <span>
+              AgroScan · Evaluación de mango y tomate
+            </span>
           </div>
         </div>
       </aside>
@@ -81,16 +130,32 @@ export function AppLayout() {
               aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
               aria-controls="primary-sidebar"
               aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((value) => !value)}
+              onClick={() => setMenuOpen(value => !value)}
             >
-              <Icon name={menuOpen ? 'close' : 'menu'} size={22} />
+              <Icon
+                name={menuOpen ? 'close' : 'menu'}
+                size={22}
+              />
             </button>
-            <span className="topbar__badge" aria-hidden="true"><Icon name="leaf" size={15} /></span>
-            <span>Plataforma de evaluación externa</span>
+
+            <span className="topbar__badge">
+              <Icon name="leaf" size={16} />
+            </span>
+
+            <span>
+              AgroScan / {roleBadge}
+            </span>
           </div>
-          <span className="topbar__context">Integración en desarrollo</span>
+
+          <span className="topbar__context">
+            {roleDescription}
+          </span>
         </header>
-        <main id="main-content" className="page-content">
+
+        <main
+          id="main-content"
+          className="page-content"
+        >
           <Outlet />
         </main>
       </div>

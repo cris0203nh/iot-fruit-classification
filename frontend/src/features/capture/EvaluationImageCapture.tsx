@@ -1,4 +1,4 @@
-
+﻿
 import { useEffect, useRef, useState } from 'react'
 import {
   ApiConnectionError,
@@ -21,6 +21,7 @@ import './EvaluationImageCapture.css'
 
 type Props = {
   evaluationId: string
+  autoStart?: boolean
   onSavedCountChange?: (count: number) => void
   onEvidenceChange?: (count: number) => void
 }
@@ -49,6 +50,7 @@ function asSaved(evidence: CapturedEvidence[]): Saved[] {
 
 export function EvaluationImageCapture({
   evaluationId,
+  autoStart = false,
   onSavedCountChange,
   onEvidenceChange,
 }: Props) {
@@ -61,55 +63,30 @@ export function EvaluationImageCapture({
   const capturePhotoRef = useRef<() => Promise<void>>(async () => {})
 
   const [candidate, setCandidate] = useState<Candidate | null>(null)
-
-  // AGROP-28: verificaciones manuales de composición.
-  const [singleFruitConfirmed, setSingleFruitConfirmed] =
-    useState(false)
-
-  const [framingConfirmed, setFramingConfirmed] =
-    useState(false)
-
-  const [saved, setSaved] = useState<Saved[]>([])
+const [saved, setSaved] = useState<Saved[]>([])
   const [loadState, setLoadState] = useState<LoadedState>('loading')
   const [revision, setRevision] = useState(0)
 
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // AGROP-27: giro manual para las vistas adicionales.
-  const [rotationConfirmed, setRotationConfirmed] = useState(false)
-
-  const [cameraOpen, setCameraOpen] = useState(false)
+const [cameraOpen, setCameraOpen] = useState(false)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraStarting, setCameraStarting] = useState(false)
-  const [, setVisionDetection] = useState<FruitDetectionResult | null>(null)
+  const [cameraLabel, setCameraLabel] = useState('Webcam USB')
+
+  const [, setVisionDetection] =
+    useState<FruitDetectionResult | null>(null)
+
   const [visionMessage, setVisionMessage] =
-    useState("Esperando detecci?n de fruta.")
+    useState('Esperando detección de fruta.')
 
   const nextView = nextCaptureView(saved.map(item => item.view))
 
   const canCapture = loadState === 'ready' && !uploading
 
-  // AGROP-28: no guardar una fotografía pendiente de revisión
-  // hasta confirmar individualmente la cantidad de frutas
-  // y la integridad del encuadre.
-  const compositionConfirmed =
-    singleFruitConfirmed && framingConfirmed
-
-  const canSave =
-    Boolean(candidate) &&
-    canCapture &&
-    (saved.length === 0 || rotationConfirmed) &&
-    (
-      candidate?.quality.status !== 'review' ||
-      compositionConfirmed
-    )
-
-  // Restablecer verificaciones manuales.
-  function resetCompositionChecks() {
-    setSingleFruitConfirmed(false)
-    setFramingConfirmed(false)
-  }
+  // El guardado no requiere confirmaciones manuales en pantalla.
+  const canSave = Boolean(candidate) && canCapture
 
   // Notificar cantidad de fotografías guardadas.
   useEffect(() => {
@@ -205,9 +182,7 @@ export function EvaluationImageCapture({
 
     setCameraOpen(false)
     setCameraReady(false)
-  }
-
-
+    }
   // AGROP-42: detección automática de mango y tomate en vivo.
   useEffect(() => {
     if (!cameraOpen || !cameraReady) return
@@ -304,6 +279,7 @@ export function EvaluationImageCapture({
       detecting.current = false
     }
   }, [cameraOpen, cameraReady, evaluationId])
+
   // Liberar cámara al desmontar el componente.
   useEffect(() => {
     return () => {
@@ -312,7 +288,10 @@ export function EvaluationImageCapture({
     }
   }, [])
 
-  // Abrir cámara.
+  // ==================================================
+  // ABRIR WEBCAM USB COMO CÁMARA PREDETERMINADA
+  // ==================================================
+
   async function openCamera() {
     if (!canCapture || cameraStarting) return
 
@@ -320,43 +299,153 @@ export function EvaluationImageCapture({
 
     if (
       !window.isSecureContext ||
-      !navigator.mediaDevices?.getUserMedia
+      !navigator.mediaDevices?.getUserMedia ||
+      !navigator.mediaDevices?.enumerateDevices
     ) {
       setError(
-        'Abre AgroScan mediante localhost o HTTPS para utilizar la cámara.'
+        'Abre AgroScan mediante localhost o HTTPS y permite el acceso a la cámara.'
       )
       return
     }
 
     setCameraStarting(true)
 
+    let permissionStream: MediaStream | null = null
+
     try {
+      // 1. Solicitar permiso temporal para identificar las cámaras.
+      permissionStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true,
+      })
+
+      permissionStream.getTracks().forEach(track => track.stop())
+      permissionStream = null
+
+      // 2. Enumerar los dispositivos disponibles.
+      const devices = await navigator.mediaDevices.enumerateDevices()
+
+      const cameras = devices.filter(
+        device => device.kind === 'videoinput'
+      )
+
+      if (cameras.length === 0) {
+        throw new Error('No se encontraron cámaras conectadas.')
+      }
+
+      const storageKey = 'agroscan_preferred_usb_camera_id'
+
+      const savedDeviceId = localStorage.getItem(storageKey)
+
+      // 3. Identificar cámaras integradas.
+      const isInternalCamera = (label: string) =>
+        /(integrated|built.?in|internal|facetime|laptop|front.?camera|user.?facing)/i.test(label)
+
+      // 4. Identificar cámaras USB externas.
+      const isUsbCamera = (label: string) =>
+        /(usb|uvc|webcam|external|2k|hd.?camera)/i.test(label)
+
+      // 5. Recuperar la webcam USB seleccionada anteriormente.
+      let selectedCamera = cameras.find(
+        camera =>
+          camera.deviceId === savedDeviceId &&
+          !isInternalCamera(camera.label)
+      )
+
+      // 6. Priorizar una cámara USB.
+      if (!selectedCamera) {
+        selectedCamera = cameras.find(
+          camera =>
+            isUsbCamera(camera.label) &&
+            !isInternalCamera(camera.label)
+        )
+      }
+
+      // 7. Buscar una cámara externa si Chrome usa otro nombre.
+      if (!selectedCamera) {
+        const externalCandidates = cameras.filter(
+          camera => !isInternalCamera(camera.label)
+        )
+
+        if (externalCandidates.length === 1) {
+          selectedCamera = externalCandidates[0]
+        } else if (cameras.length === 1) {
+          selectedCamera = cameras[0]
+        }
+      }
+
+      // 8. No seleccionar silenciosamente la cámara integrada.
+      if (!selectedCamera) {
+        const detectedNames = cameras
+          .map(camera => camera.label || 'Cámara sin nombre')
+          .join(', ')
+
+        throw new Error(
+          `No se pudo identificar automáticamente la webcam USB. Cámaras detectadas: ${detectedNames}. Comprueba que esté conectada.`
+        )
+      }
+
+      // 9. Guardar la selección para próximas evaluaciones.
+      localStorage.setItem(storageKey, selectedCamera.deviceId)
+
+      setCameraLabel(selectedCamera.label || 'Webcam USB')
+
+      // 10. Abrir exclusivamente la webcam seleccionada.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          deviceId: { exact: selectedCamera.deviceId },
+          width: { ideal: 2560 },
+          height: { ideal: 1440 },
         },
       })
 
       streamRef.current = stream
       setCameraOpen(true)
+
     } catch (failure) {
+      permissionStream?.getTracks().forEach(track => track.stop())
+
       const name = failure instanceof Error ? failure.name : ''
 
       setError(
         name === 'NotAllowedError'
-          ? 'Permite el acceso a la cámara en Chrome.'
+          ? 'Permite el acceso a la webcam en Chrome.'
           : name === 'NotFoundError'
-            ? 'No se encontró la cámara integrada de la laptop.'
+            ? 'La webcam USB seleccionada ya no está conectada.'
             : name === 'NotReadableError'
-              ? 'La cámara está ocupada por otra aplicación. Cierra Cámara de Windows.'
-              : 'No se pudo iniciar la cámara.'
+              ? 'La webcam está ocupada por otra aplicación. Cierra Cámara de Windows y vuelve a intentar.'
+              : failure instanceof Error
+                ? failure.message
+                : 'No se pudo iniciar la webcam USB.'
       )
+
     } finally {
       setCameraStarting(false)
     }
   }
+  // Apertura automática después de confirmar el peso inicial.
+useEffect(() => {
+  if (
+    !autoStart ||
+    loadState !== 'ready' ||
+    cameraOpen ||
+    cameraStarting ||
+    candidate ||
+    saved.length >= 2
+  ) {
+    return
+  }
+
+  void openCamera()
+}, [
+  autoStart,
+  loadState,
+  cameraOpen,
+  cameraStarting,
+  candidate,
+  saved.length,
+])
 
   // Capturar y analizar fotografía.
   async function capturePhoto() {
@@ -422,9 +511,7 @@ export function EvaluationImageCapture({
     // Rechazar fotografías con problemas graves de calidad.
     if (quality.status === 'invalid') {
       setCandidate(null)
-      resetCompositionChecks()
-
-      setError(
+     setError(
         `Fotografía rechazada: ${quality.issues.join(' ')}`
       )
 
@@ -438,8 +525,7 @@ export function EvaluationImageCapture({
       quality,
     })
 
-    resetCompositionChecks()
-    setError(null)
+  setError(null)
 
     closeCamera()
   }
@@ -452,7 +538,7 @@ export function EvaluationImageCapture({
     if (!canCapture) return
 
     setCandidate(null)
-    resetCompositionChecks()
+
     setError(null)
   }
 
@@ -475,9 +561,8 @@ export function EvaluationImageCapture({
 
       setSaved(previous => [...previous, item])
 
-      setRotationConfirmed(false)
-      resetCompositionChecks()
-      setCandidate(null)
+    setCandidate(null)
+
     } catch (failure) {
       setError(
         failure instanceof ApiConnectionError
@@ -488,6 +573,7 @@ export function EvaluationImageCapture({
       )
 
       setLoadState('failed')
+
     } finally {
       sending.current = false
       setUploading(false)
@@ -521,8 +607,7 @@ export function EvaluationImageCapture({
           type="button"
           disabled={uploading}
           onClick={() => {
-            setCandidate(null)
-            resetCompositionChecks()
+          setCandidate(null)
             setLoadState('loading')
             setRevision(value => value + 1)
           }}
@@ -558,27 +643,7 @@ export function EvaluationImageCapture({
         </section>
       )}
 
-      {/* Confirmación de giro manual para vistas adicionales. */}
-      {loadState === 'ready' && saved.length > 0 && !candidate && (
-        <>
-          <p className="capture__rotation">
-            Para la siguiente vista, gira manualmente la misma fruta.
-          </p>
-
-          <label className="capture__rotation-check">
-            <input
-              type="checkbox"
-              checked={rotationConfirmed}
-              onChange={event => setRotationConfirmed(event.target.checked)}
-              disabled={uploading}
-            />
-
-            Confirmo que giré manualmente la misma fruta.
-          </label>
-        </>
-      )}
-
-      {/* Cámara. */}
+      {/* Cámara USB. */}
       {cameraOpen && (
         <section className="capture__camera">
 
@@ -592,12 +657,13 @@ export function EvaluationImageCapture({
           />
 
           <p className="capture__hint">
-            Cámara integrada de la laptop. Coloca el mango o tomate frente a ella.
+            Webcam seleccionada: {cameraLabel}. Coloca el mango o tomate frente a ella.
           </p>
 
           <p className="capture__hint" role="status">
             {visionMessage}
           </p>
+
           <div className="capture__actions">
 
             <button
@@ -634,65 +700,13 @@ export function EvaluationImageCapture({
             Fotografía: <strong>{candidate.file.name}</strong>
           </p>
 
-          {candidate.quality.status === 'valid' ? (
-            <p className="capture__hint" role="status">
-              Calidad visual preliminarmente aceptable.
-            </p>
-          ) : (
-            <div className="capture__hint" role="status">
-
-              <strong>Verificación manual de composición requerida</strong>
-
-              {candidate.quality.issues.length > 0 && (
-                <ul>
-                  {candidate.quality.issues.map((issue, index) => (
-                    <li key={index}>{issue}</li>
-                  ))}
-                </ul>
-              )}
-
-              <p>
-                El sistema no dispone de un detector entrenado de frutas.
-                Comprueba visualmente la cantidad de piezas y el encuadre.
-              </p>
-
-              <label className="capture__rotation-check">
-
-                <input
-                  type="checkbox"
-                  checked={singleFruitConfirmed}
-                  onChange={event =>
-                    setSingleFruitConfirmed(event.target.checked)
-                  }
-                  disabled={uploading}
-                />
-
-                Confirmo que aparece exactamente una fruta y que no hay otras piezas.
-
-              </label>
-
-              <label className="capture__rotation-check">
-
-                <input
-                  type="checkbox"
-                  checked={framingConfirmed}
-                  onChange={event =>
-                    setFramingConfirmed(event.target.checked)
-                  }
-                  disabled={uploading}
-                />
-
-                Confirmo que la fruta está completa y dentro del encuadre.
-
-              </label>
-
-              <p>
-                Si aparecen dos o más frutas, o alguna está cortada,
-                no confirmes estos criterios y repite la fotografía.
-              </p>
-
-            </div>
-          )}
+          <p className="capture__hint" role="status">
+            {candidate.quality.status === 'valid'
+              ? 'Calidad visual preliminarmente aceptable.'
+              : candidate.quality.issues.length > 0
+                ? candidate.quality.issues.join(' ')
+                : 'La fotografía requiere revisión visual.'}
+          </p>
 
           <p className="capture__hint">
             Nitidez:{' '}
@@ -700,17 +714,8 @@ export function EvaluationImageCapture({
             {' | '}
             Brillo:{' '}
             {candidate.quality.metrics.meanBrightness ?? 'No disponible'}
-          </p>
 
-          {candidate.quality.status === 'review' && (
-            <p className="capture__hint">
-              Verificación de composición: {
-                compositionConfirmed
-                  ? 'Confirmada por el operador.'
-                  : 'Pendiente de confirmación.'
-              }
-            </p>
-          )}
+          </p>
 
           <div className="capture__actions">
 
@@ -719,8 +724,7 @@ export function EvaluationImageCapture({
               type="button"
               disabled={!canCapture}
               onClick={() => {
-                setCandidate(null)
-                resetCompositionChecks()
+              setCandidate(null)
                 void openCamera()
               }}
             >

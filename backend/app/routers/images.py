@@ -200,6 +200,9 @@ async def upload_image(
 # AGROSCAN: DETECCI?N Y SEGMENTACI?N YOLOE EN VIVO
 # =====================================================
 
+from app.services.live_frame_pipeline import evaluate_live_frame
+
+
 VISION_ROOT = Path(__file__).resolve().parents[3]
 VISION_WEIGHTS = VISION_ROOT / "vision" / "models" / "yoloe-26n-seg.pt"
 VISION_PROMPTS = VISION_ROOT / "vision" / "models" / "agroscan_mango_tomato_prompts.npz"
@@ -351,6 +354,28 @@ def detect_evaluation_frame(
             and len(selected["polygon"]) >= 3
         )
 
+        visual_analysis = None
+
+        if ready and selected is not None:
+            try:
+                visual_analysis = evaluate_live_frame(
+                    product=ev.product,
+                    frame_bgr=frame,
+                    polygon=selected["polygon"],
+                )
+            except (ValueError, TypeError) as exc:
+                visual_analysis = {
+                    "analysis_status": "pendiente_revision",
+                    "reason": str(exc),
+                    "human_review_required": True,
+                }
+            except Exception as exc:
+                visual_analysis = {
+                    "analysis_status": "error",
+                    "reason": type(exc).__name__,
+                    "human_review_required": True,
+                }
+
         return {
             "detected": selected is not None,
             "readyToCapture": ready,
@@ -361,6 +386,7 @@ def detect_evaluation_frame(
             "candidateCount": len(candidates),
             "frameWidth": int(frame.shape[1]),
             "frameHeight": int(frame.shape[0]),
+            "visualAnalysis": visual_analysis,
             "reason": (
                 "deteccion_unica"
                 if ready

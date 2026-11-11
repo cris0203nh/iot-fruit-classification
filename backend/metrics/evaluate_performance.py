@@ -9,6 +9,18 @@ PRODUCTS = ("mango", "tomate")
 CATEGORIES = ("primera", "segunda")
 
 
+def normalize_category(value):
+    """Normaliza las etiquetas compatibles con AGROP-42."""
+    label = str(value or "").strip().upper()
+    return {
+        "E0": "primera",
+        "E1": "segunda",
+        "E2": "E2",
+        "PRIMERA": "primera",
+        "SEGUNDA": "segunda",
+    }.get(label, label.lower())
+
+
 def evaluate_records(records):
     if not isinstance(records, list):
         raise ValueError("Los registros deben ser una lista.")
@@ -28,6 +40,7 @@ def evaluate_records(records):
     errors = []
     non_evaluable = []
     valid_count = 0
+    excluded_e2_count = 0
 
     for index, row in enumerate(records):
         if not isinstance(row, dict):
@@ -47,14 +60,27 @@ def evaluate_records(records):
             })
             continue
 
-        true_label = str(row.get("y_true") or "").strip().lower()
-        predicted = str(row.get("y_pred") or "").strip().lower()
+        true_label = normalize_category(row.get("y_true"))
+        predicted = normalize_category(row.get("y_pred"))
+
+        if true_label == "E2":
+            excluded_e2_count += 1
+            continue
 
         if true_label not in CATEGORIES:
             non_evaluable.append({
                 "sample_id": sample_id,
                 "product": product,
                 "reason": "etiqueta_real_no_verificada_o_invalida"
+            })
+            continue
+
+        if predicted == "E2":
+            excluded_e2_count += 1
+            non_evaluable.append({
+                "sample_id": sample_id,
+                "product": product,
+                "reason": "prediccion_e2_excluida"
             })
             continue
 
@@ -173,6 +199,7 @@ def evaluate_records(records):
         "products": product_reports,
         "total_records": len(records),
         "valid_sample_count": valid_count,
+        "excluded_e2_count": excluded_e2_count,
         "non_evaluable_count": len(non_evaluable),
         "non_evaluable_cases": non_evaluable,
         "classification_errors": errors,

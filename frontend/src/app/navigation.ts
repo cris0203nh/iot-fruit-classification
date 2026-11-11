@@ -1,3 +1,4 @@
+
 import type { IconName } from '../components/layout/Icon'
 
 export type NavigationItem = {
@@ -6,15 +7,25 @@ export type NavigationItem = {
   icon: IconName
 }
 
-export const primaryNavigation: NavigationItem[] = [
+// Funciones exclusivas del operador
+export const operatorNavigation: NavigationItem[] = [
   { path: '/', label: 'Inicio', icon: 'home' },
-  { path: '/evaluacion', label: 'Evaluación', icon: 'scan' },
+  { path: '/evaluacion', label: 'Nueva evaluación', icon: 'scan' },
+  { path: '/lotes', label: 'Mis lotes', icon: 'boxes' },
   { path: '/historial', label: 'Historial', icon: 'history' },
-  { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
-  { path: '/estadisticas', label: 'Estadísticas', icon: 'chart' },
-  { path: '/lotes', label: 'Lotes', icon: 'boxes' },
 ]
 
-export const secondaryNavigation: NavigationItem[] = [
-  { path: '/mantenimiento', label: 'Mantenimiento', icon: 'settings' },
+// Funciones exclusivas del revisor
+export const reviewerNavigation: NavigationItem[] = [
+  { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/historial', label: 'Evaluaciones', icon: 'history' },
+  { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
+]
+
+// Funciones administrativas existentes
+export const administratorNavigation: NavigationItem[] = [
+  { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/usuarios', label: 'Gestión de usuarios', icon: 'user' },
+  { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
+  { path: '/estadisticas', label: 'Estadísticas', icon: 'chart' },
 ]

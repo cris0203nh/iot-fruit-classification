@@ -338,6 +338,89 @@ export async function getEvaluationTraceability(id: string): Promise<Traceabilit
   }
 }
 
+/** AGROP-43: contrato de registro de revisión. */
+export type EvaluationReviewInput = {
+  reason: string
+  newValue: 'E0' | 'E1'
+}
+
+function isReviewEvent(value: unknown): value is import('../features/traceability/traceabilityService').ReviewEvent {
+  if (!object(value)) return false
+
+  return typeof value.id === 'string'
+    && REVIEW_ID_PATTERN.test(value.id)
+    && typeof value.performedAt === 'string'
+    && Number.isFinite(Date.parse(value.performedAt))
+    && typeof value.actorId === 'string'
+    && typeof value.reason === 'string'
+    && value.type === 'review'
+    && nullableString(value.previousValue)
+    && nullableString(value.updatedValue)
+}
+
+/**
+ * Registra una revisión utilizando la sesión autenticada.
+ * El backend determina el responsable real mediante current_user.
+ */
+export async function createEvaluationReview(
+  evaluationId: string,
+  input: EvaluationReviewInput,
+): Promise<TraceabilityRecord['reviews'][number]> {
+  if (!validEvaluationId(evaluationId)) {
+    throw new ApiDataError()
+  }
+
+  if (getSessionRole() !== 'revisor') {
+    throw new ApiResponseError(
+      403,
+      'Solo el usuario revisor puede registrar revisiones.',
+    )
+  }
+
+  const reason = input.reason.trim()
+
+  if (!reason || reason.length > 500) {
+    throw new ApiDataError()
+  }
+
+  if (input.newValue !== 'E0' && input.newValue !== 'E1') {
+    throw new ApiDataError()
+  }
+
+  // ReviewCreate exige actorId. Se obtiene del usuario autenticado.
+  const currentUser = await request('/api/auth/me')
+
+  if (!object(currentUser) || typeof currentUser.username !== 'string') {
+    throw new ApiDataError()
+  }
+
+  const actorId = currentUser.username
+
+  if (!actorId.trim() || actorId.length > 64) {
+    throw new ApiDataError()
+  }
+
+  const body = await request(
+    `/api/evaluations/${encodeURIComponent(evaluationId)}/reviews`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        actorId,
+        reason,
+        newValue: input.newValue,
+      }),
+    },
+  )
+
+  if (!isReviewEvent(body)) {
+    throw new ApiDataError()
+  }
+
+  return body
+}
+
+
 /** Solo permite rutas de imágenes emitidas por el backend de AgroScan. */
 export function resolveEvidenceUrl(path: string): string | null {
   if (!/^\/api\/images\/I-\d{1,9}$/.test(path)) return null
@@ -601,6 +684,148 @@ export async function detectEvaluationFrame(
   }
 
   return value as unknown as FruitDetectionResult
+}
+
+// AGROSCAN: consulta de usuarios para el Dashboard administrativo.
+
+export type AdminUser = {
+  id: number
+  username: string
+  fullName: string
+  isActive: boolean
+  roles: string[]
+}
+
+export async function listAdminUsers(): Promise<AdminUser[]> {
+  if (getSessionRole() !== 'administrador') {
+    throw new ApiResponseError(403, 'Acceso exclusivo del administrador.')
+  }
+
+  const body = await request('/api/users')
+
+  if (!Array.isArray(body)) throw new ApiDataError()
+
+  const valid = body.every((user: unknown) =>
+    object(user)
+    && typeof user.id === 'number'
+    && typeof user.username === 'string'
+    && typeof user.fullName === 'string'
+    && typeof user.isActive === 'boolean'
+    && Array.isArray(user.roles)
+    && user.roles.every((role: unknown) => typeof role === 'string')
+  )
+
+  if (!valid) throw new ApiDataError()
+
+  return body as AdminUser[]
+}
+
+// ====
+// GESTIÓN ADMINISTRATIVA DE USUARIOS
+// ====
+
+export type AdminRole = 'administrador' | 'operador' | 'revisor'
+
+export type AdminUserCreateInput = {
+  username: string
+  fullName: string
+  password: string
+  role: AdminRole
+}
+
+export async function createAdminUser(
+  input: AdminUserCreateInput,
+): Promise<AdminUser> {
+  if (getSessionRole() !== 'administrador') {
+    throw new ApiResponseError(403, 'Acceso exclusivo del administrador.')
+  }
+
+  const username = input.username.trim().toLowerCase()
+  const fullName = input.fullName.trim()
+
+  if (username.length < 3 || fullName.length < 2 || input.password.length < 12) {
+    throw new ApiDataError()
+  }
+
+  const body = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      fullName,
+      password: input.password,
+      role: input.role,
+    }),
+  })
+
+  if (
+    !object(body)
+    || typeof body.id !== 'number'
+    || typeof body.username !== 'string'
+    || typeof body.fullName !== 'string'
+    || typeof body.isActive !== 'boolean'
+    || !Array.isArray(body.roles)
+  ) {
+    throw new ApiDataError()
+  }
+
+  return body as AdminUser
+}
+
+export async function updateAdminUserRole(
+  userId: number,
+  role: AdminRole,
+): Promise<AdminUser> {
+  if (getSessionRole() !== 'administrador') {
+    throw new ApiResponseError(403, 'Acceso exclusivo del administrador.')
+  }
+
+  const body = await request(`/api/users/${userId}/role`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  })
+
+  if (
+    !object(body)
+    || typeof body.id !== 'number'
+    || typeof body.username !== 'string'
+    || typeof body.fullName !== 'string'
+    || typeof body.isActive !== 'boolean'
+    || !Array.isArray(body.roles)
+  ) {
+    throw new ApiDataError()
+  }
+
+  return body as AdminUser
+}
+
+export async function updateAdminUserStatus(
+  userId: number,
+  isActive: boolean,
+): Promise<AdminUser> {
+  if (getSessionRole() !== 'administrador') {
+    throw new ApiResponseError(403, 'Acceso exclusivo del administrador.')
+  }
+
+  const body = await request(`/api/users/${userId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isActive }),
+  })
+
+  if (
+    !object(body)
+    || typeof body.id !== 'number'
+    || typeof body.username !== 'string'
+    || typeof body.fullName !== 'string'
+    || typeof body.isActive !== 'boolean'
+    || !Array.isArray(body.roles)
+  ) {
+    throw new ApiDataError()
+  }
+
+  return body as AdminUser
 }
 
 /** AG-037: detección asociada a una imagen ya guardada (no calidad E0/E1/E2). */

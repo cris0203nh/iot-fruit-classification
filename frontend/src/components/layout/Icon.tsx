@@ -20,6 +20,7 @@ export type IconName =
   | 'info'
   | 'clipboard'
   | 'clock'
+  | 'user'
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {
   name: IconName
@@ -45,6 +46,7 @@ export function Icon({ name, size = 20, ...props }: IconProps) {
     database: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" /></>,
     'arrow-right': <path d="M4 12h16m-7-7 7 7-7 7" />,
     info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>,
+    user: <><circle cx="12" cy="8" r="4" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
     clipboard: <><rect x="5" y="4" width="14" height="18" rx="2" /><path d="M9 4.5h6M9 11h6M9 15h6" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l4 2" /></>,
   }

@@ -1,6 +1,6 @@
 {
   "tarea": "AGROP-39",
-  "generado_en": "2026-11-04T05:31:12.269665+00:00",
+  "generado_en": "2026-11-07T15:28:24.663266+00:00",
   "base_utilizada": "D:\\proyectos\\iot-fruit-classification\\backend\\data\\agroscan.db",
   "semilla": 39,
   "porcentajes_objetivo": {
@@ -8,30 +8,36 @@
     "validacion": 0.15,
     "prueba": 0.15
   },
-  "total_fotografias_consultadas": 3,
-  "fotografias_incluidas": 1,
-  "fotografias_excluidas": 2,
+  "total_fotografias_consultadas": 37,
+  "fotografias_incluidas": 18,
+  "fotografias_excluidas": 19,
   "motivos_exclusion": {
-    "pieza_sin_sesion_verificable": 2
+    "pieza_sin_sesion_verificable": 15
   },
-  "grupos_independientes": 1,
-  "particiones_generadas": false,
+  "grupos_independientes": 7,
+  "particiones_generadas": true,
   "integridad": {
-    "sin_cruces_de_piezas": null,
-    "sin_cruces_de_sesiones": null,
-    "validacion_ejecutada": false,
-    "motivo": "Se necesitan al menos tres grupos independientes para generar entrenamiento, validacion y prueba.",
+    "sin_cruces_de_piezas": true,
+    "sin_cruces_de_sesiones": true,
+    "cruces_de_piezas": {
+      "entrenamiento-validacion": [],
+      "entrenamiento-prueba": [],
+      "validacion-prueba": []
+    },
+    "cruces_de_sesiones": {
+      "entrenamiento-validacion": [],
+      "entrenamiento-prueba": [],
+      "validacion-prueba": []
+    },
     "fotografias_por_particion": {
-      "entrenamiento": 0,
-      "validacion": 0,
-      "prueba": 0
+      "entrenamiento": 13,
+      "validacion": 1,
+      "prueba": 4
     },
     "piezas_por_particion": {
-      "entrenamiento": 0,
-      "validacion": 0,
-      "prueba": 0
+      "entrenamiento": 5,
+      "validacion": 1,
+      "prueba": 1
     }
-  },
-  "mensaje": "Se necesitan al menos tres grupos independientes para generar entrenamiento, validacion y prueba.",
-  "estado": "bloqueado_por_datos_insuficientes"
+  }
 }

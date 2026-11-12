@@ -687,6 +687,155 @@ export async function createAutomaticEvaluation(input: {
   return body
 }
 
+/** AG-054: geometría 2D versionada sobre fotografías originales persistidas. */
+export type FruitGeometryMeasurements = {
+  widthPx: number
+  heightPx: number
+  majorAxisPx: number
+  minorAxisPx: number
+  areaPx2: number
+  perimeterPx: number
+  aspectRatio: number
+  frameCoverage: number
+}
+/** AG-054 I02: proyeccion sobre plano ArUco; no dimensiones fisicas validadas. */
+export type PlanarMeasurement = {
+  id: number
+  evaluationId: string
+  imageId: string
+  geometryId: number
+  imageSha256: string
+  modelVersion: string
+  rulesVersion: string
+  markerId: number
+  markerSideMm: number
+  markerAtPlatformLevelDeclared: boolean
+  status: 'reference_plane_estimate' | 'needs_review'
+  reason: string
+  markerCornersPx: Array<[number, number]>
+  measurements: null | {
+    widthCm: number
+    heightCm: number
+    majorAxisCm: number
+    minorAxisCm: number
+    projectedAreaCm2: number
+    projectedPerimeterCm: number
+  }
+  unit: 'cm_reference_plane'
+  physicalDimensionsValidated: false
+  cameraIntrinsicsCalibrated: false
+  fruitHeightCorrected: false
+  classificationE0E1E2Produced: false
+  createdAt: string
+}
+
+function validPlanarMeasurement(value: unknown): value is PlanarMeasurement {
+  if (!object(value) || !Number.isSafeInteger(value.id) || !Number.isSafeInteger(value.geometryId)
+      || typeof value.evaluationId !== 'string' || !EVALUATION_ID_PATTERN.test(value.evaluationId)
+      || typeof value.imageId !== 'string' || !IMAGE_ID_PATTERN.test(value.imageId)
+      || typeof value.imageSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.imageSha256)
+      || typeof value.modelVersion !== 'string' || typeof value.rulesVersion !== 'string'
+      || !Number.isInteger(value.markerId) || typeof value.markerSideMm !== 'number'
+      || !Number.isFinite(value.markerSideMm) || value.markerSideMm < 15 || value.markerSideMm > 150
+      || value.markerAtPlatformLevelDeclared !== true
+      || (value.status !== 'reference_plane_estimate' && value.status !== 'needs_review')
+      || typeof value.reason !== 'string' || !Array.isArray(value.markerCornersPx)
+      || !value.markerCornersPx.every(point => Array.isArray(point) && point.length === 2
+         && point.every(n => typeof n === 'number' && Number.isFinite(n)))
+      || value.unit !== 'cm_reference_plane' || value.physicalDimensionsValidated !== false
+      || value.cameraIntrinsicsCalibrated !== false || value.fruitHeightCorrected !== false
+      || value.classificationE0E1E2Produced !== false || typeof value.createdAt !== 'string'
+      || !Number.isFinite(Date.parse(value.createdAt))) return false
+  if (value.status === 'needs_review') return value.measurements === null
+  if (!object(value.measurements)) return false
+  return ['widthCm', 'heightCm', 'majorAxisCm', 'minorAxisCm', 'projectedAreaCm2', 'projectedPerimeterCm']
+    .every(k => typeof (value.measurements as Record<string, unknown>)[k] === 'number'
+      && Number.isFinite((value.measurements as Record<string, number>)[k])
+      && (value.measurements as Record<string, number>)[k] > 0)
+}
+
+export async function listPlanarMeasurements(evaluationId: string, imageId: string): Promise<PlanarMeasurement[]> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const items = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/physical/${encodeURIComponent(imageId)}`)
+  if (!Array.isArray(items) || !items.every(validPlanarMeasurement)
+      || !items.every(v => v.evaluationId === evaluationId && v.imageId === imageId)) throw new ApiDataError()
+  return items
+}
+
+export async function createPlanarMeasurement(evaluationId: string, imageId: string, input: {
+  markerId: number; markerSideMm: number; markerAtPlatformLevel: boolean
+}): Promise<PlanarMeasurement> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId) ||
+      input.markerId !== 0 || !Number.isFinite(input.markerSideMm) || input.markerSideMm < 15 ||
+      input.markerSideMm > 150 || input.markerAtPlatformLevel !== true) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/physical/${encodeURIComponent(imageId)}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(input),
+  }, 45000)
+  if (!validPlanarMeasurement(value) || value.evaluationId !== evaluationId || value.imageId !== imageId) throw new ApiDataError()
+  return value
+}
+
+export type FruitGeometryResult = {
+  id: number
+  evaluationId: string
+  imageId: string
+  imageSha256: string
+  modelVersion: string
+  rulesVersion: string
+  status: 'measured' | 'needs_review'
+  reason: string
+  product: FruitProduct | null
+  confidence: number | null
+  candidateCount: number
+  frameWidth: number
+  frameHeight: number
+  box: [number, number, number, number] | null
+  polygon: Array<[number, number]>
+  measurements: FruitGeometryMeasurements | null
+  unit: 'px'
+  calibrated: false
+  classificationE0E1E2Produced: false
+  createdAt: string
+}
+function geometryResult(value: unknown): value is FruitGeometryResult {
+  if (!object(value) || !Number.isSafeInteger(value.id) || typeof value.evaluationId !== 'string'
+      || !EVALUATION_ID_PATTERN.test(value.evaluationId) || typeof value.imageId !== 'string'
+      || !IMAGE_ID_PATTERN.test(value.imageId) || typeof value.imageSha256 !== 'string'
+      || !/^[a-f0-9]{64}$/.test(value.imageSha256) || typeof value.modelVersion !== 'string'
+      || typeof value.rulesVersion !== 'string' || (value.status !== 'measured' && value.status !== 'needs_review')
+      || typeof value.reason !== 'string' || !(value.product === null || value.product === 'mango' || value.product === 'tomate')
+      || !(value.confidence === null || (typeof value.confidence === 'number' && Number.isFinite(value.confidence)))
+      || !Number.isSafeInteger(value.candidateCount) || !Number.isSafeInteger(value.frameWidth)
+      || !Number.isSafeInteger(value.frameHeight) || (value.frameWidth as number) < 128
+      || (value.frameHeight as number) < 128 || !Array.isArray(value.polygon)
+      || !value.polygon.every(point => Array.isArray(point) && point.length === 2 && point.every((n: unknown) => typeof n === 'number' && Number.isFinite(n)))
+      || !(value.box === null || (Array.isArray(value.box) && value.box.length === 4 && value.box.every((n: unknown) => typeof n === 'number' && Number.isFinite(n))))
+      || value.unit !== 'px' || value.calibrated !== false || value.classificationE0E1E2Produced !== false
+      || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) return false
+  if (value.measurements === null) return value.status === 'needs_review'
+  if (value.status !== 'measured' || !object(value.measurements)) return false
+  return ['widthPx', 'heightPx', 'majorAxisPx', 'minorAxisPx', 'areaPx2',
+    'perimeterPx', 'aspectRatio', 'frameCoverage'].every(key =>
+    typeof (value.measurements as Record<string, unknown>)[key] === 'number'
+    && Number.isFinite((value.measurements as Record<string, number>)[key]))
+}
+
+export async function listFruitGeometries(evaluationId: string): Promise<FruitGeometryResult[]> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/geometry`)
+  if (!Array.isArray(body) || !body.every(geometryResult)
+      || !body.every(item => item.evaluationId === evaluationId)) throw new ApiDataError()
+  return body
+}
+
+export async function analyzeFruitGeometry(evaluationId: string, imageId: string): Promise<FruitGeometryResult> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/geometry/${encodeURIComponent(imageId)}`,
+    { method: 'POST' }, 120000)
+  if (!geometryResult(body) || body.evaluationId !== evaluationId || body.imageId !== imageId) throw new ApiDataError()
+  return body
+}
+
 export type FruitDetectionResult = {
   detected: boolean
   readyToCapture: boolean
@@ -1184,4 +1333,147 @@ export async function getLotTraceabilityReport(lotCode: string): Promise<LotTrac
       || body.lotCode.toLowerCase() !== lot.toLowerCase()
       || !validateLotTraceabilityReport(body, body.lotCode)) throw new ApiDataError()
   return body as LotTraceabilityReport
+}
+
+/** AG-054 I03: proyecciones en cm del tablero multimarcas, nunca dimensiones físicas acreditadas. */
+export type BoardEstimate = {
+  id: number
+  evaluationId: string
+  imageId: string
+  geometryId: number
+  imageSha256: string
+  modelVersion: string
+  rulesVersion: string
+  boardVersion: 'ag054-board-a3-v1' | 'ag054-board-a4-v1'
+  status: 'reference_plane_estimate' | 'needs_review'
+  reason: string
+  markerIds: number[]
+  markerCornersPx: Record<string, Array<[number, number]>>
+  rmsReprojectionMm: number | null
+  measurements: null | {
+    widthCm: number
+    heightCm: number
+    majorAxisCm: number
+    minorAxisCm: number
+    projectedAreaCm2: number
+    projectedPerimeterCm: number
+  }
+  unit: 'cm_reference_plane'
+  physicalDimensionsValidated: false
+  fruitHeightCorrected: false
+  cameraIntrinsicsCalibrated: false
+  classificationE0E1E2Produced: false
+  createdAt: string
+}
+
+function isBoardEstimate(value: unknown): value is BoardEstimate {
+  if (!object(value) || !Number.isSafeInteger(value.id) || !Number.isSafeInteger(value.geometryId)
+    || typeof value.evaluationId !== 'string' || !EVALUATION_ID_PATTERN.test(value.evaluationId)
+    || typeof value.imageId !== 'string' || !IMAGE_ID_PATTERN.test(value.imageId)
+    || typeof value.imageSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.imageSha256)
+    || typeof value.modelVersion !== 'string' || typeof value.rulesVersion !== 'string'
+    || (value.boardVersion !== 'ag054-board-a3-v1' && value.boardVersion !== 'ag054-board-a4-v1')
+    || (value.status !== 'reference_plane_estimate' && value.status !== 'needs_review')
+    || typeof value.reason !== 'string' || !Array.isArray(value.markerIds)
+    || !value.markerIds.every(n => Number.isInteger(n) && n >= 0 && n <= 3)
+    || !object(value.markerCornersPx)
+    || !Object.values(value.markerCornersPx).every(points => Array.isArray(points)
+      && points.length === 4 && points.every(pt => Array.isArray(pt) && pt.length === 2
+      && pt.every(n => typeof n === 'number' && Number.isFinite(n))))
+    || !(value.rmsReprojectionMm === null || (typeof value.rmsReprojectionMm === 'number'
+      && Number.isFinite(value.rmsReprojectionMm) && value.rmsReprojectionMm >= 0))
+    || value.unit !== 'cm_reference_plane' || value.physicalDimensionsValidated !== false
+    || value.fruitHeightCorrected !== false || value.cameraIntrinsicsCalibrated !== false
+    || value.classificationE0E1E2Produced !== false || typeof value.createdAt !== 'string'
+    || !Number.isFinite(Date.parse(value.createdAt))) return false
+  if (value.status === 'needs_review') return value.measurements === null
+    && value.rmsReprojectionMm === null && value.markerIds.length === 0
+  if (!object(value.measurements) || value.markerIds.length < 3
+    || value.rmsReprojectionMm === null) return false
+  return ['widthCm', 'heightCm', 'majorAxisCm', 'minorAxisCm', 'projectedAreaCm2', 'projectedPerimeterCm']
+    .every(k => typeof (value.measurements as Record<string, unknown>)[k] === 'number'
+      && Number.isFinite((value.measurements as Record<string, number>)[k])
+      && (value.measurements as Record<string, number>)[k] > 0)
+}
+
+export type DimensionalComparison = {
+  id: number
+  boardCalibrationId: number
+  referenceMajorCm: number
+  referenceMinorCm: number
+  instrumentId: string
+  comparison: {
+    status: 'comparison_only'
+    physicalDimensionsValidated: false
+    major: { projectedCm: number; manualCm: number; signedErrorCm: number; absoluteErrorCm: number; relativeAbsoluteErrorPct: number }
+    minor: { projectedCm: number; manualCm: number; signedErrorCm: number; absoluteErrorCm: number; relativeAbsoluteErrorPct: number }
+  }
+  physicalDimensionsValidated: false
+  createdAt: string
+}
+function isDimensionalComparison(value: unknown): value is DimensionalComparison {
+  if (!object(value) || !Number.isSafeInteger(value.id) || !Number.isSafeInteger(value.boardCalibrationId)
+    || typeof value.referenceMajorCm !== 'number' || !Number.isFinite(value.referenceMajorCm)
+    || typeof value.referenceMinorCm !== 'number' || !Number.isFinite(value.referenceMinorCm)
+    || value.referenceMinorCm <= 0 || value.referenceMajorCm < value.referenceMinorCm
+    || typeof value.instrumentId !== 'string' || value.instrumentId.length < 2
+    || value.physicalDimensionsValidated !== false || typeof value.createdAt !== 'string'
+    || !Number.isFinite(Date.parse(value.createdAt)) || !object(value.comparison)
+    || value.comparison.status !== 'comparison_only'
+    || value.comparison.physicalDimensionsValidated !== false) return false
+  for (const axis of ['major', 'minor']) {
+    const entry = value.comparison[axis]
+    if (!object(entry) || !['projectedCm','manualCm','signedErrorCm','absoluteErrorCm','relativeAbsoluteErrorPct']
+      .every(k => typeof entry[k] === 'number' && Number.isFinite(entry[k]))) return false
+  }
+  return true
+}
+
+export async function listBoardEstimates(evaluationId: string, imageId: string): Promise<BoardEstimate[]> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const items = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/board/${encodeURIComponent(imageId)}`)
+  if (!Array.isArray(items) || !items.every(isBoardEstimate)
+    || !items.every(v => v.evaluationId === evaluationId && v.imageId === imageId)) throw new ApiDataError()
+  return items
+}
+
+export async function createBoardEstimate(evaluationId: string, imageId: string, input: {
+  boardVersion: 'ag054-board-a3-v1' | 'ag054-board-a4-v1'
+  markerAtPlatformLevel: boolean
+  independentSupport: boolean
+  printedDimensionsVerified: boolean
+  fixedCamera: boolean
+}): Promise<BoardEstimate> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)
+    || (input.boardVersion !== 'ag054-board-a3-v1' && input.boardVersion !== 'ag054-board-a4-v1')
+    || !input.markerAtPlatformLevel || !input.independentSupport
+    || !input.printedDimensionsVerified || !input.fixedCamera) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/board/${encodeURIComponent(imageId)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  }, 45000)
+  if (!isBoardEstimate(value) || value.evaluationId !== evaluationId || value.imageId !== imageId) throw new ApiDataError()
+  return value
+}
+
+export async function listDimensionalComparisons(evaluationId: string, imageId: string): Promise<DimensionalComparison[]> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const items = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/board/${encodeURIComponent(imageId)}/comparisons`)
+  if (!Array.isArray(items) || !items.every(isDimensionalComparison)) throw new ApiDataError()
+  return items
+}
+
+export async function createDimensionalComparison(evaluationId: string, imageId: string, input: {
+  boardCalibrationId?: number
+  referenceMajorCm: number; referenceMinorCm: number; instrumentId: string
+}): Promise<DimensionalComparison> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)
+    || (input.boardCalibrationId !== undefined && (!Number.isSafeInteger(input.boardCalibrationId) || input.boardCalibrationId < 1))
+    || !Number.isFinite(input.referenceMajorCm) || !Number.isFinite(input.referenceMinorCm)
+    || input.referenceMinorCm < 0.1 || input.referenceMinorCm > input.referenceMajorCm
+    || input.referenceMajorCm > 60 || input.instrumentId.trim().length < 2) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/board/${encodeURIComponent(imageId)}/comparisons`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  }, 15000)
+  if (!isDimensionalComparison(value)) throw new ApiDataError()
+  return value
 }

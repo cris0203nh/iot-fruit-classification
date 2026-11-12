@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
-import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
 import { PieceHistoryPanel } from '../features/history/PieceHistoryPanel'
 import { paramsForHistoryView, resolveHistoryView, type HistoryView } from '../features/history/historyView'
 import {
@@ -22,6 +21,8 @@ import {
   resolveEvidenceUrl,
 } from '../services/agroscanApi'
 import { traceabilityService } from '../features/traceability/traceabilityService'
+import { GeometryOrOriginal } from '../features/geometry/GeometryEvidence'
+import { listFruitGeometries, type FruitGeometryResult } from '../services/agroscanApi'
 import './HistoryPage.css'
 
 type LoadState<T> =
@@ -311,6 +312,12 @@ function HistoryDetailContent({
   const [state, setState] = useState<LoadState<EvaluationDetail | null>>({
     kind: 'loading',
   })
+  const [geometries, setGeometries] = useState<FruitGeometryResult[]>([])
+  useEffect(() => {
+    let active = true
+    void listFruitGeometries(evaluationId).then(rows => { if (active) setGeometries(rows) }).catch(() => {})
+    return () => { active = false }
+  }, [evaluationId])
   const [newValue, setNewValue] = useState<'E0' | 'E1'>('E0')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
@@ -558,11 +565,9 @@ function HistoryDetailContent({
                     </strong>
 
                     {resolveEvidenceUrl(item.imageUrl) ? (
-                      <ProtectedEvidenceImage
-                        className="history-evidence__image"
-                        path={item.imageUrl}
-                        alt={`Evidencia ${item.view}`}
-                      />
+                      <GeometryOrOriginal className="history-evidence__image"
+                        path={item.imageUrl} alt={`Evidencia ${item.view}`}
+                        result={geometries.filter(row => row.imageId === item.id).at(-1)} />
                     ) : (
                       <span>Referencia de imagen no reconocida.</span>
                     )}

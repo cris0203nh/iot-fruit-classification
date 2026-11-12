@@ -12,6 +12,8 @@ import {
   type LotRecord,
 } from '../../services/agroscanApi'
 import type { EvaluationDetail } from '../history/historyService'
+import { GeometryEvidence } from '../geometry/GeometryEvidence'
+import { analyzeFruitGeometry } from '../../services/agroscanApi'
 import './AutoRegistrationPanel.css'
 
 type Props = {
@@ -178,8 +180,13 @@ export function AutoRegistrationPanel({
       // crear otra pieza. La carga posterior usa idempotencia por imagen.
       let detail = saved
       try {
-        await uploadEvaluationPhoto(saved.id, jpg, 'vista-1')
+        const photo = await uploadEvaluationPhoto(saved.id, jpg, 'vista-1')
         detail = (await getEvaluationById(saved.id)) ?? saved
+        try {
+          await analyzeFruitGeometry(saved.id, photo.id)
+        } catch {
+          setWarning('La pieza y la fotografía están guardadas; la geometría quedó pendiente. Puedes reanalizar la evidencia en el paso de imágenes.')
+        }
       } catch {
         setWarning('La pieza fue registrada, pero la primera fotografía no se confirmó. Revísala en el paso de imágenes.')
       }
@@ -238,7 +245,7 @@ export function AutoRegistrationPanel({
             </div>
           )}
           {running && <p role="status">YOLOE está analizando la fotografía real…</p>}
-          {previewUrl && <img className="ag053__preview" src={previewUrl} alt="Fotografía enviada a detección preliminar" />}
+          {previewUrl && <GeometryEvidence previewUrl={previewUrl} result={precheck} alt="Fotografía enviada a detección preliminar" />}
           {precheck && (
             <div className="ag053__result" role="status">
               {precheck.readyToRegister && precheck.product ? (

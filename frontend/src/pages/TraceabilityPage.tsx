@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
-import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
 import { ReviewDecisionPanel } from '../features/traceability/ReviewDecisionPanel'
 import { formatDate, formatWeight } from '../features/history/historyService'
 import {
@@ -11,6 +10,8 @@ import {
   type TraceabilityRecord,
 } from '../features/traceability/traceabilityService'
 import { ApiConnectionError, ApiResponseError, getSessionRole, markUncertainEvaluationImage, getVisionAssessments, resolveUncertainEvaluation, resolveEvidenceUrl, type VisionAssessment } from '../services/agroscanApi'
+import { GeometryOrOriginal } from '../features/geometry/GeometryEvidence'
+import { listFruitGeometries, type FruitGeometryResult } from '../services/agroscanApi'
 import './TraceabilityPage.css'
 
 type TraceabilityState =
@@ -217,6 +218,12 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [assessments, setAssessments] = useState<VisionAssessment[]>([])
+  const [geometries, setGeometries] = useState<FruitGeometryResult[]>([])
+  useEffect(() => {
+    let active = true
+    void listFruitGeometries(evaluation.id).then(rows => { if (active) setGeometries(rows) }).catch(() => {})
+    return () => { active = false }
+  }, [evaluation.id])
   const role = getSessionRole()
   const isReviewer = role === 'revisor' || role === 'administrador'
   useEffect(() => {
@@ -262,7 +269,7 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
         <h3 className="rastreo__section-title"><Icon name="camera" size={17} /> Evidencias visuales ({evaluation.evidence.length})</h3>
         {evaluation.evidence.length === 0
           ? <p>No se registraron imágenes asociadas.</p>
-          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <ProtectedEvidenceImage className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
+          : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <GeometryOrOriginal className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} result={geometries.filter(row => row.imageId === item.id).at(-1)} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
         <p>Las imágenes se consultan mediante la API autenticada. Nunca se reemplaza el archivo original.</p>
         {assessments.length > 0 && (
           <div role="region" aria-label="Evaluaciones automáticas originales" className="trace-assessments">

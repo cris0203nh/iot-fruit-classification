@@ -16,7 +16,8 @@ import {
   type CaptureQualityResult,
 } from './captureValidation'
 import { nextCaptureView } from './captureViews'
-import { ProtectedEvidenceImage } from './ProtectedEvidenceImage'
+import { analyzeFruitGeometry, listFruitGeometries, type FruitGeometryResult } from '../../services/agroscanApi'
+import { GeometryOrOriginal } from '../geometry/GeometryEvidence'
 import './EvaluationImageCapture.css'
 
 type Props = {
@@ -66,6 +67,27 @@ export function EvaluationImageCapture({
 const [saved, setSaved] = useState<Saved[]>([])
   const [loadState, setLoadState] = useState<LoadedState>('loading')
   const [revision, setRevision] = useState(0)
+  const [geometry, setGeometry] = useState<FruitGeometryResult[]>([])
+  const [geometryPending, setGeometryPending] = useState<string | null>(null)
+  const [geometryError, setGeometryError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void listFruitGeometries(evaluationId).then(rows => { if (active) setGeometry(rows) })
+      .catch(() => { if (active) setGeometryError('No se pudieron consultar las mediciones guardadas.') })
+    return () => { active = false }
+  }, [evaluationId, revision])
+
+  async function analyzeSavedImage(imageId: string) {
+    setGeometryPending(imageId)
+    setGeometryError(null)
+    try {
+      const result = await analyzeFruitGeometry(evaluationId, imageId)
+      setGeometry(previous => [...previous.filter(row => row.id !== result.id), result])
+    } catch (cause) {
+      setGeometryError(cause instanceof Error ? `No se pudo analizar la geometría: ${cause.message}` : 'No se pudo analizar la geometría.')
+    } finally { setGeometryPending(null) }
+  }
 
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -562,7 +584,8 @@ useEffect(() => {
 
       const [item] = asSaved([result])
 
-      setSaved(previous => [...previous, item])
+      setSaved(previous => previous.some(old => old.id === item.id) ? previous : [...previous, item])
+      void analyzeSavedImage(item.id)
 
     setCandidate(null)
 
@@ -631,10 +654,14 @@ useEffect(() => {
             {saved.map(item => (
               <li key={item.id}>
 
-                <ProtectedEvidenceImage
-                  path={item.imageUrl}
-                  alt={`Fotografía ${item.view}`}
-                />
+                <GeometryOrOriginal path={item.imageUrl} alt={`Fotografía ${item.view}`}
+                  result={geometry.filter(row => row.imageId === item.id).at(-1)} />
+                {!geometry.some(row => row.imageId === item.id) && (
+                  <button type="button" className="action-button action-button--secondary"
+                    disabled={geometryPending !== null} onClick={() => void analyzeSavedImage(item.id)}>
+                    {geometryPending === item.id ? 'Analizando YOLOE…' : 'Analizar geometría de esta foto'}
+                  </button>
+                )}
 
                 <strong>{item.view}</strong>
                 <span>{item.id}</span>
@@ -645,6 +672,8 @@ useEffect(() => {
 
         </section>
       )}
+
+      {geometryError && <p role="status" className="capture__hint">{geometryError}</p>}
 
       {/* Cámara USB. */}
       {cameraOpen && (

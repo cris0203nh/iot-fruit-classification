@@ -1,0 +1,11 @@
+.ag054-plane { border-top: 1px solid var(--border, #d2d5dc); margin-top: 1rem; padding-top: .8rem; display: grid; gap: .55rem; }
+.ag054-plane h4, .ag054-plane p { margin: 0; }
+.ag054-plane__field { display: grid; gap: .3rem; font-size: .9rem; }
+.ag054-plane__field input { max-width: 11rem; border: 1px solid #8f99aa; border-radius: .4rem; padding: .45rem; background: transparent; color: inherit; }
+.ag054-plane__check { display: flex; align-items: flex-start; gap: .5rem; font-size: .88rem; }
+.ag054-plane__check input { margin-top: .2rem; flex-shrink: 0; }
+.ag054-plane__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px,1fr)); gap: .5rem; }
+.ag054-plane__metrics div { display: grid; gap: .2rem; padding: .5rem; border-radius: .45rem; background: rgba(128,128,128,.1); }
+.ag054-plane__metrics dt { font-size: .75rem; }
+.ag054-plane__metrics dd { margin: 0; font-weight: 650; }
+.ag054-plane__caution { font-size: .83rem; color: inherit; border-left: 3px solid #b58b37; padding-left: .5rem; }

@@ -1,0 +1,10 @@
+.ag054 { display: grid; gap: 10px; max-width: 100%; min-width: 0; }
+.ag054__canvas, .ag054__plain { width: 100%; height: auto; max-height: 410px; display: block; border-radius: 9px; background: #15251f; }
+.ag054__details { display: grid; gap: 7px; font-size: .91rem; }
+.ag054__label { font-weight: 700; }
+.ag054__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 0; }
+.ag054__metrics div { padding: 9px; border: 1px solid color-mix(in srgb, currentColor 15%, transparent); border-radius: 7px; }
+.ag054__metrics dt { font-size: .78rem; opacity: .75; }
+.ag054__metrics dd { font-weight: 650; margin: 3px 0 0; font-variant-numeric: tabular-nums; }
+.ag054__caution { color: inherit; opacity: .83; font-size: .8rem; }
+.ag054--compact .ag054__canvas, .ag054--compact .ag054__plain { max-height: 330px; }

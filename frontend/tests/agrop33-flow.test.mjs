@@ -4,7 +4,7 @@ import { acquisitionOutcome, GUIDED_STEP_LABELS, hasConfirmedImages, MIN_CONFIRM
 
 test('AGROP-33: los cinco pasos del operador siguen el orden acordado', () => {
   assert.deepEqual(GUIDED_STEP_LABELS, [
-    'Identificar pieza', 'Colocar y pesar', 'Capturar imágenes',
+    'Detectar y registrar pieza', 'Colocar y pesar', 'Capturar imágenes',
     'Confirmar adquisición', 'Retirar pieza',
   ])
 })

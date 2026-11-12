@@ -1,0 +1,15 @@
+.ag053 { display: grid; gap: 18px; align-content: start; }
+.ag053__source { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.ag053__file { display: inline-flex; align-items: center; gap: 8px; position: relative; cursor: pointer; border: 1px solid currentColor; border-radius: 8px; padding: 10px 14px; font-weight: 600; }
+.ag053__file input { position: absolute; width: 100%; height: 100%; inset: 0; opacity: 0; cursor: pointer; }
+.ag053__file:focus-within { outline: 3px solid currentColor; outline-offset: 2px; }
+.ag053__camera, .ag053__result, .ag053__lots, .ag053__manual, .ag053__done { display: grid; gap: 10px; }
+.ag053__camera video, .ag053__preview { width: 100%; height: auto; max-height: 350px; object-fit: contain; background: #17201b; border-radius: 8px; }
+.ag053__lots select { min-height: 46px; border-radius: 7px; padding: 9px 12px; border: 1px solid var(--rule, #a4a4a4); background: transparent; color: inherit; font: inherit; }
+.ag053__lots label { font-weight: 650; }
+.ag053__result, .ag053__done { padding: 14px; border-left: 3px solid currentColor; background: rgba(128, 128, 128, 0.06); }
+.ag053__result span { display: block; }
+.ag053__manual { border-top: 1px solid var(--rule, #aaa); padding-top: 16px; }
+.ag053__manual button { justify-self: start; }
+.ag053__warning { color: #a42d20; font-weight: 600; }
+@media (max-width: 540px) { .ag053__source button, .ag053__source .ag053__file { width: 100%; justify-content: center; } }

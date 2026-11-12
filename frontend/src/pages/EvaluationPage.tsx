@@ -4,6 +4,7 @@ import { readLotDraftState, type FruitProduct } from '../app/lotDraft'
 import { FruitMark } from '../components/FruitMark'
 import { Icon, type IconName } from '../components/layout/Icon'
 import { EvaluationGuidedAcquisition } from '../features/evaluation/EvaluationGuidedAcquisition'
+import { AutoRegistrationPanel } from '../features/registration/AutoRegistrationPanel'
 import { GUIDED_STEP_LABELS, type GuidedStep } from '../features/evaluation/evaluationFlow'
 import '../features/evaluation/EvaluationProgress.css'
 import { isValidPieceId } from '../features/evaluation/pieceValidation'
@@ -67,6 +68,7 @@ export function EvaluationPage() {
   const [created, setCreated] = useState<EvaluationDetail | null>(null)
   const [submitError, setSubmitError] = useState<SubmissionError | null>(null)
   const [guideStep, setGuideStep] = useState<GuidedStep>(1)
+  const [manualMode, setManualMode] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -142,6 +144,7 @@ export function EvaluationPage() {
     setAttempted(false)
     setCreated(null)
     setGuideStep(1)
+    setManualMode(false)
     setSubmitError(null)
   }
 
@@ -150,7 +153,7 @@ export function EvaluationPage() {
       <header className="evaluacion__head">
         <p className="evaluacion__kicker">Módulo de evaluación</p>
         <h1 className="evaluacion__title">Evaluación externa de frutas</h1>
-        <p className="evaluacion__lede">Selecciona un lote abierto, identifica la pieza y registra su evaluación. Después podrás vincular pesos y fotografías, siempre sujetos a verificación.</p>
+        <p className="evaluacion__lede">Identifica primero la fruta con YOLOE, selecciona un lote compatible y registra una pieza con referencia automática. También está disponible el registro manual por excepción.</p>
       </header>
 
       <section className="evaluation-current-step" role="status" aria-live="polite">
@@ -176,10 +179,26 @@ export function EvaluationPage() {
 
       <div className="evaluacion__aviso" role="status">
         <span className="evaluacion__aviso-mark" aria-hidden="true" />
-        <p><strong>Qué se registra ahora:</strong> la identificación de la pieza quedará guardada con estado «En proceso» cuando el servidor confirme el registro. El pesaje, las fotografías y la clasificación se verifican por separado.</p>
+        <p><strong>Qué se registra ahora:</strong> la pieza quedará registrada con estado «En proceso» únicamente cuando FastAPI confirme el registro. El pesaje, las fotografías y la clasificación se verifican por separado.</p>
       </div>
 
       <div className="evaluation-grid">
+        {!manualMode ? (
+          <AutoRegistrationPanel
+            lots={openLots}
+            lotsLoading={lotsState.kind === 'loading'}
+            lotsError={lotsState.kind === 'error' || lotsState.kind === 'offline' ? lotsState.message : null}
+            preferredLot={draft.lot}
+            registered={created}
+            onRefreshLots={refreshLots}
+            onManual={() => setManualMode(true)}
+            onRegistered={(saved) => {
+              setDraft({ product: saved.product, lot: saved.lotId, piece: saved.pieceId })
+              setCreated(saved)
+              setGuideStep(2)
+            }}
+          />
+        ) : (
         <form className="evaluation-form" noValidate onSubmit={handleCreate}>
           <div className="evaluation-section-heading">
             <span className="evaluation-step" aria-hidden="true">01</span>
@@ -189,6 +208,7 @@ export function EvaluationPage() {
             </div>
           </div>
 
+          {!created && <button type="button" className="action-button action-button--secondary" onClick={() => setManualMode(false)}>Volver a identificación automática</button>}
           <fieldset className="evaluation-fieldset" disabled={locked}>
             <legend>Tipo de producto <span aria-hidden="true">*</span></legend>
             <div className="evaluation-products">
@@ -324,6 +344,7 @@ export function EvaluationPage() {
             )}
           </div>
         </form>
+        )}
 
         <EvaluationGuidedAcquisition
           key={created?.id ?? 'sin-evaluacion'}

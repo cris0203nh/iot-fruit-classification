@@ -2,7 +2,7 @@
 export type GuidedStep = 1 | 2 | 3 | 4 | 5
 
 export const GUIDED_STEP_LABELS = [
-  'Identificar pieza',
+  'Detectar y registrar pieza',
   'Colocar y pesar',
   'Capturar imágenes',
   'Confirmar adquisición',

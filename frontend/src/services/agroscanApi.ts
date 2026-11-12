@@ -632,6 +632,61 @@ export async function confirmEvaluationAcquisition(
 
 // AGROP-42: resultado de detecci?n y segmentaci?n en vivo.
 
+/** AG-053: detección YOLOE sin evaluación previa ni predicción de calidad. */
+export type FruitPrecheck = {
+  detected: boolean
+  readyToRegister: boolean
+  product: FruitProduct | null
+  confidence: number | null
+  candidateCount: number
+  box: [number, number, number, number] | null
+  polygon: Array<[number, number]>
+  frameWidth: number
+  frameHeight: number
+  reason: string
+  detectionToken: string | null
+  modelVersion: string
+  classificationE0E1E2Produced: false
+}
+
+export async function precheckFruit(frame: File): Promise<FruitPrecheck> {
+  if (frame.type !== 'image/jpeg' || !frame.size) throw new ApiDataError()
+  const form = new FormData()
+  form.append('file', frame, frame.name)
+  const body = await request('/api/vision/precheck', { method: 'POST', body: form }, 120000)
+  if (!object(body) || typeof body.detected !== 'boolean'
+    || typeof body.readyToRegister !== 'boolean'
+    || typeof body.candidateCount !== 'number'
+    || typeof body.reason !== 'string' || typeof body.modelVersion !== 'string'
+    || typeof body.frameWidth !== 'number' || typeof body.frameHeight !== 'number'
+    || body.classificationE0E1E2Produced !== false) throw new ApiDataError()
+  if (body.readyToRegister) {
+    if (!(body.product === 'mango' || body.product === 'tomate')
+      || typeof body.detectionToken !== 'string'
+      || !/^[a-f0-9]{64}$/.test(body.detectionToken)
+      || typeof body.confidence !== 'number' || body.confidence < 0.40) throw new ApiDataError()
+  } else if (body.detectionToken !== null || body.product !== null) {
+    throw new ApiDataError()
+  }
+  return body as unknown as FruitPrecheck
+}
+
+/** El token permite reintentar sin duplicar la pieza, incluso con respuesta perdida. */
+export async function createAutomaticEvaluation(input: {
+  lotId: string
+  detectionToken: string
+}): Promise<EvaluationDetail> {
+  if (!input.lotId.trim() || !/^[a-f0-9]{64}$/.test(input.detectionToken)) throw new ApiDataError()
+  const body = await request('/api/evaluations/auto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lotId: input.lotId.trim(), detectionToken: input.detectionToken }),
+  }, 30000)
+  if (!isEvaluationDetail(body) || body.lotId.toLowerCase() !== input.lotId.trim().toLowerCase()
+    || body.status !== 'processing' || !/^P-\d{6,9}$/.test(body.pieceId)) throw new ApiDataError()
+  return body
+}
+
 export type FruitDetectionResult = {
   detected: boolean
   readyToCapture: boolean

@@ -1477,3 +1477,177 @@ export async function createDimensionalComparison(evaluationId: string, imageId:
   if (!isDimensionalComparison(value)) throw new ApiDataError()
   return value
 }
+
+// AG-055: lectura de propuestas experimentales sin modificar clasificación humana.
+export type QualityModelStatus = {
+  evaluationId: string
+  product: FruitProduct
+  modelAvailable: boolean
+  modelSha256: string | null
+  stage: string
+  reason: string
+  humanReviewRequired: boolean
+  automaticallyFinalized: false
+}
+
+export type ExploratoryStatus = {
+  evaluationId: string; experimental: true
+  models: { task: string; labels: string[]; modelVersion: string; modelSha256: string }[]
+  reason: string
+}
+
+export type QualityReviewEvent = {
+  eventId: string; imageId?: string; grade: string; reviewer: string | null; reviewedAt: string | null
+  evidence: string | null; rubricVersion: string | null; supersedesEventId: string | null; accreditationVerified: false
+  annotationPurpose?: string; importedAt?: string
+}
+export type QualityReviewQueue = {
+  evaluationId: string; accreditationVerified: false
+  images: { imageId: string; imageUrl: string; imageSha256: string; status: 'pending' | 'reviewed' | 'declared_pending_metadata'; history: QualityReviewEvent[] }[]
+}
+export async function getQualityReviewQueue(evaluationId: string): Promise<QualityReviewQueue> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/reviews`)
+  if (!object(v) || v.evaluationId !== evaluationId || v.accreditationVerified !== false || !Array.isArray(v.images)
+    || !v.images.every(i => object(i) && typeof i.imageId === 'string' && typeof i.imageUrl === 'string'
+      && typeof i.imageSha256 === 'string' && ['pending','reviewed','declared_pending_metadata'].includes(String(i.status)) && Array.isArray(i.history)
+      && i.history.every(e => object(e) && typeof e.eventId === 'string'
+        && ['reviewer','reviewedAt','evidence','rubricVersion'].every(k => typeof e[k] === 'string'
+          || (e.annotationPurpose === 'human_label_declaration_import' && e[k] === null))
+        && ['E0','E1','E2','no_evaluable'].includes(String(e.grade)) && e.accreditationVerified === false))) throw new ApiDataError()
+  return v as QualityReviewQueue
+}
+
+export async function getPilotQualityStatus(evaluationId: string): Promise<ExploratoryStatus> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/pilot/status`)
+  if (!object(v) || v.evaluationId !== evaluationId || v.experimental !== true || v.independentTestMetrics !== null
+    || typeof v.reason !== 'string' || !Array.isArray(v.models) || !v.models.every(m => object(m)
+      && m.task === 'PILOT117' && JSON.stringify(m.labels) === JSON.stringify(['E0','E1','E2'])
+      && typeof m.modelVersion === 'string' && typeof m.modelSha256 === 'string')) throw new ApiDataError()
+  return v as ExploratoryStatus
+}
+export async function analyzePilotQuality(evaluationId: string): Promise<QualityProposal[]> {
+  if (!validEvaluationId(evaluationId) || !isOperatorAuthenticated()) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/pilot/analyze`, { method: 'POST' })
+  if (!Array.isArray(v) || !v.every(r => isQualityProposal(r) && r.evaluationId === evaluationId
+    && r.status === 'experimental_e0e1e2_pilot' && r.proposedGrade === null)) throw new ApiDataError()
+  return v
+}
+export async function getV2QualityStatus(evaluationId: string): Promise<ExploratoryStatus> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/v2/status`)
+  if (!object(v) || v.evaluationId !== evaluationId || v.experimental !== true || v.independentTestMetrics !== null
+    || typeof v.reason !== 'string' || !Array.isArray(v.models) || !v.models.every(m => object(m)
+      && m.task === 'PILOT117_V2' && JSON.stringify(m.labels) === JSON.stringify(['E0','E1','E2'])
+      && typeof m.modelVersion === 'string' && typeof m.modelSha256 === 'string')) throw new ApiDataError()
+  return v as ExploratoryStatus
+}
+export async function analyzeV2Quality(evaluationId: string): Promise<QualityProposal[]> {
+  if (!validEvaluationId(evaluationId) || !isOperatorAuthenticated()) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/v2/analyze`, { method: 'POST' })
+  if (!Array.isArray(v) || !v.every(r => isQualityProposal(r) && r.evaluationId === evaluationId
+    && r.status === 'experimental_e0e1e2_v2' && r.proposedGrade === null)) throw new ApiDataError()
+  return v
+}
+export async function saveQualityHumanReview(evaluationId: string, body: {
+  imageId: string; predictionId: number; grade: string; roi: number[]; roiConfirmed: boolean
+  humanConfirmed: boolean; rubricVersion: string; evidence: string; expectedLastEventId: string | null
+}): Promise<void> {
+  if (!validEvaluationId(evaluationId) || !isOperatorAuthenticated()) throw new ApiDataError()
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/reviews`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!object(v) || typeof v.eventId !== 'string' || v.accreditationVerified !== false) throw new ApiDataError()
+}
+
+export async function getExploratoryQualityStatus(evaluationId: string): Promise<ExploratoryStatus> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/exploratory/status`)
+  if (!object(value) || value.evaluationId !== evaluationId || value.experimental !== true
+      || typeof value.reason !== 'string' || !Array.isArray(value.models)
+      || !value.models.every(m => object(m) && ['TQ','SEN','FG'].includes(String(m.task))
+        && Array.isArray(m.labels) && m.labels.every((x: unknown) => typeof x === 'string' && !['E0','E1','E2'].includes(x))
+        && typeof m.modelVersion === 'string' && typeof m.modelSha256 === 'string')) throw new ApiDataError()
+  return value as ExploratoryStatus
+}
+
+export async function analyzeExploratoryQuality(evaluationId: string): Promise<QualityProposal[]> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/exploratory/analyze`, { method: 'POST' })
+  if (!Array.isArray(value) || !value.every(v => isQualityProposal(v)
+      && v.evaluationId === evaluationId && v.proposedGrade === null
+      && v.status === 'exploratory_original_labels')) throw new ApiDataError()
+  return value
+}
+
+export type QualityProposal = {
+  id: number
+  evaluationId: string
+  product: FruitProduct
+  status: string
+  reason: string
+  proposedGrade: 'E0' | 'E1' | 'E2' | null
+  modelVersion: string
+  modelSha256: string
+  sourceFingerprint: string
+  details: unknown
+  humanReviewRequired: true
+  automaticallyFinalized: false
+  createdAt: string
+}
+
+function isQualityModelStatus(value: unknown): value is QualityModelStatus {
+  return object(value) && typeof value.evaluationId === 'string'
+    && (value.product === 'mango' || value.product === 'tomate')
+    && typeof value.modelAvailable === 'boolean'
+    && (value.modelSha256 === null || typeof value.modelSha256 === 'string')
+    && typeof value.stage === 'string' && typeof value.reason === 'string'
+    && value.humanReviewRequired === true && value.automaticallyFinalized === false
+}
+
+function isQualityProposal(value: unknown): value is QualityProposal {
+  return object(value) && typeof value.id === 'number'
+    && typeof value.evaluationId === 'string'
+    && (value.product === 'mango' || value.product === 'tomate')
+    && typeof value.status === 'string' && typeof value.reason === 'string'
+    && (value.proposedGrade === null || ['E0','E1','E2'].includes(String(value.proposedGrade)))
+    && typeof value.modelVersion === 'string' && typeof value.modelSha256 === 'string'
+    && typeof value.sourceFingerprint === 'string'
+    && value.humanReviewRequired === true && value.automaticallyFinalized === false
+    && typeof value.createdAt === 'string'
+}
+
+export async function getQualityModelStatus(evaluationId: string): Promise<QualityModelStatus> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/status`)
+  if (!isQualityModelStatus(value) || value.evaluationId !== evaluationId) throw new ApiDataError()
+  return value
+}
+
+export async function getQualityProposals(evaluationId: string): Promise<QualityProposal[]> {
+  if (!validEvaluationId(evaluationId)) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/proposals`)
+  if (!Array.isArray(value) || !value.every(isQualityProposal)
+    || !value.every(x => x.evaluationId === evaluationId)) throw new ApiDataError()
+  return value
+}
+
+export async function analyzeQualityProposal(evaluationId: string): Promise<QualityProposal | {
+  evaluationId: string; product: FruitProduct; status: string; reason: string
+  proposedGrade: null; humanReviewRequired: true; automaticallyFinalized: false
+}> {
+  if (!validEvaluationId(evaluationId) || !isOperatorAuthenticated()) throw new ApiDataError()
+  const value = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/analyze`,
+    { method: 'POST' }, 120000)
+  if (isQualityProposal(value) && value.evaluationId === evaluationId) return value
+  if (!object(value) || value.evaluationId !== evaluationId
+    || (value.product !== 'mango' && value.product !== 'tomate')
+    || (value.status !== 'blocked_no_eligible_model' && value.status !== 'needs_review')
+    || value.proposedGrade !== null || value.humanReviewRequired !== true
+    || value.automaticallyFinalized !== false || typeof value.reason !== 'string') throw new ApiDataError()
+  return value as {
+    evaluationId: string; product: FruitProduct; status: string; reason: string
+    proposedGrade: null; humanReviewRequired: true; automaticallyFinalized: false
+  }
+}

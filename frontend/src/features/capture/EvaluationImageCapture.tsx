@@ -18,6 +18,7 @@ import {
 import { nextCaptureView } from './captureViews'
 import { analyzeFruitGeometry, listFruitGeometries, type FruitGeometryResult } from '../../services/agroscanApi'
 import { GeometryOrOriginal } from '../geometry/GeometryEvidence'
+import { QualityProposalPanel } from '../quality/QualityProposalPanel'
 import './EvaluationImageCapture.css'
 
 type Props = {
@@ -800,6 +801,8 @@ useEffect(() => {
 
         </div>
       )}
+
+      {saved.length >= 2 && <QualityProposalPanel evaluationId={evaluationId} autoAnalyze />}
 
       {error && (
         <p className="capture__error" role="alert">

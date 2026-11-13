@@ -12,6 +12,7 @@ import {
 import { ApiConnectionError, ApiResponseError, getSessionRole, markUncertainEvaluationImage, getVisionAssessments, resolveUncertainEvaluation, resolveEvidenceUrl, type VisionAssessment } from '../services/agroscanApi'
 import { GeometryOrOriginal } from '../features/geometry/GeometryEvidence'
 import { listFruitGeometries, type FruitGeometryResult } from '../services/agroscanApi'
+import { QualityProposalPanel } from '../features/quality/QualityProposalPanel'
 import './TraceabilityPage.css'
 
 type TraceabilityState =
@@ -270,6 +271,7 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
         {evaluation.evidence.length === 0
           ? <p>No se registraron imágenes asociadas.</p>
           : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <GeometryOrOriginal className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} result={geometries.filter(row => row.imageId === item.id).at(-1)} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
+        <QualityProposalPanel evaluationId={evaluation.id} />
         <p>Las imágenes se consultan mediante la API autenticada. Nunca se reemplaza el archivo original.</p>
         {assessments.length > 0 && (
           <div role="region" aria-label="Evaluaciones automáticas originales" className="trace-assessments">

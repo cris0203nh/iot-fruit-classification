@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from ..database import DATA_DIR, get_db
 from ..dependencies import require_authenticated, require_reviewer
 from ..models import Evaluation, Image, Review, User
+from ..review_completion import pending_ag037_images, reconcile_review_status
 from ..uncertainty import CAPTURE_THRESHOLD, RULE_VERSION, GateResult, classify_detection
 from ..vision_assessment_models import VisionAssessment
 from .images import _VISION_INFERENCE_LOCK, get_vision_model
@@ -230,13 +231,19 @@ def resolve(evaluation_id:str,payload:ResolutionRequest,
         raise HTTPException(409,'Solo se resuelven evaluaciones pendientes')
     if not any(r.type=='uncertainty' for r in ev.reviews):
         raise HTTPException(409,'No existe incertidumbre documentada')
+    # The legacy route has no imageId. It cannot resolve two distinct photos.
+    if len(pending_ag037_images(db, ev, DATA_DIR)) > 1:
+        raise HTTPException(409, 'Hay varias fotos pendientes; use AG-038 por imagen')
     # Los dictámenes humanos se guardan como evento; la categoría inicial NO cambia.
     original=ev.visual_category
     last=next((r.updated_value for r in reversed(ev.reviews) if r.type=='review'),original)
     db.add(Review(evaluation_id=ev.id,type='review',actor_id=user.username,
                   reason=f'AG037|revision_humana|{payload.reason}',
                   previous_value=last,updated_value=payload.outcome))
-    ev.status='completed'
+    db.flush()
+    if reconcile_review_status(db, ev, DATA_DIR):
+        db.rollback()
+        raise HTTPException(409, 'Persisten incidencias por fotografía; use AG-038')
     ev.review_note=payload.reason
     db.commit()
     return {'evaluationId':evaluation_id,'status':ev.status,

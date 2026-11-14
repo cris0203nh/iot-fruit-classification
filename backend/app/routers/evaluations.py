@@ -20,6 +20,7 @@ from ..evaluation_schemas import (
     WeightStepOut,
 )
 from ..models import Evaluation, Image, Lot, Measurement, Piece, Review, User
+from ..review_completion import reconcile_review_status
 
 from ..review_schemas import (
     CancelCreate,
@@ -236,7 +237,12 @@ def add_review(
     )
 
     db.add(review)
-    ev.status = "completed"
+    db.flush()
+    # Legacy generic reviews have no photo/hash provenance. They may not
+    # implicitly close an incident that requires AG-038 per-image evidence.
+    if reconcile_review_status(db, ev, DATA_DIR):
+        db.rollback()
+        raise HTTPException(409, "Quedan fotografías pendientes; use AG-038 por imagen.")
     ev.review_note = payload.reason
 
     db.commit()

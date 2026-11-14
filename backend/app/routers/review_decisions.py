@@ -22,6 +22,7 @@ from ..database import DATA_DIR, get_db
 from ..decision_models import ReviewDecisionEvidence
 from ..dependencies import require_authenticated, require_reviewer
 from ..models import Evaluation, Image, Review, User
+from ..review_completion import assert_quality_source_unchanged, reconcile_review_status
 from ..vision_assessment_models import VisionAssessment
 
 router = APIRouter(prefix='/api/evaluations', tags=['auditoria-revisiones'])
@@ -230,6 +231,7 @@ def record_review_decision(evaluation_id: str, payload: DecisionCreate,
             VisionAssessment.image_id == image.id)).all()
         if any(saved != sha for saved in prior_hashes):
             raise HTTPException(409, 'El SHA256 de la imagen difiere del snapshot original')
+        assert_quality_source_unchanged(db, ev, image.id, sha)
         previous = _current_value(ev, reviews)
         next_value = _validate_change(payload.action, previous, payload.newValue)
         item = Review(evaluation_id=ev.id, type='review', actor_id=user.username,
@@ -241,7 +243,8 @@ def record_review_decision(evaluation_id: str, payload: DecisionCreate,
             image_id=image.id, image_sha256=sha, action=payload.action,
             request_id=payload.requestId, payload_sha256=digest)
         db.add(meta)
-        ev.status = 'completed'
+        db.flush()  # AG-038: source-bound decision must exist before AG-056 routing.
+        reconcile_review_status(db, ev, DATA_DIR)
         ev.review_note = payload.reason
         db.commit()
         db.refresh(item)

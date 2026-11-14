@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { getSessionRole, getReviewDecisions, postReviewDecision, type ReviewDecisionLedger } from '../../services/agroscanApi'
 import { canSubmitDecision, gradeOptions, possibleActions, type ReviewAction } from './reviewDecisionPolicy'
+import { eligibleReviewImages, chooseReviewImage } from '../reviews/pendingImagePolicy.ts'
 import type { TraceabilityRecord } from './traceabilityService'
 import './ReviewDecisionPanel.css'
 
@@ -11,26 +12,28 @@ const ACTION_LABELS: Record<ReviewAction, string> = {
   no_evaluable: 'Declarar no evaluable',
 }
 
-type Props = { record: TraceabilityRecord; onUpdated: () => void }
+type Props = { record: TraceabilityRecord; onUpdated: () => void; pendingImageIds?: readonly string[] }
 
 export function ReviewDecisionPanel(props: Props) {
   // Cada revisión o evaluación tiene su propio ciclo de carga y formulario.
   // La clave reinicia el estado sin setState sincrónico dentro de useEffect.
   return <ReviewDecisionPanelContent
-    key={JSON.stringify([props.record.evaluation.id, props.record.reviews.length])}
+    key={JSON.stringify([props.record.evaluation.id, props.record.reviews.length, props.pendingImageIds])}
     {...props}
   />
 }
 
-function ReviewDecisionPanelContent({ record, onUpdated }: Props) {
+function ReviewDecisionPanelContent({ record, onUpdated, pendingImageIds }: Props) {
   const evaluation = record.evaluation
+  const allowedEvidence = eligibleReviewImages(evaluation.evidence, pendingImageIds)
   const [ledger, setLedger] = useState<ReviewDecisionLedger | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [action, setAction] = useState<ReviewAction>('initial_label')
   const [grade, setGrade] = useState('E0')
-  const [imageId, setImageId] = useState(evaluation.evidence[0]?.id ?? '')
+  const [selectedImageId, setSelectedImageId] = useState('')
+  const imageId = chooseReviewImage(allowedEvidence, ledger?.decisions ?? [], selectedImageId)
   const [reason, setReason] = useState('')
   // Keep the same UUID for a retry after a lost response; refresh it on edits.
   const requestKey = useRef<string | null>(null)
@@ -102,7 +105,7 @@ function ReviewDecisionPanelContent({ record, onUpdated }: Props) {
               <p>Motivo: {entry.reason}</p>
               <p>Evidencia: {entry.imageId} · SHA256: <code>{entry.imageSha256}</code></p>
             </li>)}</ol>}
-        {reviewer && eligible && evaluation.evidence.length > 0 && <form className="ag038-review__form" onSubmit={event => void submit(event)}>
+        {reviewer && eligible && allowedEvidence.length > 0 && <form className="ag038-review__form" onSubmit={event => void submit(event)}>
           <label htmlFor="ag038-action">Acción humana</label>
           <select id="ag038-action" value={action} disabled={busy} onChange={event => {
             edit(); setAction(event.target.value as ReviewAction)
@@ -113,8 +116,8 @@ function ReviewDecisionPanelContent({ record, onUpdated }: Props) {
             {available.map(option => <option key={option} value={option}>{ACTION_LABELS[option]}</option>)}
           </select>
           <label htmlFor="ag038-image">Fotografía inspeccionada</label>
-          <select id="ag038-image" value={imageId} disabled={busy} onChange={event => { edit(); setImageId(event.target.value) }}>
-            {evaluation.evidence.map(image => <option key={image.id} value={image.id}>{image.view} · {image.id}</option>)}
+          <select id="ag038-image" value={imageId} disabled={busy} onChange={event => { edit(); setSelectedImageId(event.target.value) }}>
+            {allowedEvidence.map(image => <option key={image.id} value={image.id}>{image.view} · {image.id}</option>)}
           </select>
           {action !== 'no_evaluable' && <>
             <label htmlFor="ag038-grade">Resultado {action === 'confirm' ? 'que se confirma' : 'propuesto'}</label>

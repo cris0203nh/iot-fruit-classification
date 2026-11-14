@@ -19,6 +19,7 @@ export const operatorNavigation: NavigationItem[] = [
 // Funciones exclusivas del revisor
 export const reviewerNavigation: NavigationItem[] = [
   { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/revisiones', label: 'Revisiones pendientes', icon: 'clipboard' },
   { path: '/historial', label: 'Evaluaciones', icon: 'history' },
   { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
 ]
@@ -26,6 +27,7 @@ export const reviewerNavigation: NavigationItem[] = [
 // Funciones administrativas existentes
 export const administratorNavigation: NavigationItem[] = [
   { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/revisiones', label: 'Revisiones pendientes', icon: 'clipboard' },
   { path: '/usuarios', label: 'Gestión de usuarios', icon: 'user' },
   { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
   { path: '/estadisticas', label: 'Estadísticas', icon: 'chart' },

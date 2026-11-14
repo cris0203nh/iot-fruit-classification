@@ -1,5 +1,7 @@
 import type { EvaluationDetail, EvaluationSummary } from '../features/history/historyService'
 import type { TraceabilityRecord } from '../features/traceability/traceabilityService'
+import { buildReviewQueueQuery, parseReviewQueue,
+  type ReviewQueueFilters, type ReviewQueueResponse } from '../features/reviews/reviewQueuePolicy.ts'
 import { validatePieceAggregates } from '../features/history/pieceHistoryPolicy.ts'
 import { validateLotTraceabilityReport, type LotTraceabilityReport } from '../features/history/pieceReportPolicy.ts'
 
@@ -62,6 +64,21 @@ export function isAgroscanAuthenticated(): boolean {
 
 export function isOperatorAuthenticated(): boolean {
   return isAgroscanAuthenticated() && (sessionRole === 'operador' || sessionRole === 'administrador')
+}
+
+/** AG-056: cola derivada de SQLite; el token JWT permanece en memoria. */
+export async function getReviewQueue(filters: ReviewQueueFilters = {}): Promise<ReviewQueueResponse> {
+  if (sessionRole !== 'revisor' && sessionRole !== 'administrador') {
+    throw new ApiResponseError(403, 'Acceso exclusivo para revisores y administradores.')
+  }
+  let query: string
+  try { query = buildReviewQueueQuery(filters) }
+  catch { throw new ApiDataError() }
+  const limit = filters.limit ?? 20
+  const offset = filters.offset ?? 0
+  const body = await request(`/api/reviews/queue?${query}`)
+  try { return parseReviewQueue(body, { limit, offset }) }
+  catch { throw new ApiDataError() }
 }
 
 function detailMessage(body: unknown): string | null {

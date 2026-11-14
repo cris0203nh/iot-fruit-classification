@@ -59,10 +59,15 @@ export function HomePage() {
         <div className="inicio__siguiente-head">
           <div>
             <h2 id="inicio-siguiente">¿Qué necesitas hacer?</h2>
-            <p>{reviewer ? 'Accede a las evaluaciones registradas o revisa su trazabilidad.' : 'Empieza con un lote, registra una pieza o consulta las evaluaciones guardadas.'}</p>
+            <p>{reviewer ? 'Atiende los casos con intervención humana pendiente o consulta su trazabilidad.' : 'Empieza con un lote, registra una pieza o consulta las evaluaciones guardadas.'}</p>
           </div>
         </div>
         <nav className="inicio__acciones" aria-label="Accesos rápidos de trabajo">
+          {reviewer && <Link className="inicio__accion inicio__accion--primaria" to="/revisiones">
+            <span className="inicio__accion-icon" aria-hidden="true"><Icon name="clipboard" size={17} /></span>
+            <span className="inicio__accion-label">Abrir revisiones pendientes</span>
+            <span className="inicio__accion-arrow" aria-hidden="true"><Icon name="arrow-right" size={16} /></span>
+          </Link>}
           {!reviewer && (
             <>
               <Link className="inicio__accion inicio__accion--primaria" to="/evaluacion">

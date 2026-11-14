@@ -57,7 +57,7 @@ test('la navegación móvil contempla foco y tamaños táctiles', () => {
 })
 
 
-test('AG043: los tres roles presentan 5, 3 y 4 enlaces sin privilegios adicionales', () => {
+test('AG043/AG056: los tres roles presentan 5, 4 y 5 enlaces sin privilegios adicionales', () => {
   const src = css('src/app/navigation.ts')
   const links = (name) => {
     const signature = `export const ${name}: NavigationItem[] = [`
@@ -66,8 +66,8 @@ test('AG043: los tres roles presentan 5, 3 y 4 enlaces sin privilegios adicional
     return [...body.matchAll(/\{ path: '([^']+)'/g)].map((item) => item[1])
   }
   assert.deepEqual(links('operatorNavigation'), ['/', '/evaluacion', '/lotes', '/historial', '/trazabilidad'])
-  assert.deepEqual(links('reviewerNavigation'), ['/', '/historial', '/trazabilidad'])
-  assert.deepEqual(links('administratorNavigation'), ['/', '/usuarios', '/trazabilidad', '/estadisticas'])
+  assert.deepEqual(links('reviewerNavigation'), ['/', '/revisiones', '/historial', '/trazabilidad'])
+  assert.deepEqual(links('administratorNavigation'), ['/', '/revisiones', '/usuarios', '/trazabilidad', '/estadisticas'])
 })
 
 test('AG043: la sesión distingue explícitamente al administrador', () => {

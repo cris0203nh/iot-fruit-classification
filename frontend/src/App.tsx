@@ -9,6 +9,7 @@ import { getSessionRole } from './services/agroscanApi'
 
 import { EvaluationPage } from './pages/EvaluationPage'
 import { HomePage } from './pages/HomePage'
+import { ReviewQueuePage } from './pages/ReviewQueuePage'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { UsersPage } from './pages/UsersPage'
 
@@ -138,6 +139,9 @@ function App() {
             path="historial/:evaluationId"
             element={<HistoryDetailPage />}
           />
+
+          {/* AG-056: revisión humana */}
+          <Route path="revisiones" element={<ReviewQueuePage />} />
 
           {/* TRAZABILIDAD */}
 

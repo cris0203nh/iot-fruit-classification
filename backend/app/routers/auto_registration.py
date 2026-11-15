@@ -24,6 +24,7 @@ from ..dependencies import require_operator
 from ..models import Evaluation, Lot, Piece, User
 from .evaluations import detail
 from .images import _VISION_INFERENCE_LOCK, get_vision_model
+from ..services.capture_control import capture_guard
 
 router = APIRouter(prefix='/api', tags=['AG-053 · identificación automática'])
 
@@ -95,6 +96,7 @@ def precheck_fruit(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     operator: User = Depends(require_operator),
+    _capture_guard: None = Depends(capture_guard),
 ):
     """Una fotografía temporal identifica la fruta, sin crear lote ni pieza."""
     if file.content_type not in ('image/jpeg', 'image/png'):
@@ -167,6 +169,7 @@ def register_detected_piece(
     payload: AutoRegisterInput,
     db: Session = Depends(get_db),
     operator: User = Depends(require_operator),
+    _capture_guard: None = Depends(capture_guard),
 ):
     """Consume token una sola vez; repetirlo devuelve la misma evaluación."""
     try:

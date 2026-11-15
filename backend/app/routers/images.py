@@ -21,6 +21,7 @@ from ..database import DATA_DIR, get_db
 from ..dependencies import require_authenticated, require_operator
 from ..evaluation_schemas import ImageOut
 from ..models import User, Evaluation, Image
+from ..services.capture_control import capture_guard
 
 router = APIRouter(prefix="/api", tags=["imagenes"])
 
@@ -55,6 +56,7 @@ async def upload_image(
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator),
+    _capture_guard: None = Depends(capture_guard),
 ):
     if not re.fullmatch(r"[a-f0-9]{64}", idempotency_key):
         raise HTTPException(

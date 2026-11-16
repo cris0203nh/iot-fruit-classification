@@ -1,0 +1,5 @@
+ID;Area;Caso;Entrada;Resultado_esperado;Evidencia;Estado_inicial;Incremento
+RST-01;Persistencia;Lotes piezas evaluaciones y mediciones tras reinicio;Dos inicios HTTP y SQLite temporal;Mismo contenido/API antes y despues y FKs sin huerfanas;AG046_I04_RESULTADOS.json y uvicorn_proceso_*.log;PENDIENTE_EJECUCION;I04
+RST-02;Archivos;Dos fotografias PNG originales tras reinicio;Dos archivos y rutas asociados a evaluacion;Mismo contenido HTTP bytes SHA-256 y cantidad;AG046_I04_RESULTADOS.json / imageSha256;PENDIENTE_EJECUCION;I04
+RST-03;Trazabilidad;Historial de dos decisiones humanas y reporte;2 acciones via endpoint real HTTP;Mismo autor secuencia decisiones CSV y SHA-256;AG046_I04_RESULTADOS.json / reportCsvSha256;PENDIENTE_EJECUCION;I04
+RST-04;Disponibilidad;Cierre ordenado y terminacion forzada con tres procesos;3 procesos Uvicorn con localhost y SQLite temporal;Health correcto entre arranques servidor inactivo tras cierre y persistencia posterior;uvicorn_proceso_1.log uvicorn_proceso_2.log uvicorn_proceso_3.log;PENDIENTE_EJECUCION;I04

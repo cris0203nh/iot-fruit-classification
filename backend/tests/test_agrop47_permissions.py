@@ -1,4 +1,7 @@
 ﻿import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,13 +10,23 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import Evaluation, Lot, Role, User
+from app.models import Evaluation, Image, Lot, Role, User
+from app.routers import evaluations as evaluations_router
 from app.security import create_access_token, hash_password
 
 
 class AGROP47PermissionTests(unittest.TestCase):
 
     def setUp(self):
+        # Fixture actualizada: una revision generica exige evidencia persistida.
+        # Los bytes y la ruta son sinteticos y aislados del directorio operativo.
+        self.temp = tempfile.TemporaryDirectory(prefix="agrop47-permissions-")
+        self.addCleanup(self.temp.cleanup)
+        self.data_dir = Path(self.temp.name)
+        evidence_root_patch = patch.object(evaluations_router, "DATA_DIR", self.data_dir)
+        evidence_root_patch.start()
+        self.addCleanup(evidence_root_patch.stop)
+
         self.engine = create_engine(
             "sqlite://",
             connect_args={"check_same_thread": False},
@@ -71,9 +84,24 @@ class AGROP47PermissionTests(unittest.TestCase):
             product="mango",
             status="pending_review",
             visual_category="primera",
+            image_count=1,
         )
 
         self.db.add(evaluation)
+        self.db.flush()
+        # No son fotografias reales ni datos tomados en campo.
+        relative = f"images/agrop47-evidence-{evaluation.id}.jpg"
+        evidence = self.data_dir / relative
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        content = b"\xff\xd8\xffAGROP47-EVIDENCIA-SINTETICA\xff\xd9"
+        evidence.write_bytes(content)
+        self.db.add(Image(
+            evaluation_id=evaluation.id,
+            view="vista-1",
+            relative_path=relative,
+            content_type="image/jpeg",
+            size_bytes=len(content),
+        ))
         self.db.commit()
         self.db.refresh(evaluation)
 
@@ -129,6 +157,15 @@ class AGROP47PermissionTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["actorId"], "test_revisor")
+
+    def test_revisor_no_puede_corregir_sin_fotografia(self):
+        evaluation_id = self.create_evaluation()
+        # La autorizacion por rol sigue vigente, pero falta una precondicion
+        # de integridad: el backend debe denegar la revision, no fingir 201.
+        pk = int(evaluation_id.split("-")[1])
+        (self.data_dir / f"images/agrop47-evidence-{pk}.jpg").unlink()
+        response = self.review(evaluation_id, "revisor")
+        self.assertEqual(response.status_code, 409)
 
     def test_revisor_no_puede_cancelar(self):
         evaluation_id = self.create_evaluation()

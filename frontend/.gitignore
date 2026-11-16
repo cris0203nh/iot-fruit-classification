@@ -25,3 +25,4 @@ dist-ssr
 
 # Capturas locales de la UI (no versionadas)
 .preview
+.vercel

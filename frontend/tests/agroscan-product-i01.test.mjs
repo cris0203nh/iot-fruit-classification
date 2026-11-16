@@ -9,7 +9,7 @@ const input = (extra = {}) => ({ status: 'pending_review', ledger: { currentValu
 test('I01: registro cerrado no implica clasificación automática ni dimensiones acreditadas', () => {
   const result = summarizeEvaluation(input({ status: 'completed' }))
   assert.equal(result.process, 'Proceso cerrado')
-  assert.equal(result.human, 'Sin dictamen AG-038 por fotografía')
+  assert.equal(result.human, 'Sin clasificación revisada')
   assert.equal(result.ai, 'Modelo de calidad no instalado')
   assert.equal(result.dimensions, 'Sin dimensiones físicas validadas')
 })

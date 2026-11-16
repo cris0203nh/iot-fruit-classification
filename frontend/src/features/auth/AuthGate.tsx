@@ -56,7 +56,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setError(failure instanceof ApiResponseError
         ? failure.status === 401 ? 'Usuario o contraseña incorrectos.' : failure.message
         : failure instanceof ApiConnectionError
-          ? 'No se pudo contactar con FastAPI. Comprueba que esté ejecutándose.'
+          ? 'No se pudo conectar. Reintenta o solicita ayuda al administrador.'
           : 'No fue posible validar el inicio de sesión.')
     } finally {
       setWorking(false)
@@ -81,7 +81,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     <main className="agroscan-login">
       <div className="agroscan-login__sheet">
         <header className="agroscan-login__meta">
-          <span className="agroscan-login__meta-left">AgroScan <b>v1.0</b></span>
+          <span className="agroscan-login__meta-left">AgroScan</span>
           <StationClock />
         </header>
 
@@ -98,7 +98,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <ul className="agroscan-login__status" aria-label="Estado de la estación">
               <li data-tone={api === 'online' ? 'ok' : api === 'offline' ? 'off' : 'wait'}>
                 <span className="agroscan-login__dot" aria-hidden="true" />
-                <span>Conexión API</span>
+                <span>Conexión</span>
                 <b>{apiLabel}</b>
               </li>
               <li data-tone="wait">
@@ -126,7 +126,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <form onSubmit={submit} className="agroscan-login__form" aria-labelledby="agroscan-login-title">
             <p className="agroscan-login__form-kicker">Control de acceso</p>
             <h2 id="agroscan-login-title">Identifícate</h2>
-            <p className="agroscan-login__form-lede">Operador, revisor o administrador. El revisor entra en modo consulta.</p>
+            <p className="agroscan-login__form-lede">Accede con tu cuenta de operador, revisor o administrador.</p>
 
             <div className="agroscan-login__fields">
               <div className="agroscan-login__field">

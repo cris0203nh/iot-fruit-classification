@@ -249,7 +249,7 @@ export function StatisticsPage() {
 
         <button
           type="button"
-          className="statistics-clear"
+          className="action-button action-button--secondary statistics-clear"
           onClick={clearFilters}
         >
           Limpiar filtros
@@ -263,10 +263,10 @@ export function StatisticsPage() {
       )}
 
       {!loading && error && (
-        <section className="statistics-message statistics-message--error">
+        <section className="statistics-message statistics-message--error" role="alert">
           <strong>No se pudieron cargar las estadísticas.</strong>
           <p>{error}</p>
-          <button type="button" onClick={() => void loadStatistics()}>
+          <button type="button" className="action-button action-button--secondary" onClick={() => void loadStatistics()}>
             Reintentar consulta
           </button>
         </section>

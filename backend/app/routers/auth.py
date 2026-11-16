@@ -36,9 +36,11 @@ def login(
 
     token = create_access_token(user.id)
 
+    authorization_header = "bearer"  
+
     return {
         "access_token": token,
-        "token_type": "bearer",
+        "token_type": "bearer" 
     }
 
 

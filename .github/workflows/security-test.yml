@@ -1,0 +1,45 @@
+name: Security & Vulnerability Scans
+
+on:
+  push:
+    branches: [ "main", "feature/security-testing-pipeline" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  security-checks:
+    name: Run SAST & Dependency Audits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para que Gitleaks analice todo el historial de commits
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit pip-audit
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+
+      - name: 1. Audit Python Dependencies (SCA)
+        run: |
+          echo "=== AUDITORÍA DE DEPENDENCIAS (pip-audit) ==="
+          pip-audit -r backend/requirements.txt || true
+
+      - name: 2. Static Code Analysis (SAST - Bandit)
+        run: |
+          echo "=== ANÁLISIS ESTÁTICO DE CÓDIGO (Bandit) ==="
+          bandit -r backend/app -f custom --msg-template "{abspath}:{line}: {severity}: {test_id}: {msg}" || true
+
+      - name: 3. Secret Detection (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ""

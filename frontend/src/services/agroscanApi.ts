@@ -19,23 +19,31 @@ export type LotRecord = {
 
 export class ApiConnectionError extends Error {
   constructor() {
-    super('No se pudo contactar con el backend de AgroScan. Comprueba que FastAPI esté ejecutándose.')
+    super('No se pudo conectar con AgroScan. Reintenta o solicita ayuda al administrador.')
     this.name = 'ApiConnectionError'
   }
 }
 
 export class ApiResponseError extends Error {
   readonly status: number
+  readonly diagnosticMessage: string
   constructor(status: number, message: string) {
-    super(message)
+    const technical = /AGROSCAN_|FastAPI|YOLO|homograf|Traceback|HTTP \d|[A-Z]:[\\/]|\/api\/|\.py\b|\.json\b|backend/i.test(message)
+    super(technical
+      ? status === 401 || status === 403 ? 'Tu sesión no tiene permiso para esta operación.'
+        : status >= 500 ? 'El servicio no está disponible. Reintenta o solicita ayuda al administrador.'
+          : 'No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.'
+      : message)
     this.status = status
+    this.diagnosticMessage = message
+    if (technical) console.warn('AgroScan service diagnostic', { status, detail: message })
     this.name = 'ApiResponseError'
   }
 }
 
 export class ApiDataError extends Error {
   constructor() {
-    super('El backend devolvió un formato de respuesta inesperado.')
+    super('No se pudo verificar la respuesta del servicio. Reintenta la consulta.')
     this.name = 'ApiDataError'
   }
 }

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ProtectedEvidenceImage } from '../capture/ProtectedEvidenceImage'
 import { formatDate, formatWeight } from './historyService'
 import {
-  ApiConnectionError, ApiResponseError, getPieceHistory, listPieceHistories,
+  ApiConnectionError, ApiResponseError, getPieceHistory, listPieceHistories, getSessionRole,
   getLotTraceabilityReport, resolveEvidenceUrl, type PieceHistoryList, type PieceHistoryDetail,
 } from '../../services/agroscanApi'
 import type { LotTraceabilityReport } from './pieceReportPolicy'
@@ -13,9 +13,9 @@ type Load<T> = { state: 'idle' | 'loading' | 'error' | 'ready'; value: T | null;
 const idle = <T,>(): Load<T> => ({ state: 'idle', value: null, error: '' })
 
 function errorMessage(e: unknown): string {
-  if (e instanceof ApiConnectionError) return 'FastAPI no responde. Los registros siguen almacenados.'
+  if (e instanceof ApiConnectionError) return 'No se pudo conectar. Los registros se conservan.'
   if (e instanceof ApiResponseError && (e.status === 401 || e.status === 403)) return 'No tienes permiso para consultar este expediente.'
-  if (e instanceof ApiResponseError && e.status === 404) return 'El lote o la pieza no existe en SQLite.'
+  if (e instanceof ApiResponseError && e.status === 404) return 'No se encontró el lote o la pieza.'
   return 'No se pudo verificar el historial. Comprueba la conexión y vuelve a consultar.'
 }
 
@@ -123,8 +123,8 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
   return (
     <section className="panel ag040" aria-labelledby="ag040-heading">
       <div className="panel-heading">
-        <h2 id="ag040-heading">AG-040 · Historial integral por pieza y lote</h2>
-        <p>Una pieza por lote, con todos sus intentos, capturas y revisiones. Los conteos se consultan desde FastAPI.</p>
+        <h2 id="ag040-heading">Historial por pieza y lote</h2>
+        <p>Una pieza por lote, con todos sus intentos, capturas y revisiones. Los conteos corresponden a los registros guardados.</p>
       </div>
       <form onSubmit={submit} className="ag040__form">
         <label htmlFor="ag040-lot">Código del lote</label>
@@ -135,7 +135,7 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
         </datalist>
         <button type="submit" className="action-button action-button--primary">Consultar piezas</button>
         {lot && <button className="action-button action-button--secondary" type="button"
-          onClick={() => { invalidateReport(); setRefresh(current => current + 1) }}>Actualizar desde SQLite</button>}
+          onClick={() => { invalidateReport(); setRefresh(current => current + 1) }}>Actualizar registros</button>}
       </form>
       {list.state === 'loading' && <p role="status">Consultando piezas del lote…</p>}
       {list.state === 'error' && <p role="alert" className="ag040__error">{list.error}</p>}
@@ -150,7 +150,7 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
             <p role="status">Auditoría: <strong>{report.integrity.status}</strong> ·
               {report.counts.pieceCount} piezas · {report.counts.attemptCount} intentos ·
               {report.counts.captureCount} fotos · {report.integrity.issues.length} observaciones</p>
-            <p>SHA256 CSV: <code>{report.csvSha256}</code></p>
+            <details className="operational-help"><summary>Verificación de integridad del reporte</summary><p>SHA256: <code>{report.csvSha256}</code></p></details>
             <div className="ag040__report-actions">
               <button type="button" className="action-button action-button--primary"
                 disabled={report.integrity.status === 'inconsistent'} onClick={() => downloadReport('csv')}>Exportar CSV</button>
@@ -189,26 +189,32 @@ export function PieceHistoryPanel({ suggestedLots }: { suggestedLots: string[] }
         {detail.value.attempts.map(attempt => <details key={attempt.id} className="ag040__attempt">
           <summary>Intento {attempt.attemptNumber} · {attempt.id} · {attempt.status} · {formatDate(attempt.createdAt)}</summary>
           <div className="ag040__attempt-body">
-            <p>Peso: {formatWeight(attempt.weightGrams)} · Calibración: {attempt.calibrationReference ?? 'No disponible'}</p>
-            <p>Modelo declarado: {attempt.declaredModelVersion ?? 'No disponible'} · Reglas declaradas: {attempt.declaredRulesVersion ?? 'No disponible'}</p>
+            <p>Peso: {formatWeight(attempt.weightGrams)}</p>
+            {getSessionRole() === 'administrador' && <details className="operational-help">
+              <summary>Datos técnicos del registro</summary>
+              <p>Calibración: {attempt.calibrationReference ?? 'No disponible'}</p>
+              <p>Modelo declarado: {attempt.declaredModelVersion ?? 'No disponible'} · Reglas declaradas: {attempt.declaredRulesVersion ?? 'No disponible'}</p>
+            </details>}
             {attempt.failureReason && <p className="ag040__warning">Incidencia: {attempt.failureReason}</p>}
             <h4>Fotografías ({attempt.captures.length})</h4>
             {attempt.captures.length === 0 && <p>Sin fotografías persistidas.</p>}
             <div className="ag040__photos">{attempt.captures.map(capture => <div key={capture.id}>
               <strong>{capture.view} · {capture.id}</strong>
               <p>Guardada: {formatDate(capture.createdAt)}</p>
-              <p>SHA256: <code>{capture.imageSha256 ?? 'No registrado'}</code></p>
-              {capture.hashConflict && <p className="ag040__error">Inconsistencia entre referencias SHA256.</p>}
+              <details className="operational-help"><summary>Integridad de la fotografía</summary><p>SHA256: <code>{capture.imageSha256 ?? 'No registrado'}</code></p></details>
+              {capture.hashConflict && <p className="ag040__error">La fotografía no coincide con su registro original. Revisión requerida.</p>}
               {resolveEvidenceUrl(capture.imageUrl)
                 ? <ProtectedEvidenceImage className="ag040__photo" path={capture.imageUrl} alt={`${capture.view} de ${attempt.id}`} />
                 : <p>Ruta de evidencia no válida.</p>}
             </div>)}</div>
-            <h4>Detecciones y versiones ({attempt.automaticAssessments.length})</h4>
+            {getSessionRole() === 'administrador' && <details className="operational-help">
+            <summary>Diagnóstico de detección ({attempt.automaticAssessments.length})</summary>
             {attempt.automaticAssessments.length === 0 && <p>Sin snapshots del modelo registrados.</p>}
             <ol>{attempt.automaticAssessments.map(record => <li key={record.assessmentId}>
               Foto {record.imageId} · Modelo {record.modelVersion} · Reglas {record.rulesVersion} ·
               Umbral {record.threshold} · Confianza {record.confidence ?? 'No disponible'} · Resultado {record.outcome} ({record.reason})
             </li>)}</ol>
+            </details>}
             <h4>Revisiones ({attempt.reviews.length})</h4>
             {attempt.reviews.length === 0 && <p>Sin eventos de revisión.</p>}
             <ol>{attempt.reviews.map(review => <li key={review.id}>

@@ -13,6 +13,16 @@ class V2APITests(unittest.TestCase):
     setUp=previous.I04Tests.setUp
     auth=previous.I04Tests.auth
 
+    def test_installed_model_directory_and_explicit_override(self):
+        with patch.dict(os.environ, {'AGROSCAN_V2_MODELS_PATH': ''}), \
+             patch.object(router, 'load_v2_models', return_value=[]) as load:
+            router._v2_models('tomate')
+            load.assert_called_once_with(str(router.DATA_DIR / 'ag055_v2' / 'models'), 'tomate')
+        with patch.dict(os.environ, {'AGROSCAN_V2_MODELS_PATH': str(self.dir / 'explicit')}), \
+             patch.object(router, 'load_v2_models', return_value=[]) as load:
+            router._v2_models('mango')
+            load.assert_called_once_with(str(self.dir / 'explicit'), 'mango')
+
     def test_v2_permissions_idempotence_and_human_review_even_no_evaluable(self):
         with patch.object(router,'_v2_models',return_value=[(artifact(),'a'*64)]), \
              patch.dict(os.environ,{'AGROSCAN_REVIEW_RUN':str(self.dir),'AGROSCAN_TEST_INSTANCE':'1'}):

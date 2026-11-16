@@ -47,6 +47,12 @@ export function UsersPage() {
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<AdminRole>('operador')
+  const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null)
+
+  function showFieldError(field: string, message: string) {
+    setFieldError({ field, message })
+    document.getElementById(field)?.focus()
+  }
 
   const currentRole = getSessionRole()
 
@@ -60,7 +66,7 @@ export function UsersPage() {
       setUsers(data)
     } catch (err: unknown) {
       if (err instanceof ApiConnectionError) {
-        setError('No se pudo conectar con FastAPI. Comprueba que el backend esté activo.')
+        setError('No se pudo conectar. Reintenta o solicita ayuda al administrador.')
       } else if (err instanceof ApiResponseError) {
         setError(err.message)
       } else {
@@ -78,7 +84,7 @@ export function UsersPage() {
       .catch((err: unknown) => {
         if (!active) return
         setError(err instanceof ApiConnectionError
-          ? 'No se pudo conectar con FastAPI. Comprueba que el backend esté activo.'
+          ? 'No se pudo conectar. Reintenta o solicita ayuda al administrador.'
           : err instanceof ApiResponseError
             ? err.message
             : 'No se pudieron consultar los usuarios registrados.')
@@ -138,27 +144,28 @@ export function UsersPage() {
 
     setError('')
     setSuccess('')
+    setFieldError(null)
 
     const cleanUsername = username.trim().toLowerCase()
     const cleanFullName = fullName.trim()
 
     if (cleanUsername.length < 3) {
-      setError('El nombre de usuario debe tener al menos 3 caracteres.')
+      showFieldError('user-username', 'El nombre de usuario debe tener al menos 3 caracteres.')
       return
     }
 
     if (cleanFullName.length < 2) {
-      setError('Ingresa el nombre completo del usuario.')
+      showFieldError('user-fullname', 'Ingresa el nombre completo del usuario.')
       return
     }
 
     if (password.length < 12) {
-      setError('La contraseña debe tener al menos 12 caracteres.')
+      showFieldError('user-password', 'La contraseña debe tener al menos 12 caracteres.')
       return
     }
 
     if (users.some(user => user.username.toLowerCase() === cleanUsername)) {
-      setError('Ya existe una cuenta con ese nombre de usuario.')
+      showFieldError('user-username', 'Ya existe una cuenta con ese nombre de usuario.')
       return
     }
 
@@ -315,7 +322,7 @@ export function UsersPage() {
 
       {/* INDICADORES */}
 
-      <section className="users-summary">
+      <section className="users-summary" aria-label="Resumen de cuentas">
 
         <article>
           <span className="users-summary__icon green">
@@ -354,30 +361,33 @@ export function UsersPage() {
 
       {/* DISTRIBUCIÓN POR ROLES */}
 
-      <section className="users-summary">
+      <details className="operational-help">
+        <summary>Distribución de usuarios por rol</summary>
+        <section className="users-summary">
 
-        <article>
-          <div>
-            <strong>{administratorCount}</strong>
-            <span>Administradores</span>
-          </div>
-        </article>
+          <article>
+            <div>
+              <strong>{administratorCount}</strong>
+              <span>Administradores</span>
+            </div>
+          </article>
 
-        <article>
-          <div>
-            <strong>{operatorCount}</strong>
-            <span>Operadores</span>
-          </div>
-        </article>
+          <article>
+            <div>
+              <strong>{operatorCount}</strong>
+              <span>Operadores</span>
+            </div>
+          </article>
 
-        <article>
-          <div>
-            <strong>{reviewerCount}</strong>
-            <span>Revisores</span>
-          </div>
-        </article>
+          <article>
+            <div>
+              <strong>{reviewerCount}</strong>
+              <span>Revisores</span>
+            </div>
+          </article>
 
-      </section>
+        </section>
+      </details>
 
       {/* MENSAJES */}
 
@@ -424,6 +434,8 @@ export function UsersPage() {
         <form
           className="users-form"
           onSubmit={handleCreate}
+          onChange={() => setFieldError(null)}
+          aria-busy={saving}
         >
 
           <div className="users-field">
@@ -433,6 +445,9 @@ export function UsersPage() {
 
             <input
               id="user-fullname"
+              disabled={saving}
+              aria-invalid={fieldError?.field === 'user-fullname'}
+              aria-describedby={fieldError?.field === 'user-fullname' ? 'user-fullname-error' : undefined}
               type="text"
               value={fullName}
               onChange={event => setFullName(event.target.value)}
@@ -442,6 +457,7 @@ export function UsersPage() {
               autoComplete="name"
               required
             />
+            {fieldError?.field === 'user-fullname' && <p id="user-fullname-error" className="users-field-error" role="alert">{fieldError.message}</p>}
           </div>
 
           <div className="users-field">
@@ -451,6 +467,9 @@ export function UsersPage() {
 
             <input
               id="user-username"
+              disabled={saving}
+              aria-invalid={fieldError?.field === 'user-username'}
+              aria-describedby={fieldError?.field === 'user-username' ? 'user-username-error' : undefined}
               type="text"
               value={username}
               onChange={event => setUsername(event.target.value)}
@@ -460,6 +479,7 @@ export function UsersPage() {
               autoComplete="off"
               required
             />
+            {fieldError?.field === 'user-username' && <p id="user-username-error" className="users-field-error" role="alert">{fieldError.message}</p>}
           </div>
 
           <div className="users-field">
@@ -469,6 +489,9 @@ export function UsersPage() {
 
             <input
               id="user-password"
+              disabled={saving}
+              aria-invalid={fieldError?.field === 'user-password'}
+              aria-describedby={fieldError?.field === 'user-password' ? 'user-password-error' : undefined}
               type="password"
               value={password}
               onChange={event => setPassword(event.target.value)}
@@ -478,6 +501,7 @@ export function UsersPage() {
               autoComplete="new-password"
               required
             />
+            {fieldError?.field === 'user-password' && <p id="user-password-error" className="users-field-error" role="alert">{fieldError.message}</p>}
           </div>
 
           <div className="users-field">
@@ -487,6 +511,7 @@ export function UsersPage() {
 
             <select
               id="user-role"
+              disabled={saving}
               value={role}
               onChange={event =>
                 setRole(event.target.value as AdminRole)
@@ -542,7 +567,7 @@ export function UsersPage() {
               <h2>Usuarios registrados</h2>
 
               <p>
-                Cuentas almacenadas en la base de datos AgroScan.
+                Busca una cuenta para cambiar su rol o estado.
               </p>
             </div>
 
@@ -717,7 +742,7 @@ export function UsersPage() {
         )}
 
         <p className="users-footnote">
-          Los cambios se guardan en el backend. La desactivación
+          La desactivación
           conserva la cuenta y sus registros históricos.
         </p>
 

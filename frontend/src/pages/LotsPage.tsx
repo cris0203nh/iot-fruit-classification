@@ -106,7 +106,7 @@ export function LotsPage() {
       {listState.kind === 'offline' && (
         <div className="lotes__aviso" role="status">
           <span className="lotes__aviso-icon" aria-hidden="true"><Icon name="alert" size={17} /></span>
-          <p><strong>Backend no disponible:</strong> no es posible consultar ni guardar lotes. Comprueba que FastAPI esté iniciado.</p>
+          <p><strong>Servicio no disponible:</strong> no es posible consultar ni guardar lotes. Reintenta o solicita ayuda al administrador.</p>
         </div>
       )}
 
@@ -277,18 +277,15 @@ export function LotsPage() {
             )}
           </section>
 
-          <section className="lotes__panel lotes__guia" aria-labelledby="lots-guide-title">
-            <div className="lotes__panel-head">
-              <span className="lotes__panel-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
-              <h2 id="lots-guide-title">Flujo de trabajo</h2>
-            </div>
+          <details className="operational-help lotes__guia">
+            <summary id="lots-guide-title">Ayuda para trabajar con lotes</summary>
             <ol className="lotes__flujo">
-              <li><span className="lotes__num" aria-hidden="true">01</span><span>Registrar o seleccionar un lote abierto desde la API.</span></li>
+              <li><span className="lotes__num" aria-hidden="true">01</span><span>Registrar o seleccionar un lote abierto.</span></li>
               <li><span className="lotes__num" aria-hidden="true">02</span><span>Elegir la pieza en Evaluación.</span></li>
-              <li><span className="lotes__num" aria-hidden="true">03</span><span>Integrar pesaje e imágenes después de verificar los sensores.</span></li>
+              <li><span className="lotes__num" aria-hidden="true">03</span><span>Registrar el peso y las fotografías de cada pieza.</span></li>
             </ol>
-            <p className="lotes__guia-nota">El registro de lotes se confirma mediante FastAPI. La disponibilidad de pesaje, imágenes y clasificación depende de las integraciones que se hayan verificado.</p>
-          </section>
+            <p className="lotes__guia-nota">El sistema confirma cada lote antes de continuar. La disponibilidad de pesaje, imágenes y clasificación depende de las integraciones que se hayan verificado.</p>
+          </details>
         </div>
       </div>
     </div>

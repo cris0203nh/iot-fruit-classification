@@ -1,0 +1,16 @@
+ID;Control;Prueba;Criterio;Resultado_local;Ruta_log
+INT-01;FK por conexion;test_int01_llaves_foraneas_activas_por_conexion;foreign_keys=1;PENDIENTE_EJECUCION;
+INT-02;integrity_check;test_int02_integrity_check_sqlite_ok;ok;PENDIENTE_EJECUCION;
+INT-03;foreign_key_check;test_int03_sin_fks_huerfanas_y_rechaza_una_nueva;"0 incidencias; rechazado hijo huerfano";PENDIENTE_EJECUCION;
+INT-04;vinculos imagenes;test_int04_*;"archivo y FK validos; ausencia rechazada";PENDIENTE_EJECUCION;
+INT-05;formato y tamano de captura;test_int05_api_rechaza_archivo_vacio_mime_y_bytes_incorrectos;HTTP 422 sin persistencia;PENDIENTE_EJECUCION;
+INT-06;fallo de disco y reintento;test_int06_fallo_de_publicacion_rollback_y_sin_huerfanos;rollback y reintento;PENDIENTE_EJECUCION;
+INT-07;idempotencia;test_int07_idempotency_key_no_duplica_original;un ID y una fila;PENDIENTE_EJECUCION;
+INT-08;SHA antes de decision;test_int08_sha_original_tamper_impide_decision_formal;HTTP 409;PENDIENTE_EJECUCION;
+INT-09;dos vistas;test_int09_dos_imagenes_requieren_dos_decisiones;pending tras primera;PENDIENTE_EJECUCION;
+INT-10;SHA CSV;test_int10_reporte_csv_sha256_estable_y_conteos;CSV canonico estable;PENDIENTE_EJECUCION;
+BKP-01;manifest y payload;test_bkp01_zip_manifest_sqlite_imagenes_y_hashes;hashes verificados;PENDIENTE_EJECUCION;
+BKP-02;integridad ZIP y traversal;test_bkp02_*;restauracion rechazada;PENDIENTE_EJECUCION;
+BKP-03;recuperacion completa;test_bkp03_restaura_ids_relaciones_revisiones_y_bytes;mismos IDs bytes;PENDIENTE_EJECUCION;
+BKP-04;rollback tras fallo;test_bkp04_rollback_si_falla_sustitucion_final_de_imagenes;estado anterior conservado;PENDIENTE_EJECUCION;
+BKP-05;sin escrituras durante suspend_capture;test_bkp05_alta_lote_debe_bloquearse_durante_restauracion;"HTTP 503 exigido; HTTP 201 = defecto";PENDIENTE_EJECUCION;

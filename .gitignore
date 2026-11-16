@@ -220,3 +220,5 @@ backend/data/
 
 # Respaldos locales de bases de datos
 backend/backups/
+# Datos de demostracion local aislados (nunca publicar)
+.agroscan_demo/

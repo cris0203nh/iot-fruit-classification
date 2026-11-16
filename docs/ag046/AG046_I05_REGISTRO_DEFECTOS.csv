@@ -1,0 +1,10 @@
+﻿ID;Control;Severidad;Estado;Descripcion;Accion_siguiente;Evidencia
+AG046-H01;SEC-11;Alta si API expuesta;RIESGO_ABIERTO;API IoT sin autenticación de dispositivo;Definir red/credencial y probar con puente;I02
+AG046-H02;BKP-05;Crítica condicional;CORREGIDO_VERIFICADO_UN_PROCESO;Guarda de escritura para solicitudes API durante backup/restore;Evaluar multiproceso, rutas externas y lecturas concurrentes;I03
+AG046-H03;SEC-12;Media;PENDIENTE_APROBACION_FUNCIONAL;Roles de anotación experimental y decisión formal diferentes;Obtener acuerdo funcional del equipo;I02
+AG046-H04 / BUG-001;MNT-01;Baja;CORREGIDO_DOCUMENTAL;README describía autenticación, migraciones y backup como inexistentes;Validar instrucciones en instalación y aprobar README;I05
+AG046-H05;RST-01..04;Media;CERRADO_SOLO_ENTORNO_AISLADO;Faltaba ensayo real de detener y arrancar FastAPI;Prueba de entorno desplegado si es requisito;I04
+AG046-H06;INT-08;Media;LIMITACION_HISTORICA_ABIERTA;No todas las imágenes conservan digest de captura universal;Definir seguimiento de evidencias históricas;I03
+AG046-OBS-01;I02;Baja;CORREGIDO_PRUEBA;Test de token no ASCII y fixtures históricos;Mantener regresiones;I02
+AG046-OBS-02;I03;Baja;CORREGIDO_PRUEBA;Conexiones SQLite temporales retenidas en Windows;Mantener closing/cleanup;I03
+AG046-OBS-03;I04;Baja;CORREGIDO_EJECUTOR;Sandbox y endpoint temporal de apagado;Mantener regresión de reinicio;I04

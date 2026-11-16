@@ -1,4 +1,10 @@
-from fastapi import FastAPI
+import os
+from urllib.parse import urlsplit
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from .services.capture_control import capture_operation
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models, auto_registration_models, fruit_geometry_models, planar_calibration_models, board_calibration_models, quality_prediction_models  # noqa: F401
@@ -6,9 +12,55 @@ from .routers import auth, evaluations, images, iot, lots, users, uncertainty, r
 
 app = FastAPI(title="AgroScan API")
 
+# AG-046 BKP-05: proteger escrituras durante respaldo/restauración.
+# El estado está en memoria y protege SOLO un proceso FastAPI.
+_MUTATING_METHODS = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
+_BACKUP_OPERATIONS = frozenset({
+    '/api/admin/backups',
+    '/api/admin/backups/restore',
+})
+
+
+@app.middleware('http')
+async def protect_writes_during_backup(request: Request, call_next):
+    path = request.url.path
+    if (request.method not in _MUTATING_METHODS
+            or not path.startswith('/api/')
+            or path in _BACKUP_OPERATIONS):
+        return await call_next(request)
+
+    # Mantener el guard hasta completar la solicitud, no solo al inicio.
+    try:
+        with capture_operation():
+            return await call_next(request)
+    except HTTPException as exc:
+        # Las excepciones lanzadas desde middleware se responden aquí.
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={'detail': exc.detail},
+            headers=exc.headers,
+        )
+
+
+def _demo_cors_origins() -> list[str]:
+    # Solo origenes HTTPS exactos; nunca usar * en una API expuesta por tunel.
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    for raw in os.environ.get("AGROSCAN_DEMO_ORIGINS", "").split(","):
+        value = raw.strip().rstrip("/")
+        if not value:
+            continue
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                or parsed.password or parsed.path or parsed.query or parsed.fragment):
+            raise RuntimeError("AGROSCAN_DEMO_ORIGINS: se exige origen HTTPS exacto")
+        if value not in origins:
+            origins.append(value)
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_demo_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

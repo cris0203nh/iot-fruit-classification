@@ -45,7 +45,7 @@ export function TraceabilityPage() {
 
       <div className="rastreo__aviso" role="status">
         <span className="rastreo__aviso-icon" aria-hidden="true"><Icon name="info" size={17} /></span>
-        <p><strong>Consulta conectada:</strong> la información se solicita a FastAPI. Los registros originales son de solo lectura; las acciones de revisión humana disponibles dependen del rol autenticado y requieren confirmación del servidor.</p>
+        <p>El registro original se conserva. Las decisiones de revisión requieren un perfil autorizado y la confirmación del servidor.</p>
       </div>
 
       <section className="trace-search" aria-labelledby="trace-search-heading">
@@ -74,47 +74,50 @@ export function TraceabilityPage() {
               />
             </div>
             {submitted && !validId
-              ? <p className="trace-error" role="alert" id="trace-evaluation-error">Utiliza el formato emitido por FastAPI: E- seguido de 1 a 9 dígitos (ej.: E-000001).</p>
+              ? <p className="trace-error" role="alert" id="trace-evaluation-error">Ingresa E- seguido de 1 a 9 dígitos (ej.: E-000001).</p>
               : <p id="trace-evaluation-help">Referencia de evaluación, no número de lote ni de pieza.</p>}
           </div>
           <button type="submit" className="action-button action-button--primary">Consultar referencia <Icon name="arrow-right" size={15} /></button>
         </form>
       </section>
 
-      <section className="trace-guide" aria-label="Cómo se lee un expediente">
-        <div className="trace-guide__step">
-          <span className="trace-guide__icon" aria-hidden="true"><Icon name="search" size={16} /></span>
-          <strong>1 · Buscar</strong>
-          <p>El identificador lo emite el backend, por ejemplo E-000001.</p>
-        </div>
-        <div className="trace-guide__step">
-          <span className="trace-guide__icon" aria-hidden="true"><Icon name="camera" size={16} /></span>
-          <strong>2 · Revisar evidencia</strong>
-          <p>Vistas RGB guardadas, con su referencia y sin reemplazar el original.</p>
-        </div>
-        <div className="trace-guide__step">
-          <span className="trace-guide__icon" aria-hidden="true"><Icon name="history" size={16} /></span>
-          <strong>3 · Leer la bitácora</strong>
-          <p>Registro original y revisiones con responsable, motivo y fecha.</p>
-        </div>
-      </section>
+      <details className="operational-help">
+        <summary>Cómo consultar y leer un expediente</summary>
+        <section className="trace-guide" aria-label="Cómo se lee un expediente">
+          <div className="trace-guide__step">
+            <span className="trace-guide__icon" aria-hidden="true"><Icon name="search" size={16} /></span>
+            <strong>1 · Buscar</strong>
+            <p>El identificador se asigna al registrar la evaluación, por ejemplo E-000001.</p>
+          </div>
+          <div className="trace-guide__step">
+            <span className="trace-guide__icon" aria-hidden="true"><Icon name="camera" size={16} /></span>
+            <strong>2 · Revisar evidencia</strong>
+            <p>Vistas RGB guardadas, con su referencia y sin reemplazar el original.</p>
+          </div>
+          <div className="trace-guide__step">
+            <span className="trace-guide__icon" aria-hidden="true"><Icon name="history" size={16} /></span>
+            <strong>3 · Leer la bitácora</strong>
+            <p>Registro original y revisiones con responsable, motivo y fecha.</p>
+          </div>
+        </section>
 
-      <section className="trace-overview" aria-label="Información sobre la trazabilidad">
-        <article className="trace-overview__card">
-          <div className="rastreo__panel-head">
-            <span className="rastreo__panel-icon" aria-hidden="true"><Icon name="database" size={18} /></span>
-            <h2>Evidencia vinculada</h2>
-          </div>
-          <p>La consulta mostrará pieza, lote, producto, peso, vistas RGB, calibración y versiones de reglas o modelo, solo cuando estos datos estén confirmados.</p>
-        </article>
-        <article className="trace-overview__card">
-          <div className="rastreo__panel-head">
-            <span className="rastreo__panel-icon" aria-hidden="true"><Icon name="history" size={18} /></span>
-            <h2>Revisiones auditables</h2>
-          </div>
-          <p>La bitácora conserva responsable, fecha, motivo y valores asociados. Los revisores autorizados pueden registrar decisiones explícitas cuando el servicio permita esa operación.</p>
-        </article>
-      </section>
+        <section className="trace-overview" aria-label="Información sobre la trazabilidad">
+          <article className="trace-overview__card">
+            <div className="rastreo__panel-head">
+              <span className="rastreo__panel-icon" aria-hidden="true"><Icon name="database" size={18} /></span>
+              <h2>Evidencia vinculada</h2>
+            </div>
+            <p>La consulta mostrará pieza, lote, producto, peso, vistas RGB, calibración y versiones de reglas o modelo, solo cuando estos datos estén confirmados.</p>
+          </article>
+          <article className="trace-overview__card">
+            <div className="rastreo__panel-head">
+              <span className="rastreo__panel-icon" aria-hidden="true"><Icon name="history" size={18} /></span>
+              <h2>Revisiones auditables</h2>
+            </div>
+            <p>La bitácora conserva responsable, fecha, motivo y valores asociados. Los revisores autorizados pueden registrar decisiones explícitas cuando el servicio permita esa operación.</p>
+          </article>
+        </section>
+      </details>
     </div>
   )
 }
@@ -177,8 +180,8 @@ function TraceabilityDetailContent({ evaluationId }: { evaluationId: string }) {
         {state.kind === 'unavailable' && (
           <div className="trace-message" role="status">
             <span className="trace-message__icon" aria-hidden="true"><Icon name="database" size={20} /></span>
-            <h3>Backend desconectado</h3>
-            <p>FastAPI no responde. No podemos verificar si esta evaluación existe; sus registros no se han modificado.</p>
+            <h3>Servicio no disponible</h3>
+            <p>No se pudo conectar con el servicio. No podemos verificar si esta evaluación existe; sus registros no se han modificado.</p>
             <button type="button" className="action-button action-button--secondary" onClick={retry}>Reintentar</button>
           </div>
         )}
@@ -186,7 +189,7 @@ function TraceabilityDetailContent({ evaluationId }: { evaluationId: string }) {
           <div className="trace-message trace-message--error" role="alert">
             <span className="trace-message__icon" aria-hidden="true"><Icon name="alert" size={20} /></span>
             <h3>Acceso denegado</h3>
-            <p>FastAPI rechazó la consulta (401/403). No hay datos que mostrar.</p>
+            <p>Tu sesión no tiene permiso para esta consulta. No hay datos que mostrar.</p>
           </div>
         )}
         {state.kind === 'not-found' && (
@@ -262,9 +265,11 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
         <div className="trace-data-grid__primary"><dt>Producto</dt><dd>{evaluation.product === 'mango' ? 'Mango' : 'Tomate'}</dd></div>
         <div><dt>Peso registrado</dt><dd>{formatWeight(evaluation.weightGrams)}</dd></div>
         <div><dt>Fecha de registro</dt><dd>{formatDate(evaluation.registeredAt)}</dd></div>
+        {role === 'administrador' && <>
         <div><dt>Calibración</dt><dd>{record.calibrationReference ?? 'No disponible'}</dd></div>
         <div><dt>Versión del modelo</dt><dd>{record.modelVersion ?? 'No disponible'}</dd></div>
         <div><dt>Versión de reglas</dt><dd>{record.rulesVersion ?? 'No disponible'}</dd></div>
+        </>}
       </dl>
       <section className="trace-record__section" aria-label="Evidencias visuales">
         <h3 className="rastreo__section-title"><Icon name="camera" size={17} /> Evidencias visuales ({evaluation.evidence.length})</h3>
@@ -272,20 +277,21 @@ function TraceabilityRecordContent({ record, onUpdated }: { record: Traceability
           ? <p>No se registraron imágenes asociadas.</p>
           : <ul className="trace-evidence-list">{evaluation.evidence.map((item) => <li key={item.id}><div><strong>{item.view}</strong><span>Referencia: {item.id}</span>{resolveEvidenceUrl(item.imageUrl) ? <GeometryOrOriginal className="trace-evidence__image" path={item.imageUrl} alt={`Evidencia ${item.view} de ${evaluation.id}`} result={geometries.filter(row => row.imageId === item.id).at(-1)} /> : <span>Ruta de imagen no reconocida.</span>}</div></li>)}</ul>}
         <QualityProposalPanel evaluationId={evaluation.id} />
-        <p>Las imágenes se consultan mediante la API autenticada. Nunca se reemplaza el archivo original.</p>
-        {assessments.length > 0 && (
-          <div role="region" aria-label="Evaluaciones automáticas originales" className="trace-assessments">
+        <p>Las fotografías originales se conservan como evidencia.</p>
+        {role === 'administrador' && assessments.length > 0 && (
+          <details aria-label="Diagnóstico de detección" className="trace-assessments operational-help">
+            <summary>Diagnóstico de detección</summary>
             <h4>Resultados de detección originales</h4>
             <ul>{assessments.map(result => <li key={result.id}>
               {result.imageId}: {result.reason} · confianza {result.confidence ?? 'sin detección'}
               · umbral {result.threshold} · modelo {result.modelVersion}
             </li>)}</ul>
             <p>Estas predicciones son de detección; NO califican E0/E1/E2.</p>
-          </div>
+          </details>
         )}
         {isReviewer && evaluation.evidence.length > 0 && evaluation.status !== 'cancelled' && evaluation.status !== 'error' && (
           <div className="trace-review-uncertainty">
-            <h4><Icon name="alert" size={16} /> AG-037 · Revisión de incertidumbre</h4>
+            <h4><Icon name="alert" size={16} /> Revisión requerida</h4>
             {evaluation.status !== 'pending_review' && <>
               <label htmlFor="ag037-image">Fotografía observada</label>
               <div className="trace-select">

@@ -145,7 +145,7 @@ export function AppLayout() {
         <div className="sidebar-bottom">
           <div className="sidebar-disclaimer">
             <Icon name="info" size={17} />
-            <span>Integración por módulos<br />Hardware sin verificar</span>
+            <span>Verifica la estación<br />antes de evaluar</span>
           </div>
         </div>
       </aside>

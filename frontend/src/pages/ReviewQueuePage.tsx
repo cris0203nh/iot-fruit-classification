@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { ProtectedEvidenceImage } from '../features/capture/ProtectedEvidenceImage'
+import { HISTORY_STATUS_LABELS } from '../features/history/historyService'
 import { ReviewDecisionPanel } from '../features/traceability/ReviewDecisionPanel'
 import { traceabilityService, type TraceabilityRecord } from '../features/traceability/traceabilityService'
 import { describeReviewReason, mayRecordReview,
@@ -17,7 +18,7 @@ type AppliedFilters = Pick<ReviewQueueFilters, 'lot' | 'product' | 'priority'>
 const EMPTY: AppliedFilters = {}
 
 function errorState(error: unknown): LoadState {
-  if (error instanceof ApiConnectionError) return { status: 'unavailable', message: 'FastAPI no responde. No se han modificado evaluaciones.' }
+  if (error instanceof ApiConnectionError) return { status: 'unavailable', message: 'No se pudo conectar con el servicio. No se han modificado evaluaciones.' }
   if (error instanceof ApiResponseError && (error.status === 401 || error.status === 403)) {
     return { status: 'restricted', message: 'Tu sesión no tiene permisos para consultar la cola. Inicia sesión como revisor o administrador.' }
   }
@@ -35,13 +36,13 @@ function ExperimentalProposals({ evaluationId }: { evaluationId: string }) {
       setError(null) } }).catch(cause => { if (current) setError(cause instanceof Error ? cause.message : 'No hay propuestas consultables.') })
     return () => { current = false }
   }, [evaluationId])
-  return <section className="review-queue__proposals" aria-label="Propuestas IA experimentales">
+  return <section className="review-queue__proposals" aria-label="Sugerencias de clasificación">
     <h4>Propuestas de IA · no confirmadas</h4>
     {error && <p role="status">No se pudieron consultar las propuestas: {error}</p>}
-    {!error && rows.length === 0 && <p>Sin propuestas E0/E1/E2 registradas para mostrar.</p>}
+    {!error && rows.length === 0 && <p>Sin sugerencias E0/E1/E2 registradas.</p>}
     {rows.length > 0 && <ul>{rows.map(x => <li key={x.id}>
       <strong>{x.proposedGrade ? `Sugerencia ${x.proposedGrade}` : 'Sin grado sugerido'}</strong>
-      {' · '}{x.reason} · Modelo {x.modelVersion}. Revisión humana obligatoria.
+       · Revisión humana obligatoria.
     </li>)}</ul>}
   </section>
 }
@@ -70,7 +71,7 @@ function PendingCase({ item, onUpdated }: { item: ReviewQueueItem; onUpdated: ()
 
   const pending = new Set(item.imageIds)
   return <section className="review-queue__detail" aria-label={`Expediente ${item.evaluationId}`}>
-    <p><strong>Fotografías pendientes según AG-056:</strong> {item.imageIds.join(', ') || (
+    <p><strong>Fotografías pendientes:</strong> {item.imageIds.join(', ') || (
       item.reasons.some(reason => reason.code === 'acquisition_pending_review')
         ? 'Revisar todas las vistas de la adquisición.'
         : 'Incidencia sin identificación de fotografía.')}</p>
@@ -90,10 +91,10 @@ function PendingCase({ item, onUpdated }: { item: ReviewQueueItem; onUpdated: ()
       <ExperimentalProposals evaluationId={item.evaluationId} />
       {mayRecordReview(item.status) && ['completed', 'pending_review'].includes(record.evaluation.status) && record.evaluation.evidence.length > 0
         ? <>
-          <p className="review-queue__warning">AG-038 guarda decisiones por fotografía y SHA-256. Selecciona la fotografía pendiente correcta. La propuesta de IA no es una clasificación confirmada.</p>
+          <p className="review-queue__warning">Cada decisión queda vinculada a la fotografía original. Selecciona la fotografía pendiente correcta. La propuesta de IA no es una clasificación confirmada.</p>
           <ReviewDecisionPanel record={record} onUpdated={updated} pendingImageIds={item.imageIds} />
         </>
-        : <p role="status">Este caso no admite decisiones AG-038 desde la bandeja. Requiere completar captura o recuperar evidencia antes de revisar.</p>}
+        : <p role="status">Este caso no admite decisiones de revisión desde la bandeja. Requiere completar captura o recuperar evidencia antes de revisar.</p>}
       <Link to={`/trazabilidad/${encodeURIComponent(item.evaluationId)}`} className="review-queue__link">Abrir trazabilidad completa <Icon name="arrow-right" size={16} /></Link>
     </>}
   </section>
@@ -149,9 +150,9 @@ export function ReviewQueuePage() {
   const data = state.status === 'ready' ? state.data : undefined
   return <div className="review-queue">
     <header className="review-queue__head">
-      <p className="review-queue__eyebrow">AG-056 · Supervisión humana</p>
+      <p className="review-queue__eyebrow">Supervisión humana</p>
       <h1>Bandeja de revisiones pendientes</h1>
-      <p>Solo se presentan evaluaciones con intervención pendiente según las reglas del servidor. La calidad E0/E1/E2 de AG-055 sigue siendo experimental y requiere decisión humana.</p>
+      <p>Revisa las incidencias y sus fotografías antes de decidir. Las sugerencias E0/E1/E2 son preliminares y requieren confirmación humana.</p>
     </header>
     <section className="review-queue__filters" aria-label="Filtrar cola de revisión">
       <form onSubmit={submit} className="review-queue__form">
@@ -190,7 +191,7 @@ export function ReviewQueuePage() {
             <p>Lote {item.lotId} · {new Date(item.registeredAt).toLocaleString('es-PE')}</p></div>
           <strong className={`review-queue__priority review-queue__priority--${item.priority}`}>{PRIORITY[item.priority]}</strong>
         </div>
-        <p className="review-queue__meta">Estado: {item.status} · Fotografías registradas: {item.imageCount}
+        <p className="review-queue__meta">Estado: {HISTORY_STATUS_LABELS[item.status as keyof typeof HISTORY_STATUS_LABELS] ?? item.status} · Fotografías registradas: {item.imageCount}
           · Vistas señaladas: {item.imageIds.length ? item.imageIds.join(', ') : 'sin asociación individual'}</p>
         <ul className="review-queue__reasons">{item.reasons.map((reason, index) => <li key={`${reason.code}-${reason.imageId ?? 'general'}-${index}`}>
           <span>{describeReviewReason(reason.code)}</span>{reason.imageId && <small> · {reason.imageId}</small>}
@@ -213,6 +214,6 @@ export function ReviewQueuePage() {
       <span>Mostrando {data.total ? offset + 1 : 0}–{Math.min(offset + data.items.length, data.total)} de {data.total}</span>
       <button type="button" className="action-button action-button--secondary" disabled={!data.hasMore} onClick={() => page(offset + PAGE_SIZE)}>Siguiente</button>
     </nav>}
-    <p className="review-queue__footer">Las decisiones canónicas se registran mediante AG-038 y se recalcula la cola al actualizar. La bandeja no aprueba ni modifica fotografías automáticamente.</p>
+    <p className="review-queue__footer">Las decisiones quedan registradas y la bandeja se actualiza al consultar. La bandeja no aprueba ni modifica fotografías automáticamente.</p>
   </div>
 }

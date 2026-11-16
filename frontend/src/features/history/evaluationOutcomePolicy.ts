@@ -34,7 +34,7 @@ export function summarizeEvaluation({ status, ledger, qualityStatus, proposals, 
     cancelled: 'Evaluación anulada',
   }
 
-  let human = 'Sin dictamen AG-038 por fotografía'
+  let human = 'Sin clasificación revisada'
   let humanNote = ledger === null
     ? 'No se pudo consultar la bitácora de revisión.'
     : 'Consulte la trazabilidad si existen revisiones anteriores.'
@@ -56,14 +56,14 @@ export function summarizeEvaluation({ status, ledger, qualityStatus, proposals, 
     const suggested = [...proposals].reverse().find((item) =>
       item.status === 'experimental_proposal' && VISUAL.has(item.proposedGrade ?? ''))
     if (v2Grade) {
-      ai = `Sugerencia V2 ${v2Grade}`
-      aiNote = 'Vistas concordantes en un modelo experimental. No es dictamen ni precisión externa acreditada.'
+      ai = `Sugerencia ${v2Grade}`
+      aiNote = 'Las vistas coinciden. No es dictamen: requiere revisión humana y su precisión comercial no está validada.'
     } else if (v2Rows.length > 0) {
-      ai = 'Análisis V2 requiere revisión'
+      ai = 'Clasificación requiere revisión'
       aiNote = 'No todas las fotografías obtuvieron un grado concordante y evaluable.'
     } else if (suggested) {
       ai = `Sugerencia ${suggested.proposedGrade}`
-      aiNote = 'Resultado experimental guardado, sin confirmación ni precisión externa acreditada.'
+      aiNote = 'Resultado preliminar guardado, sin confirmación y con precisión comercial sin validar.'
     } else if (qualityStatus?.modelAvailable === false) {
       ai = 'Modelo de calidad no instalado'
       aiNote = 'La detección de la fruta no equivale a clasificación E0/E1/E2.'

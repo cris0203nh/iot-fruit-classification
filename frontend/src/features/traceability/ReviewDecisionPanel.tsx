@@ -85,8 +85,8 @@ function ReviewDecisionPanelContent({ record, onUpdated, pendingImageIds }: Prop
   const newValue = action === 'no_evaluable' ? 'no_evaluable'
     : action === 'confirm' ? ledger?.currentValue ?? '' : grade
   return (
-    <section className="trace-record__section ag038-review" aria-label="AG-038: bitácora de decisiones humanas">
-      <h3>AG-038 · Confirmación, corrección y bitácora</h3>
+    <section className="trace-record__section ag038-review" aria-label="Bitácora de decisiones humanas">
+      <h3>Revisión y decisiones</h3>
       {loading && <p role="status">Recuperando decisiones registradas…</p>}
       {error && <p role="alert" className="trace-message--error">{error}</p>}
       {ledger && <>
@@ -95,31 +95,37 @@ function ReviewDecisionPanelContent({ record, onUpdated, pendingImageIds }: Prop
           <div><dt>Valor vigente según bitácora</dt><dd>{ledger.currentValue ?? 'Sin dictamen'}</dd></div>
           <div><dt>Última revisión</dt><dd>{ledger.revisionId ?? 'Sin eventos'}</dd></div>
         </dl>
-        <h4>Decisiones auditables ({ledger.decisions.length})</h4>
-        {ledger.decisions.length === 0
-          ? <p>No hay decisiones AG-038 todavía. Las revisiones anteriores permanecen en el historial general.</p>
-          : <ol className="ag038-review__history">{ledger.decisions.map(entry => <li key={entry.id}>
-              <strong>{ACTION_LABELS[entry.action]} · {entry.id}</strong>
-              <p>{entry.previousValue ?? 'Sin etiqueta'} → {entry.newValue}</p>
-              <p>Responsable: {entry.actorId} · Fecha: {new Date(entry.performedAt).toLocaleString('es-PE')}</p>
-              <p>Motivo: {entry.reason}</p>
-              <p>Evidencia: {entry.imageId} · SHA256: <code>{entry.imageSha256}</code></p>
-            </li>)}</ol>}
+        <details className="operational-help">
+          <summary>Decisiones anteriores ({ledger.decisions.length})</summary>
+          {ledger.decisions.length === 0
+            ? <p>Aún no hay decisiones registradas. Las revisiones anteriores permanecen en el historial general.</p>
+            : <ol className="ag038-review__history">{ledger.decisions.map(entry => <li key={entry.id}>
+                <strong>{ACTION_LABELS[entry.action]} · {entry.id}</strong>
+                <p>{entry.previousValue ?? 'Sin etiqueta'} → {entry.newValue}</p>
+                <p>Responsable: {entry.actorId} · Fecha: {new Date(entry.performedAt).toLocaleString('es-PE')}</p>
+                <p>Motivo: {entry.reason}</p>
+                <p>Evidencia: {entry.imageId} · SHA256: <code>{entry.imageSha256}</code></p>
+              </li>)}</ol>}
+        </details>
         {reviewer && eligible && allowedEvidence.length > 0 && <form className="ag038-review__form" onSubmit={event => void submit(event)}>
-          <label htmlFor="ag038-action">Acción humana</label>
-          <select id="ag038-action" value={action} disabled={busy} onChange={event => {
-            edit(); setAction(event.target.value as ReviewAction)
-            if (event.target.value === 'correct') {
-              setGrade(grades.find(value => value !== ledger.currentValue) ?? grades[0])
-            }
-          }}>
-            {available.map(option => <option key={option} value={option}>{ACTION_LABELS[option]}</option>)}
-          </select>
-          <label htmlFor="ag038-image">Fotografía inspeccionada</label>
-          <select id="ag038-image" value={imageId} disabled={busy} onChange={event => { edit(); setSelectedImageId(event.target.value) }}>
-            {allowedEvidence.map(image => <option key={image.id} value={image.id}>{image.view} · {image.id}</option>)}
-          </select>
-          {action !== 'no_evaluable' && <>
+          <div className="ag038-review__field">
+            <label htmlFor="ag038-action">Acción humana</label>
+            <select id="ag038-action" value={action} disabled={busy} onChange={event => {
+              edit(); setAction(event.target.value as ReviewAction)
+              if (event.target.value === 'correct') {
+                setGrade(grades.find(value => value !== ledger.currentValue) ?? grades[0])
+              }
+            }}>
+              {available.map(option => <option key={option} value={option}>{ACTION_LABELS[option]}</option>)}
+            </select>
+          </div>
+          <div className="ag038-review__field">
+            <label htmlFor="ag038-image">Fotografía inspeccionada</label>
+            <select id="ag038-image" value={imageId} disabled={busy} onChange={event => { edit(); setSelectedImageId(event.target.value) }}>
+              {allowedEvidence.map(image => <option key={image.id} value={image.id}>{image.view} · {image.id}</option>)}
+            </select>
+          </div>
+          {action !== 'no_evaluable' && <div className="ag038-review__field">
             <label htmlFor="ag038-grade">Resultado {action === 'confirm' ? 'que se confirma' : 'propuesto'}</label>
             <select id="ag038-grade" value={action === 'confirm' ? ledger.currentValue ?? '' : grade}
               disabled={busy || action === 'confirm'}
@@ -128,11 +134,13 @@ function ReviewDecisionPanelContent({ record, onUpdated, pendingImageIds }: Prop
                 ? <option value="no_evaluable">No evaluable</option>
                 : grades.map(value => <option key={value} value={value}>{value}</option>)}
             </select>
-          </>}
-          <label htmlFor="ag038-reason">Justificación (mínimo 10 caracteres)</label>
-          <textarea id="ag038-reason" value={reason} maxLength={500} rows={3}
-            onChange={event => { edit(); setReason(event.target.value) }} disabled={busy}
-            placeholder="Describa qué observa en la fotografía y por qué confirma o corrige" />
+          </div>}
+          <div className="ag038-review__field ag038-review__field--reason">
+            <label htmlFor="ag038-reason">Justificación (mínimo 10 caracteres)</label>
+            <textarea id="ag038-reason" value={reason} maxLength={500} rows={3}
+              onChange={event => { edit(); setReason(event.target.value) }} disabled={busy}
+              placeholder="Describa qué observa en la fotografía y por qué confirma o corrige" />
+          </div>
           <p>La fotografía y el valor original se mantienen. El servidor registra el usuario y la fecha.</p>
           <button type="submit" className="action-button action-button--primary"
             disabled={busy || reason.trim().length < 10 || !canSubmitDecision(action, ledger.currentValue, newValue)}>

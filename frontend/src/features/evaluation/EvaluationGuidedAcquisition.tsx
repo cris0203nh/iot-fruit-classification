@@ -1,5 +1,5 @@
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/layout/Icon'
 import { EvaluationImageCapture } from '../capture/EvaluationImageCapture'
@@ -36,7 +36,7 @@ type Props = {
 
 function operationError(failure: unknown): string {
   if (failure instanceof ApiConnectionError) {
-    return 'No se confirmó la operación por falta de conexión. Verifica el backend antes de repetirla.'
+    return 'No se confirmó la operación por falta de conexión. Reintenta o solicita ayuda al administrador.'
   }
 
   if (failure instanceof ApiResponseError) {
@@ -44,7 +44,7 @@ function operationError(failure: unknown): string {
       return 'Acceso no autorizado o sesión vencida. Inicia sesión nuevamente.'
     }
 
-    return `FastAPI rechazó la operación (HTTP ${failure.status}): ${failure.message}`
+    return failure.message
   }
 
   return failure instanceof Error
@@ -61,7 +61,7 @@ function WeightResult({
 }) {
   return (
     <p className="guided-acquisition__success" role="status">
-      <Icon name="info" size={17} /> {name} confirmado por FastAPI:{' '}
+      <Icon name="info" size={17} /> {name} confirmado:{' '}
       <strong>{result.weightG} g</strong>
       <span> · {result.deviceId}</span>
     </p>
@@ -94,6 +94,11 @@ export function EvaluationGuidedAcquisition({
   const [retired, setRetired] = useState(false)
   const [qualityRunning, setQualityRunning] = useState(false)
   const [automaticQuality, setAutomaticQuality] = useState<AutomaticQualityResult | null>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    if (evaluation) headingRef.current?.focus()
+  }, [evaluation, step])
 
   const onEvidenceChange = useCallback((count: number) => {
     setImageCount(count)
@@ -245,31 +250,24 @@ export function EvaluationGuidedAcquisition({
         </span>
 
         <div>
-          <h2 id="acquisition-heading">Procedimiento guiado</h2>
-          <p>
-            Una pieza por evaluación. Cada confirmación corresponde a una
-            operación real del backend.
-          </p>
+          <h2 id="acquisition-heading" ref={headingRef} tabIndex={-1}>{evaluation ? 'Evaluar la pieza' : 'Dos vistas de la misma fruta'}</h2>
         </div>
       </div>
 
       {!evaluation ? (
-        <div className="evaluation-camera-empty">
-          <Icon name="clipboard" size={27} />
-          <span>
-            Paso 1: selecciona un lote e identifica la pieza para continuar.
-          </span>
+        <div className="guided-acquisition__start">
+          <div className="guided-acquisition__views" aria-label="Dos fotografías obligatorias, pendientes de registro">
+            <div><Icon name="camera" size={24} /><strong>Vista 1</strong><span>Frente de la fruta</span></div>
+            <div><Icon name="camera" size={24} /><strong>Vista 2</strong><span>Otra cara de la misma fruta</span></div>
+          </div>
+          <p>Primero identifica la fruta y selecciona su lote. Después registra el peso y completa las dos vistas.</p>
+          <p className="guided-acquisition__notice">Mantén la misma pieza durante el pesaje y las fotografías. Solo cuentan las vistas guardadas.</p>
         </div>
       ) : (
         <>
           <div className="guided-acquisition__identity">
-            <strong>Evaluación {evaluation.id}</strong>
-            <span>
-              Lote: {evaluation.lotId} · Pieza: {evaluation.pieceId}
-            </span>
-            <span>Estado en backend al crear: En proceso</span>
             <span className={processStatusClass} role="status">
-              Estado del procedimiento: {processStatus}
+              {processStatus} · {imageCount} de {MIN_CONFIRMED_IMAGES} vistas · Peso inicial: {pre ? 'confirmado' : 'pendiente'}
             </span>
           </div>
 
@@ -278,44 +276,46 @@ export function EvaluationGuidedAcquisition({
               <h3>2. Colocar la pieza y verificar el peso</h3>
 
               <p>
-                Coloca una sola fruta sobre la balanza y espera una lectura
-                reciente y estable. FastAPI validará además la calibración y
-                la tara.
+                Coloca la fruta en la balanza y espera una lectura estable. Se validan calibración y tara al registrar.
               </p>
 
-              <WeightStatusCard />
+              <div className="guided-acquisition__weighing">
+                <WeightStatusCard />
+                <div className="guided-acquisition__weight-actions">
 
-              {pre ? (
-                <WeightResult result={pre} name="Peso inicial" />
-              ) : (
-                <button
-                  type="button"
-                  className="action-button action-button--primary"
-                  onClick={() => void confirmWeight('pre')}
-                  disabled={processing}
-                >
-                  {processing
-                    ? 'Consultando FastAPI…'
-                    : 'Registrar peso inicial'}
-                </button>
-              )}
+                  {pre ? (
+                    <WeightResult result={pre} name="Peso inicial" />
+                  ) : (
+                    <button
+                      type="button"
+                      className="action-button action-button--primary"
+                      onClick={() => void confirmWeight('pre')}
+                      disabled={processing}
+                    >
+                      {processing
+                        ? 'Consultando peso…'
+                        : 'Registrar peso inicial'}
+                    </button>
+                  )}
 
-              {!pre && (
-                <p className="guided-acquisition__notice">
-                  Si no hay sensor válido, puedes continuar para guardar
-                  fotografías; el pesaje permanecerá pendiente y no podrá
-                  confirmarse la adquisición.
-                </p>
-              )}
+                  {!pre && (
+                    <p className="guided-acquisition__notice">
+                      Si no hay sensor válido, puedes continuar para guardar
+                      fotografías; el pesaje permanecerá pendiente y no podrá
+                      confirmarse la adquisición.
+                    </p>
+                  )}
 
-              <button
-                type="button"
-                className="action-button action-button--secondary"
-                onClick={() => goTo(3)}
-                disabled={processing}
-              >
-                Continuar a imágenes <Icon name="arrow-right" size={17} />
-              </button>
+                  <button
+                    type="button"
+                    className="action-button action-button--secondary"
+                    onClick={() => goTo(3)}
+                    disabled={processing}
+                  >
+                    Continuar a imágenes <Icon name="arrow-right" size={17} />
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -326,17 +326,6 @@ export function EvaluationGuidedAcquisition({
               <p>
                 Toma o sube dos fotografías de la misma fruta. Gírala para mostrar otra cara;
                 no es necesario calibrar las medidas para continuar.
-              </p>
-
-              <EvaluationImageCapture
-                evaluationId={evaluation.id}
-
-                onEvidenceChange={onEvidenceChange}
-              />
-              <p className="guided-acquisition__notice" role="status">
-                {hasConfirmedImages(imageCount)
-                  ? `${imageCount} fotografías guardadas: requisito de imágenes completado.`
-                  : `Faltan ${Math.max(0, MIN_CONFIRMED_IMAGES - imageCount)} fotografía(s) para continuar.`}
               </p>
 
               <div className="guided-acquisition__actions">
@@ -360,12 +349,10 @@ export function EvaluationGuidedAcquisition({
                 </button>
               </div>
 
-              {!hasConfirmedImages(imageCount) && (
-                <p className="guided-acquisition__notice">
-                  Para continuar, FastAPI debe confirmar al menos dos
-                  fotografías de esta evaluación.
-                </p>
-              )}
+              <EvaluationImageCapture
+                evaluationId={evaluation.id}
+                onEvidenceChange={onEvidenceChange}
+              />
             </div>
           )}
 
@@ -415,7 +402,7 @@ export function EvaluationGuidedAcquisition({
                     onClick={() => void confirmWeight('post')}
                   >
                     {processing
-                      ? 'Consultando FastAPI…'
+                      ? 'Consultando peso…'
                       : 'Registrar peso de confirmación'}
                   </button>
                 </>
@@ -437,9 +424,9 @@ export function EvaluationGuidedAcquisition({
                 role="status"
               >
                 {acquisitionConfirmed && serverConfirmation
-                  ? `FastAPI confirmó que el peso y las ${serverConfirmation.imageCount} fotografías pertenecen a la pieza ${serverConfirmation.pieceId} (${serverConfirmation.product}). Peso validado: ${serverConfirmation.weightGrams} g.`
+                  ? `Se confirmó que el peso y las ${serverConfirmation.imageCount} fotografías pertenecen a la pieza ${serverConfirmation.pieceId} (${serverConfirmation.product}). Peso validado: ${serverConfirmation.weightGrams} g.`
                   : readyToConfirm
-                    ? 'Los dos pesajes y las fotografías están disponibles. Falta confirmar su asociación con FastAPI.'
+                    ? 'Los dos pesajes y las fotografías están disponibles. Falta confirmar su asociación con la pieza.'
                     : 'No se puede confirmar la adquisición hasta tener peso inicial, peso final y al menos dos fotografías guardadas.'}
               </p>
 
@@ -452,7 +439,7 @@ export function EvaluationGuidedAcquisition({
                 onClick={() => void confirmAcquisitionWithBackend()}
               >
                 {processing
-                  ? 'Confirmando con FastAPI…'
+                  ? 'Confirmando evaluación…'
                   : acquisitionConfirmed
                     ? 'Adquisición confirmada'
                     : 'Confirmar peso y fotografías'}
@@ -548,7 +535,7 @@ export function EvaluationGuidedAcquisition({
             <p className={automaticQuality.status === 'suggested'
               ? 'guided-acquisition__success' : 'guided-acquisition__notice'} role="status">
               <strong>{automaticQuality.status === 'suggested'
-                ? `Sugerencia IA ${automaticQuality.grade} (experimental)`
+                ? `Resultado preliminar: ${automaticQuality.grade}`
                 : automaticQuality.status === 'no_model' ? 'Modelo E0/E1/E2 no disponible'
                 : automaticQuality.status === 'needs_review' ? 'Revisión de calidad requerida'
                 : 'No se pudo completar el análisis'}</strong>

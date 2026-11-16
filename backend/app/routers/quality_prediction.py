@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -40,6 +41,7 @@ router = APIRouter(prefix='/api/evaluations', tags=['AG-055 · calidad externa e
 MODEL_DIR = DATA_DIR / 'quality_models'
 MAX_MODEL_BYTES = 512 * 1024
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+logger = logging.getLogger(__name__)
 
 
 def _load_model(product: str) -> tuple[dict | None, str | None]:
@@ -353,10 +355,17 @@ def pilot_analyze(evaluation_id: str,db: Session=Depends(get_db),_user: User=Dep
 
 
 def _v2_models(product):
+    # Same deployment convention as quality_models: an explicit setting wins;
+    # otherwise use the verified artifacts installed alongside this data store.
+    directory = os.getenv('AGROSCAN_V2_MODELS_PATH') or str(DATA_DIR / 'ag055_v2' / 'models')
     try:
-        return load_v2_models(os.getenv('AGROSCAN_V2_MODELS_PATH'),product)
+        models = load_v2_models(directory,product)
+        if not models:
+            logger.warning('Quality model unavailable: product=%s directory=%s', product, directory)
+        return models
     except (OSError,ValueError,KeyError,TypeError,AttributeError):
-        raise HTTPException(503,'Modelo V2 incompatible o no disponible') from None
+        logger.exception('Quality model failed validation: product=%s directory=%s', product, directory)
+        raise HTTPException(503,'Clasificación no disponible. Solicita ayuda al administrador.') from None
 
 
 @router.get('/{evaluation_id}/vision/quality/v2/status')

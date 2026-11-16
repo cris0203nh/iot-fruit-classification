@@ -4,12 +4,16 @@ import { PilotQualityPanel } from './PilotQualityPanel'
 import { V2QualityPanel } from './V2QualityPanel'
 import {
   getQualityModelStatus, getQualityProposals, analyzeQualityProposal,
-  isOperatorAuthenticated, type QualityProposal, type QualityModelStatus,
+  isOperatorAuthenticated, getSessionRole, type QualityProposal, type QualityModelStatus,
 } from '../../services/agroscanApi'
 
 /** AG-055 I01: propuestas exploratorias. No confirma un grado ni cierra evaluación. */
 export function QualityProposalPanel({ evaluationId, autoAnalyze = false }: { evaluationId: string; autoAnalyze?: boolean }) {
-  return <QualityProposalContent key={evaluationId} evaluationId={evaluationId} autoAnalyze={autoAnalyze} />
+  if (getSessionRole() !== 'administrador') return null
+  return <details className="operational-help">
+    <summary>Herramientas técnicas de clasificación</summary>
+    <QualityProposalContent key={evaluationId} evaluationId={evaluationId} autoAnalyze={autoAnalyze} />
+  </details>
 }
 
 function QualityProposalContent({ evaluationId, autoAnalyze }: { evaluationId: string; autoAnalyze: boolean }) {
@@ -39,7 +43,7 @@ function QualityProposalContent({ evaluationId, autoAnalyze }: { evaluationId: s
     try {
       const result = await analyzeQualityProposal(evaluationId)
       if (result.status === 'blocked_no_eligible_model') {
-        setError('No existe un clasificador experimental elegible instalado para este producto.')
+        setError('La clasificación alternativa no está disponible para este producto.')
       } else if ('id' in result) {
         setRows(previous => previous.some(row => row.id === result.id) ? previous : [...previous, result])
       }
@@ -58,14 +62,13 @@ function QualityProposalContent({ evaluationId, autoAnalyze }: { evaluationId: s
   }, [autoAnalyze, loading, status?.modelAvailable, rows.length])
 
   return (
-    <section className="ag055-panel" aria-label="AG-055 evaluación de calidad externa experimental"
+    <section className="ag055-panel" aria-label="Diagnóstico de clasificación"
       style={{ border: '1px solid #a7aea8', borderRadius: 10, padding: 16, marginTop: 14 }}>
-      <h3>AG-055 · Calidad externa asistida por IA</h3>
-      <p>Las propuestas automáticas son experimentales y requieren revisión antes de confirmar la clasificación.</p>
+      <h3>Diagnóstico de clasificación</h3>
+      <p>Los resultados requieren revisión humana y su precisión comercial no está validada.</p>
       {loading && <p role="status">Consultando modelo y propuestas…</p>}
       {!loading && status && (
-        <p role="status"><strong>{status.modelAvailable ? 'Modelo experimental instalado' : 'Sin modelo E0/E1/E2 elegible'}</strong>
-          {' · '}{status.reason}</p>
+        <p role="status"><strong>{status.modelAvailable ? 'Clasificador alternativo disponible' : 'Clasificador alternativo no disponible'}</strong></p>
       )}
       {status?.modelAvailable && isOperatorAuthenticated() && (
         <button type="button" className="action-button action-button--secondary"
@@ -76,15 +79,14 @@ function QualityProposalContent({ evaluationId, autoAnalyze }: { evaluationId: s
       {rows.length > 0 && <ul>
         {rows.filter(row => !['exploratory_original_labels','experimental_e0e1e2_pilot'].includes(row.status)).map(row => <li key={row.id}>
           <strong>{row.proposedGrade ? `Propuesta ${row.proposedGrade} (NO confirmada)` : 'Sin grado sugerido'}</strong>
-          {' · '}{row.reason} · {row.modelVersion}
-          <p>Estado: {row.status}. Revisión humana obligatoria. No modifica la categoría oficial.</p>
+          <p>Revisión humana obligatoria. No modifica la categoría oficial.</p>
         </li>)}
       </ul>}
       {error && <p role="alert">{error}</p>}
       <PilotQualityPanel key={`pilot-${evaluationId}`} evaluationId={evaluationId} />
       <V2QualityPanel key={`v2-${evaluationId}`} evaluationId={evaluationId} />
       <ExploratoryPanel key={evaluationId} evaluationId={evaluationId} />
-      <p><small>Sin precisión acreditada ni decisión automática. Para entrenamiento se necesitan
+      <p><small>Sin precisión acreditada ni decisión automática. Para validar el clasificador se necesitan
         clases E0/E1/E2 representadas y fotografías independientes por producto.</small></p>
     </section>
   )

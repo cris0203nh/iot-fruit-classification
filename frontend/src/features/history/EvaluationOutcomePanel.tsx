@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import type { EvaluationDetail } from './historyService.ts'
 import { formatWeight } from './historyService.ts'
 import {
-  getQualityModelStatus, getQualityProposals, getReviewDecisions,
-  type QualityModelStatus, type QualityProposal, type ReviewDecisionLedger,
+  getQualityModelStatus, getQualityProposals, getReviewDecisions, getV2QualityStatus,
+  type QualityProposal, type ReviewDecisionLedger,
 } from '../../services/agroscanApi'
 import { summarizeEvaluation } from './evaluationOutcomePolicy.ts'
 import { EvaluationEvidenceSnapshot } from './EvaluationEvidenceSnapshot.tsx'
@@ -13,7 +13,7 @@ import './EvaluationOutcomePanel.css'
 type Sources = {
   loading: boolean
   ledger: ReviewDecisionLedger | null
-  qualityStatus: QualityModelStatus | null
+  qualityStatus: { modelAvailable: boolean } | null
   proposals: QualityProposal[] | null
 }
 
@@ -28,12 +28,17 @@ export function EvaluationOutcomePanel({ evaluation }: { evaluation: EvaluationD
       getReviewDecisions(evaluation.id),
       getQualityModelStatus(evaluation.id),
       getQualityProposals(evaluation.id),
-    ] as const).then(([human, quality, proposals]) => {
+      getV2QualityStatus(evaluation.id),
+    ] as const).then(([human, quality, proposals, current]) => {
       if (!active) return
       setSources({
         loading: false,
         ledger: human.status === 'fulfilled' ? human.value : null,
-        qualityStatus: quality.status === 'fulfilled' ? quality.value : null,
+        qualityStatus: (quality.status === 'fulfilled' && quality.value.modelAvailable)
+          || (current.status === 'fulfilled' && current.value.models.length > 0)
+          ? { modelAvailable: true }
+          : quality.status === 'fulfilled' && current.status === 'fulfilled'
+            ? { modelAvailable: false } : null,
         proposals: proposals.status === 'fulfilled' ? proposals.value : null,
       })
     })
@@ -74,7 +79,7 @@ export function EvaluationOutcomePanel({ evaluation }: { evaluation: EvaluationD
           <div className="agroscan-outcome__metric">
             <span>Dimensiones</span>
             <strong>{summary.dimensions}</strong>
-            <small>Las mediciones 2D en píxeles o proyecciones sobre un plano no son dimensiones 3D verificadas.</small>
+            <small>Las medidas aproximadas no sustituyen una medición física verificada.</small>
           </div>
         </div>
       )}

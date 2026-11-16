@@ -42,12 +42,12 @@ export function ExploratoryPanel({ evaluationId }: { evaluationId: string }) {
     finally { setBusy(false) }
   }
   return <section aria-label="Resultados exploratorios de etiquetas originales">
-    <h4>Experimentos con etiquetas originales</h4>
+    <h4>Diagnóstico de etiquetas originales</h4>
     <p>Fresh/Rotten, enfermedades y niveles de frescura conservan sus categorías originales.
       No acreditan calidad de mango Kent ni grados E0/E1/E2.</p>
     <p><small>ROI automática sin verificación humana. Independencia física y generalización no acreditadas.</small></p>
-    {loading ? <p role="status">Consultando experimentos…</p> : <p role="status">
-      {tasks.length ? `Modelos experimentales: ${tasks.join(', ')}` : 'Sin modelo exploratorio instalado para este producto.'}
+    {loading ? <p role="status">Consultando diagnóstico…</p> : <p role="status">
+      {tasks.length ? `Clasificadores de diagnóstico: ${tasks.join(', ')}` : 'Diagnóstico de etiquetas no disponible para este producto.'}
     </p>}
     {tasks.length > 0 && isOperatorAuthenticated() && <button type="button" className="action-button action-button--secondary"
       disabled={busy} onClick={() => void analyze()}>{busy ? 'Procesando…' : 'Explorar fotografías persistidas'}</button>}

@@ -41,7 +41,7 @@ test('I03: Inicio no muestra métricas no consultadas como si fueran reales', ()
   assert.match(home, /getBackendHealth\(\)/)
   assert.match(home, /to="\/historial\?vista=piezas"/)
   assert.doesNotMatch(home, /const indicators =/)
-  assert.match(home, /El estado del hardware no se deduce de la respuesta de la API/)
+  assert.match(home, /La conexión con el servicio no confirma el funcionamiento de los dispositivos/)
 })
 
 test('I03: consultas, controles y exportación AG-040 permanecen disponibles', () => {

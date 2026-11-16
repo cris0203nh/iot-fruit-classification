@@ -96,5 +96,5 @@ test('AG043: el administrador no anuncia hardware sin verificación física', ()
     assert.match(block, /online=\{false\}/)
   }
   assert.doesNotMatch(src, /status="Validada"/)
-  assert.match(src, /La disponibilidad de FastAPI no confirma/)
+  assert.match(src, /La conexión con el servicio no confirma/)
 })

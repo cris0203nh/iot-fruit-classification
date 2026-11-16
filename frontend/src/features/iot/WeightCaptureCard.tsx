@@ -310,14 +310,14 @@ export function WeightCaptureCard({ evaluationId, onComplete }: Props) {
           <Icon name="info" size={18} />
           <div>
             <strong>Ambas etapas de pesaje registradas.</strong>
-            <p>Los dos registros fueron confirmados por FastAPI.</p>
+            <p>Los dos registros fueron confirmados por el sistema.</p>
           </div>
         </div>
       )}
 
       <p className="weight-card__notice">
         El registro requiere una lectura estable, vigente y con
-        cero confirmado por el backend.
+        cero confirmado por el sistema.
       </p>
 
       <p className="weight-card__origin">

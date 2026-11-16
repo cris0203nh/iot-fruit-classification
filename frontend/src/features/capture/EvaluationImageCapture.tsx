@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiConnectionError,
   ApiResponseError,
+  getSessionRole,
   getEvaluationById,
   resolveEvidenceUrl,
   uploadEvaluationPhoto,
@@ -163,9 +164,9 @@ const [cameraOpen, setCameraOpen] = useState(false)
 
         setError(
           failure instanceof ApiConnectionError
-            ? 'No hay conexión con FastAPI.'
+            ? 'No se pudo conectar para consultar las fotografías.'
             : failure instanceof ApiResponseError
-              ? `Error HTTP ${failure.status} al consultar imágenes.`
+              ? failure.message
               : 'No se pudieron consultar las imágenes.'
         )
       }
@@ -641,7 +642,7 @@ const [cameraOpen, setCameraOpen] = useState(false)
         failure instanceof ApiConnectionError
           ? 'No se pudo confirmar el envío. Consulta las imágenes guardadas antes de reintentar.'
           : failure instanceof ApiResponseError
-            ? `Error HTTP ${failure.status}: ${failure.message}`
+            ? failure.message
             : 'No se pudo confirmar el almacenamiento.'
       )
 
@@ -697,34 +698,195 @@ const [cameraOpen, setCameraOpen] = useState(false)
             : 'Toma o sube la primera fotografía.'}`}
       </p>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-        className="capture__input"
-        aria-label="Elegir fotografía JPG o PNG"
-        onChange={event => {
-          const file = event.currentTarget.files?.[0]
-          event.currentTarget.value = ''
-          if (file) void chooseFile(file)
-        }}
-      />
+      <div className="capture__workspace">
+        <div className="capture__operation">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+            className="capture__input"
+            aria-label="Elegir fotografía JPG o PNG"
+            onChange={event => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) void chooseFile(file)
+            }}
+          />
 
-      {canCapture && !candidate && !cameraOpen && (
-        <div className="capture__actions capture__actions--primary">
-          <button type="button" className="action-button action-button--primary"
-            disabled={cameraStarting || checkingFile} onClick={() => void openCamera()}>
-            {cameraStarting ? 'Abriendo cámara…' : saved.length === 1
-              ? 'Tomar segunda fotografía' : 'Tomar fotografía con cámara'}
-          </button>
-          <button type="button" className="action-button action-button--secondary"
-            disabled={cameraStarting || checkingFile} onClick={() => fileInputRef.current?.click()}>
-            {checkingFile ? 'Revisando imagen…' : 'Subir imagen JPG/PNG'}
-          </button>
+          {canCapture && !candidate && !cameraOpen && (
+            <div className="capture__actions capture__actions--primary">
+              <button type="button" className="action-button action-button--primary"
+                disabled={cameraStarting || checkingFile} onClick={() => void openCamera()}>
+                {cameraStarting ? 'Abriendo cámara…' : saved.length === 1
+                  ? 'Tomar segunda fotografía' : 'Tomar fotografía con cámara'}
+              </button>
+              <button type="button" className="action-button action-button--secondary"
+                disabled={cameraStarting || checkingFile} onClick={() => fileInputRef.current?.click()}>
+                {checkingFile ? 'Revisando imagen…' : 'Subir imagen JPG/PNG'}
+              </button>
+            </div>
+          )}
+
+          {cameraOpen && (
+            <section className="capture__camera">
+
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                onCanPlay={() => setCameraReady(true)}
+                className="capture__video"
+              />
+
+              <p className="capture__hint">
+                Webcam seleccionada: {cameraLabel}. Coloca el mango o tomate frente a ella.
+              </p>
+
+              <p className="capture__hint" role="status">
+                {visionMessage}
+              </p>
+
+              <div className="capture__actions">
+
+                <button
+                  className="action-button action-button--primary"
+                  type="button"
+                  disabled={!cameraReady}
+                  onClick={() => void capturePhoto()}
+                >
+                  Capturar fotografía
+                </button>
+                <button type="button" className="action-button action-button--secondary"
+                  disabled={checkingFile} onClick={() => fileInputRef.current?.click()}>
+                  Subir imagen JPG/PNG
+                </button>
+
+                <button
+                  className="action-button action-button--secondary"
+                  type="button"
+                  onClick={closeCamera}
+                >
+                  Cancelar
+                </button>
+
+              </div>
+            </section>
+          )}
+
+          {/* Resultado del análisis visual AGROP-28. */}
+          {candidate && (
+            <div className="capture__result">
+
+              <img
+                src={candidate.url}
+                alt="Vista previa de la fotografía"
+              />
+
+              <p>
+                Fotografía: <strong>{candidate.file.name}</strong>
+              </p>
+
+              <p className="capture__hint" role="status">
+                {candidate.quality.status === 'valid'
+                  ? 'Calidad visual preliminarmente aceptable.'
+                  : candidate.quality.issues.length > 0
+                    ? candidate.quality.issues.join(' ')
+                    : 'La fotografía requiere revisión visual.'}
+              </p>
+
+              <details className="capture__advanced">
+                <summary>Detalles de calidad de la fotografía</summary>
+              <p className="capture__hint">
+                Nitidez:{' '}
+                {candidate.quality.metrics.laplacianVariance ?? 'No disponible'}
+                {' | '}
+                Brillo:{' '}
+                {candidate.quality.metrics.meanBrightness ?? 'No disponible'}
+
+              </p>
+              </details>
+
+              <div className="capture__actions">
+
+                <button
+                  className="action-button action-button--secondary"
+                  type="button"
+                  disabled={!canCapture}
+                  onClick={() => {
+                  setCandidate(null)
+                    void openCamera()
+                  }}
+                >
+                  Repetir fotografía
+                </button>
+
+                <button
+                  className="action-button action-button--secondary"
+                  type="button"
+                  disabled={uploading}
+                  onClick={discard}
+                >
+                  Descartar
+                </button>
+
+                <button
+                  className="action-button action-button--primary"
+                  type="button"
+                  disabled={!canSave}
+                  onClick={() => void save()}
+                >
+                  {uploading ? 'Guardando...' : 'Guardar fotografía'}
+                </button>
+
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p className="capture__error" role="alert">
+              {error}
+            </p>
+          )}
+
         </div>
-      )}
+        <aside className="capture__evidence" aria-label="Vistas de la pieza">
+          <section aria-label="Fotografías guardadas">
 
-      {/* Al guardar la segunda vista, lanzar V2 preliminar, sin depender de pesajes. */}
+            <p className="capture__hint">
+              Fotografías guardadas de esta pieza.
+            </p>
+
+            <ul className="capture__gallery">
+              {saved.map(item => (
+                <li key={item.id}>
+
+                  <strong>{item.view} · {item.id}</strong>
+                  <GeometryOrOriginal path={item.imageUrl} alt={`Fotografía ${item.view}`}
+                    result={geometry.filter(row => row.imageId === item.id).at(-1)} />
+                  {getSessionRole() === 'administrador' && !geometry.some(row => row.imageId === item.id) && (
+                    <button type="button" className="action-button action-button--secondary"
+                      disabled={geometryPending !== null} onClick={() => void analyzeSavedImage(item.id)}>
+                      {geometryPending === item.id ? 'Analizando YOLOE…' : 'Analizar geometría de esta foto'}
+                    </button>
+                  )}
+
+
+                </li>
+              ))}
+              {Array.from({ length: Math.max(0, 2 - saved.length) }, (_, index) => (
+                <li className="capture__pending-view" key={`pending-${index}`}>
+                  <strong>Vista {saved.length + index + 1}</strong>
+                  <span>Pendiente de guardar</span>
+                </li>
+              ))}
+            </ul>
+
+          </section>
+
+
+        </aside>
+      </div>
       {saved.length >= 2 && (
         <AutoV2QualityPanel
           key={`${evaluationId}:${saved.map(item => item.id).join('|')}`}
@@ -734,18 +896,21 @@ const [cameraOpen, setCameraOpen] = useState(false)
       )}
 
       {/* I03B: aproximación por escala sin exigir homografía completa. */}
-      {saved.length >= 2 && (
+      {saved.length >= 2 && getSessionRole() === 'administrador' && (
+        <details className="capture__advanced">
+          <summary>Medidas aproximadas (opcional)</summary>
         <ApproxA4Panel
           key={`approx:${evaluationId}:${saved.map(item => item.id).join('|')}`}
           evaluationId={evaluationId}
           evidence={saved}
         />
+        </details>
       )}
 
       {/* La homografía A4 estricta permanece disponible como herramienta avanzada. */}
-      {saved.length >= 2 && (
+      {saved.length >= 2 && getSessionRole() === 'administrador' && (
         <details className="capture__advanced">
-          <summary>Medición avanzada por homografía A4 (opcional)</summary>
+          <summary>Calibración de medidas (opcional)</summary>
           <A4DimensionPanel
             key={`a4:${evaluationId}:${saved.map(item => item.id).join('|')}`}
             evaluationId={evaluationId}
@@ -754,168 +919,18 @@ const [cameraOpen, setCameraOpen] = useState(false)
         </details>
       )}
 
-      {/* Fotografías ya guardadas. */}
-      {saved.length > 0 && (
-        <section aria-label="Fotografías guardadas">
-
-          <p className="capture__hint">
-            Vistas registradas para {evaluationId}; los análisis técnicos son opcionales.
-          </p>
-
-          <ul className="capture__gallery">
-            {saved.map(item => (
-              <li key={item.id}>
-
-                <strong>{item.view} · {item.id}</strong>
-                <GeometryOrOriginal path={item.imageUrl} alt={`Fotografía ${item.view}`}
-                  result={geometry.filter(row => row.imageId === item.id).at(-1)} />
-                {!geometry.some(row => row.imageId === item.id) && (
-                  <button type="button" className="action-button action-button--secondary"
-                    disabled={geometryPending !== null} onClick={() => void analyzeSavedImage(item.id)}>
-                    {geometryPending === item.id ? 'Analizando YOLOE…' : 'Analizar geometría de esta foto'}
-                  </button>
-                )}
-
-
-              </li>
-            ))}
-          </ul>
-
-        </section>
-      )}
-
       {geometryError && <p role="status" className="capture__hint">{geometryError}</p>}
 
-      {/* Cámara USB. */}
-      {cameraOpen && (
-        <section className="capture__camera">
-
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            onCanPlay={() => setCameraReady(true)}
-            className="capture__video"
-          />
-
-          <p className="capture__hint">
-            Webcam seleccionada: {cameraLabel}. Coloca el mango o tomate frente a ella.
-          </p>
-
-          <p className="capture__hint" role="status">
-            {visionMessage}
-          </p>
-
-          <div className="capture__actions">
-
-            <button
-              className="action-button action-button--primary"
-              type="button"
-              disabled={!cameraReady}
-              onClick={() => void capturePhoto()}
-            >
-              Capturar fotografía
-            </button>
-            <button type="button" className="action-button action-button--secondary"
-              disabled={checkingFile} onClick={() => fileInputRef.current?.click()}>
-              Subir imagen JPG/PNG
-            </button>
-
-            <button
-              className="action-button action-button--secondary"
-              type="button"
-              onClick={closeCamera}
-            >
-              Cancelar
-            </button>
-
-          </div>
-        </section>
-      )}
-
-      {/* Resultado del análisis visual AGROP-28. */}
-      {candidate && (
-        <div className="capture__result">
-
-          <img
-            src={candidate.url}
-            alt="Vista previa de la fotografía"
-          />
-
-          <p>
-            Fotografía: <strong>{candidate.file.name}</strong>
-          </p>
-
-          <p className="capture__hint" role="status">
-            {candidate.quality.status === 'valid'
-              ? 'Calidad visual preliminarmente aceptable.'
-              : candidate.quality.issues.length > 0
-                ? candidate.quality.issues.join(' ')
-                : 'La fotografía requiere revisión visual.'}
-          </p>
-
-          <p className="capture__hint">
-            Nitidez:{' '}
-            {candidate.quality.metrics.laplacianVariance ?? 'No disponible'}
-            {' | '}
-            Brillo:{' '}
-            {candidate.quality.metrics.meanBrightness ?? 'No disponible'}
-
-          </p>
-
-          <div className="capture__actions">
-
-            <button
-              className="action-button action-button--secondary"
-              type="button"
-              disabled={!canCapture}
-              onClick={() => {
-              setCandidate(null)
-                void openCamera()
-              }}
-            >
-              Repetir fotografía
-            </button>
-
-            <button
-              className="action-button action-button--secondary"
-              type="button"
-              disabled={uploading}
-              onClick={discard}
-            >
-              Descartar
-            </button>
-
-            <button
-              className="action-button action-button--primary"
-              type="button"
-              disabled={!canSave}
-              onClick={() => void save()}
-            >
-              {uploading ? 'Guardando...' : 'Guardar fotografía'}
-            </button>
-
-          </div>
-        </div>
-      )}
-
-      {saved.length >= 2 && (
+      {saved.length >= 2 && getSessionRole() === 'administrador' && (
         <details className="capture__advanced"
           onToggle={event => setAdvancedOpen(event.currentTarget.open)}>
-          <summary>Herramientas de calidad experimental (opcional)</summary>
+          <summary>Herramientas técnicas de clasificación</summary>
           {advancedOpen && <QualityProposalPanel evaluationId={evaluationId} />}
         </details>
       )}
 
-      {error && (
-        <p className="capture__error" role="alert">
-          {error}
-        </p>
-      )}
-
       <p className="capture__hint">
-        V2 analiza preliminarmente las dos vistas después de guardarlas, incluso sin sensor conectado.
+        La clasificación analiza las dos vistas guardadas.
         El peso sigue siendo obligatorio para confirmar la adquisición. Revisión humana requerida.
       </p>
 

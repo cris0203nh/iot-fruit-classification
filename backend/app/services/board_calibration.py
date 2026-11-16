@@ -149,7 +149,25 @@ def measure_board_projection(
     if transform is None or inliers is None or not np.isfinite(transform).all():
         raise CalibrationRejected('board_homography_invalid')
     if int(inliers.sum()) < len(used) * 4 - 1:
-        raise CalibrationRejected('board_inconsistent_markers')
+        if board_version != A4_BOARD_VERSION:
+            raise CalibrationRejected('board_inconsistent_markers')
+        # RANSAC puede seleccionar un subconjunto desfavorable incluso si las
+        # 16 esquinas son geometricamente coherentes. Reajustar usando TODAS
+        # las marcas, pero sin aumentar el limite de error ni ignorar outliers.
+        global_fit, _ = cv2.findHomography(source, target, 0)
+        if global_fit is None or not np.isfinite(global_fit).all():
+            raise CalibrationRejected('board_homography_invalid')
+        global_points = cv2.perspectiveTransform(
+            source.reshape(-1, 1, 2), global_fit,
+        ).reshape(-1, 2)
+        global_errors = np.linalg.norm(global_points - target, axis=1)
+        if not np.isfinite(global_errors).all():
+            raise CalibrationRejected('board_inconsistent_markers')
+        global_rms = float(np.sqrt(np.mean(np.square(global_errors))))
+        # Conservar 1.5 mm RMS y exigir tambien <= 1.5 mm por esquina.
+        if global_rms > MAX_RMS_MM or float(global_errors.max()) > MAX_RMS_MM:
+            raise CalibrationRejected('board_inconsistent_markers')
+        transform = global_fit
     reconstructed = cv2.perspectiveTransform(source.reshape(-1, 1, 2), transform).reshape(-1, 2)
     errors = np.linalg.norm(reconstructed - target, axis=1)
     rms_mm = float(np.sqrt(np.mean(np.square(errors))))
@@ -192,6 +210,86 @@ def measure_board_projection(
         },
     }
 
+
+
+# I03B: modo opcional de aproximacion por escala en pixeles del ArUco A4.
+# NO intenta sustituir la homografia, corregir perspectiva o estimar la altura 3D.
+def measure_a4_marker_pixel_scale(frame: np.ndarray, polygon: Sequence[Sequence[float]]) -> dict:
+    """Estimacion 2D: cm/px = 3.0 / mediana(lado medio de cada ArUco detectado).
+
+    La mediana reduce artefactos aislados, pero NO corrige diferencias de plano,
+    perspectiva, distorsion de lente ni altura de la fruta.
+    """
+    fruit = _validated_fruit_polygon(frame, polygon)
+    corners, ids = _marker_candidates(frame)
+    if ids is None:
+        raise CalibrationRejected('board_markers_insufficient')
+    height, width = frame.shape[:2]
+    identified: dict[int, np.ndarray] = {}
+    mean_sides: list[float] = []
+    for index, raw_id in enumerate(ids.flatten().tolist()):
+        marker_id = int(raw_id)
+        if marker_id not in BOARD_LAYOUTS[A4_BOARD_VERSION]['markers_mm']:
+            continue
+        if marker_id in identified:
+            raise CalibrationRejected('board_marker_duplicated')
+        pts = np.asarray(corners[index], dtype=np.float32).reshape(4, 2)
+        if not np.isfinite(pts).all():
+            raise CalibrationRejected('board_marker_invalid')
+        if (pts[:, 0].min() < 4 or pts[:, 0].max() > width - 4 or
+                pts[:, 1].min() < 4 or pts[:, 1].max() > height - 4):
+            raise CalibrationRejected('board_marker_cropped')
+        sides = np.array([np.linalg.norm(pts[(i + 1) % 4] - pts[i])
+                          for i in range(4)], dtype=np.float64)
+        if (not np.isfinite(sides).all() or min(sides) < MIN_MARKER_SIDE_PX or
+                max(sides) / min(sides) > 2.5):
+            raise CalibrationRejected('board_marker_deformed')
+        overlap, _ = cv2.intersectConvexConvex(
+            cv2.convexHull(fruit), cv2.convexHull(pts.reshape(-1, 1, 2)))
+        if overlap > 1.0:
+            raise CalibrationRejected('board_marker_overlaps_fruit')
+        identified[marker_id] = pts
+        mean_sides.append(float(np.mean(sides)))
+    used = sorted(identified)
+    if len(used) < MIN_MARKERS:
+        raise CalibrationRejected('board_markers_insufficient')
+    marker_layout = BOARD_LAYOUTS[A4_BOARD_VERSION]['markers_mm']
+    if (len({marker_layout[i][0] for i in used}) < 2 or
+            len({marker_layout[i][1] for i in used}) < 2):
+        raise CalibrationRejected('board_coverage_insufficient')
+    median_px = float(np.median(mean_sides))
+    spread_pct = 100.0 * (max(mean_sides) - min(mean_sides)) / median_px
+    if (not math.isfinite(median_px) or median_px <= 0 or
+            max(mean_sides) / min(mean_sides) > 2.0):
+        raise CalibrationRejected('board_marker_scale_extreme')
+    # El origen fisico de esta escala es el ArUco A4 de 30 mm = 3 cm.
+    cm_per_px = 3.0 / median_px
+    pixel_rect = cv2.minAreaRect(fruit.astype(np.float32))
+    major_px, minor_px = sorted([float(pixel_rect[1][0]), float(pixel_rect[1][1])], reverse=True)
+    points = fruit.reshape(-1, 2)
+    x_lo, y_lo = points.min(axis=0)
+    x_hi, y_hi = points.max(axis=0)
+    area_px2 = abs(float(cv2.contourArea(fruit)))
+    perimeter_px = float(cv2.arcLength(fruit, True))
+    measures = {
+        'widthCm': float(x_hi - x_lo) * cm_per_px,
+        'heightCm': float(y_hi - y_lo) * cm_per_px,
+        'majorAxisCm': major_px * cm_per_px,
+        'minorAxisCm': minor_px * cm_per_px,
+        'projectedAreaCm2': area_px2 * cm_per_px ** 2,
+        'projectedPerimeterCm': perimeter_px * cm_per_px,
+    }
+    if not all(math.isfinite(v) and v > 0 for v in measures.values()):
+        raise CalibrationRejected('board_projection_invalid')
+    return {
+        'markerIds': used,
+        'markerCornersPx': {str(i): [[round(float(x), 2), round(float(y), 2)]
+                                    for x, y in identified[i]] for i in used},
+        'measurements': {**{k: round(v, 3) for k, v in measures.items()},
+                         'markerSidePxMedian': round(median_px, 3),
+                         'markerScaleVariationPct': round(spread_pct, 2)},
+        'rmsReprojectionMm': None,
+    }
 
 def compare_with_caliper(projected: dict, major_cm: float, minor_cm: float) -> dict:
     """Comparación, no corrección ni acreditación automática."""

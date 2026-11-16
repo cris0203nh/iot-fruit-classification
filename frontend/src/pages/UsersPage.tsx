@@ -55,9 +55,6 @@ export function UsersPage() {
   // ==========================================
 
   const loadUsers = useCallback(async () => {
-    setLoading(true)
-    setError('')
-
     try {
       const data = await listAdminUsers()
       setUsers(data)
@@ -75,8 +72,20 @@ export function UsersPage() {
   }, [])
 
   useEffect(() => {
-    void loadUsers()
-  }, [loadUsers])
+    let active = true
+    listAdminUsers()
+      .then(data => { if (active) setUsers(data) })
+      .catch((err: unknown) => {
+        if (!active) return
+        setError(err instanceof ApiConnectionError
+          ? 'No se pudo conectar con FastAPI. Comprueba que el backend esté activo.'
+          : err instanceof ApiResponseError
+            ? err.message
+            : 'No se pudieron consultar los usuarios registrados.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
 
   // ==========================================
   // INDICADORES
@@ -542,7 +551,7 @@ export function UsersPage() {
           <button
             type="button"
             className="action-button action-button--secondary"
-            onClick={() => void loadUsers()}
+            onClick={() => { setLoading(true); setError(''); void loadUsers() }}
             disabled={loading || saving}
           >
             <Icon name="history" size={17} />

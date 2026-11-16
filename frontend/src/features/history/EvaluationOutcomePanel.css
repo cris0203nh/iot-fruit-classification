@@ -1,0 +1,18 @@
+.agroscan-outcome {
+  margin: 16px 0 24px;
+  padding: 20px;
+  border: 1px solid var(--color-border, #dbe5df);
+  border-radius: 12px;
+  background: var(--color-panel, #fff);
+}
+.agroscan-outcome__heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.agroscan-outcome__heading h3 { margin: 0; font-size: 19px; }
+.agroscan-outcome__state { font-size: 13px; font-weight: 700; color: #375b4b; }
+.agroscan-outcome__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.agroscan-outcome__metric { padding: 14px; background: #f7f9f7; border: 1px solid #e4ebe4; border-radius: 9px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.agroscan-outcome__metric > span { font-size: 12px; color: #50655b; }
+.agroscan-outcome__metric > strong { font-size: 17px; color: #1e382c; overflow-wrap: anywhere; }
+.agroscan-outcome__metric > small { color: #556b5e; font-size: 12px; line-height: 1.45; }
+.agroscan-outcome__actions { margin-top: 15px; }
+.agroscan-outcome__actions a { color: #176b47; font-size: 14px; font-weight: 700; }
+@media (max-width: 680px) { .agroscan-outcome { padding: 14px; } .agroscan-outcome__grid { grid-template-columns: 1fr; } }

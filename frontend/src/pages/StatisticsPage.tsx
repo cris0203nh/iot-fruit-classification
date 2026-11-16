@@ -89,7 +89,22 @@ export function StatisticsPage() {
   }
 
   useEffect(() => {
-    void loadStatistics()
+    let active = true
+    listEvaluations()
+      .then((data) => {
+        if (active) setEvaluations(data)
+      })
+      .catch((err: unknown) => {
+        if (active) setError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudieron consultar las estadísticas.',
+        )
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
   }, [])
 
   const lots = useMemo(

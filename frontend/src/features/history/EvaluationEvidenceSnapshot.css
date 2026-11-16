@@ -1,0 +1,9 @@
+.agroscan-evidence-i04 { margin-top: 16px; padding: 14px; border: 1px solid var(--rule, #cbd5d1); border-radius: 9px; }
+.agroscan-evidence-i04 h4 { margin: 0 0 8px; font-size: 16px; }
+.agroscan-evidence-i04 p { margin: 7px 0; line-height: 1.5; }
+.agroscan-evidence-i04__headline { font-weight: 700; }
+.agroscan-evidence-i04__table-wrap { max-width: 100%; overflow-x: auto; }
+.agroscan-evidence-i04 table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.agroscan-evidence-i04 th, .agroscan-evidence-i04 td { padding: 9px 8px; border-bottom: 1px solid var(--rule, #cbd5d1); vertical-align: top; }
+.agroscan-evidence-i04 td { font-variant-numeric: tabular-nums; }
+.agroscan-evidence-i04__caution { font-size: 12px; opacity: .85; }

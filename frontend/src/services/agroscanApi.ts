@@ -1362,7 +1362,7 @@ export type BoardEstimate = {
   modelVersion: string
   rulesVersion: string
   boardVersion: 'ag054-board-a3-v1' | 'ag054-board-a4-v1'
-  status: 'reference_plane_estimate' | 'needs_review'
+  status: 'reference_plane_estimate' | 'needs_review' | 'pixel_scale_estimate'
   reason: string
   markerIds: number[]
   markerCornersPx: Record<string, Array<[number, number]>>
@@ -1374,6 +1374,8 @@ export type BoardEstimate = {
     minorAxisCm: number
     projectedAreaCm2: number
     projectedPerimeterCm: number
+    markerSidePxMedian?: number
+    markerScaleVariationPct?: number
   }
   unit: 'cm_reference_plane'
   physicalDimensionsValidated: false
@@ -1390,7 +1392,7 @@ function isBoardEstimate(value: unknown): value is BoardEstimate {
     || typeof value.imageSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.imageSha256)
     || typeof value.modelVersion !== 'string' || typeof value.rulesVersion !== 'string'
     || (value.boardVersion !== 'ag054-board-a3-v1' && value.boardVersion !== 'ag054-board-a4-v1')
-    || (value.status !== 'reference_plane_estimate' && value.status !== 'needs_review')
+    || (value.status !== 'reference_plane_estimate' && value.status !== 'needs_review' && value.status !== 'pixel_scale_estimate')
     || typeof value.reason !== 'string' || !Array.isArray(value.markerIds)
     || !value.markerIds.every(n => Number.isInteger(n) && n >= 0 && n <= 3)
     || !object(value.markerCornersPx)
@@ -1406,7 +1408,8 @@ function isBoardEstimate(value: unknown): value is BoardEstimate {
   if (value.status === 'needs_review') return value.measurements === null
     && value.rmsReprojectionMm === null && value.markerIds.length === 0
   if (!object(value.measurements) || value.markerIds.length < 3
-    || value.rmsReprojectionMm === null) return false
+    || (value.status === 'reference_plane_estimate' && value.rmsReprojectionMm === null)
+    || (value.status === 'pixel_scale_estimate' && value.rmsReprojectionMm !== null)) return false
   return ['widthCm', 'heightCm', 'majorAxisCm', 'minorAxisCm', 'projectedAreaCm2', 'projectedPerimeterCm']
     .every(k => typeof (value.measurements as Record<string, unknown>)[k] === 'number'
       && Number.isFinite((value.measurements as Record<string, number>)[k])
@@ -1470,6 +1473,20 @@ export async function createBoardEstimate(evaluationId: string, imageId: string,
   }, 45000)
   if (!isBoardEstimate(value) || value.evaluationId !== evaluationId || value.imageId !== imageId) throw new ApiDataError()
   return value
+}
+
+
+
+/** I03B: aproximacion optica (NO calibracion 3D ni medida fisica validada). */
+export async function createApproxA4Estimate(evaluationId: string, imageId: string, printedDimensionsVerified = false): Promise<BoardEstimate> {
+  if (!validEvaluationId(evaluationId) || !IMAGE_ID_PATTERN.test(imageId)) throw new ApiDataError()
+  const body = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/board/${encodeURIComponent(imageId)}/approximate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printedDimensionsVerified }),
+  }, 45000)
+  if (!isBoardEstimate(body) || body.evaluationId !== evaluationId || body.imageId !== imageId ||
+    body.rulesVersion !== 'ag054-board-plane-v4-a4-marker-pixels') throw new ApiDataError()
+  return body
 }
 
 export async function listDimensionalComparisons(evaluationId: string, imageId: string): Promise<DimensionalComparison[]> {
@@ -1562,7 +1579,7 @@ export async function getV2QualityStatus(evaluationId: string): Promise<Explorat
 }
 export async function analyzeV2Quality(evaluationId: string): Promise<QualityProposal[]> {
   if (!validEvaluationId(evaluationId) || !isOperatorAuthenticated()) throw new ApiDataError()
-  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/v2/analyze`, { method: 'POST' })
+  const v = await request(`/api/evaluations/${encodeURIComponent(evaluationId)}/vision/quality/v2/analyze`, { method: 'POST' }, 120000)
   if (!Array.isArray(v) || !v.every(r => isQualityProposal(r) && r.evaluationId === evaluationId
     && r.status === 'experimental_e0e1e2_v2' && r.proposedGrade === null)) throw new ApiDataError()
   return v

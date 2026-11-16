@@ -29,9 +29,6 @@ export function PhysicalCalibrationPanel({ evaluationId, imageId, onMeasured }: 
 
   useEffect(() => {
     let active = true
-    setLoading(true)
-    setData([])
-    setError(null)
     listPlanarMeasurements(evaluationId, imageId).then(items => {
       if (!active) return
       setData(items)
@@ -39,7 +36,7 @@ export function PhysicalCalibrationPanel({ evaluationId, imageId, onMeasured }: 
     }).catch(() => { if (active) setError('No se pudieron consultar las estimaciones existentes.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [evaluationId, imageId]) // onMeasured es callback de presentación
+  }, [evaluationId, imageId, onMeasured])
 
   async function calculate() {
     const value = Number(sideMm)

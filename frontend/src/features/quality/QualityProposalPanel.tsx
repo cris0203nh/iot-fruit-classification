@@ -61,8 +61,7 @@ function QualityProposalContent({ evaluationId, autoAnalyze }: { evaluationId: s
     <section className="ag055-panel" aria-label="AG-055 evaluación de calidad externa experimental"
       style={{ border: '1px solid #a7aea8', borderRadius: 10, padding: 16, marginTop: 14 }}>
       <h3>AG-055 · Calidad externa asistida por IA</h3>
-      <p>YOLOE identifica la fruta. La clasificación E0/E1/E2 requiere un modelo independiente,
-        datos etiquetados por humanos y validación por producto.</p>
+      <p>Las propuestas automáticas son experimentales y requieren revisión antes de confirmar la clasificación.</p>
       {loading && <p role="status">Consultando modelo y propuestas…</p>}
       {!loading && status && (
         <p role="status"><strong>{status.modelAvailable ? 'Modelo experimental instalado' : 'Sin modelo E0/E1/E2 elegible'}</strong>

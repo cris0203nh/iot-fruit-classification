@@ -26,12 +26,12 @@ export function HomePage() {
   }, [retry])
 
   const apiTone = apiStatus === 'online' ? 'ok' : apiStatus === 'offline' ? 'off' : 'wait'
-  const apiTitle = apiStatus === 'online' ? 'Backend disponible' : apiStatus === 'checking' ? 'Comprobando backend' : 'Backend no disponible'
+  const apiTitle = apiStatus === 'online' ? 'Servicio disponible' : apiStatus === 'checking' ? 'Comprobando conexión' : 'Servicio no disponible'
   const apiText = apiStatus === 'online'
-    ? 'La API respondió correctamente. Esto no confirma sensores conectados ni evaluaciones guardadas.'
+    ? 'La conexión está disponible. Comprueba la balanza y la cámara antes de evaluar.'
     : apiStatus === 'checking'
-      ? 'Verificando la API local…'
-      : 'Inicia FastAPI para poder consultar y registrar lotes y evaluaciones.'
+      ? 'Comprobando la conexión…'
+      : 'No se pudo conectar. Reintenta o solicita ayuda al administrador.'
   const apiValue = apiStatus === 'online' ? 'disponible' : apiStatus === 'checking' ? 'verificando' : 'no disponible'
 
   return (
@@ -39,7 +39,7 @@ export function HomePage() {
       <header className="inicio__head">
         <p className="inicio__eyebrow">Panel general</p>
         <h1 className="inicio__title">{reviewer ? 'Inicio: revisión y consulta' : 'Inicio: preparar la estación'}</h1>
-        <p className="inicio__lede">{reviewer ? 'Consulta las evaluaciones y su trazabilidad, sin modificar registros ni capturas.' : 'Supervisa el proceso antes de comenzar a evaluar frutas.'}</p>
+        <p className="inicio__lede">{reviewer ? 'Revisa los casos pendientes y consulta sus evidencias.' : 'Selecciona un lote y comienza a evaluar frutas.'}</p>
       </header>
 
       <div className="inicio__aviso" data-tone={apiTone}>
@@ -106,7 +106,7 @@ export function HomePage() {
           <h2 className="inicio__kicker" id="inicio-disponibilidad">Disponibilidad de la estación</h2>
           <dl className="inicio__estado">
             <div data-tone={apiTone}>
-              <dt><span className="inicio__estado-icon" aria-hidden="true"><Icon name="network" size={15} /></span>API local</dt>
+              <dt><span className="inicio__estado-icon" aria-hidden="true"><Icon name="network" size={15} /></span>Servicio AgroScan</dt>
               <dd><span className="inicio__dot" aria-hidden="true" />{apiValue}</dd>
             </div>
             {devices.map((device) => (
@@ -120,13 +120,13 @@ export function HomePage() {
         </section>
       </div>
 
-      <section className="inicio__bloque inicio__bloque--nota" aria-labelledby="inicio-antes">
-        <h2 className="inicio__kicker" id="inicio-antes">Antes de empezar</h2>
+      <details className="operational-help">
+        <summary id="inicio-antes">Ayuda y comprobaciones antes de empezar</summary>
         <div className="inicio__nota">
           <span className="inicio__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
-          <p className="inicio__copy">{reviewer ? 'Este perfil es de consulta y revisión. No puede crear lotes, registrar pesajes ni capturar fotografías.' : 'Para registrar una pieza, selecciona producto y lote. El pesaje, la captura y la persistencia solo se consideran confirmados cuando sus respectivos pasos obtienen evidencia del sistema. El estado del hardware no se deduce de la respuesta de la API.'}</p>
+          <p className="inicio__copy">{reviewer ? 'Este perfil es de consulta y revisión. No puede crear lotes, registrar pesajes ni capturar fotografías.' : 'Para registrar una pieza, selecciona producto y lote. El pesaje, la captura y la persistencia solo se consideran confirmados cuando sus respectivos pasos obtienen evidencia del sistema. La conexión con el servicio no confirma el funcionamiento de los dispositivos.'}</p>
         </div>
-      </section>
+      </details>
     </div>
   )
 }

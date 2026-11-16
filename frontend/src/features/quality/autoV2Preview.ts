@@ -45,7 +45,7 @@ export function summarizeCaptureV2(
   const parsed = v2Views(selected.details)
   if (!Array.isArray(original) || parsed.length !== original.length ||
       !sameIds(parsed.map(x => x.imageId), ids)) {
-    return needsReview('La respuesta V2 no acredita todas las fotografías. Revisar la evaluación.')
+    return needsReview('No se pudo verificar el análisis de todas las fotografías. Revisa la evaluación.')
   }
   const views = evidence.map(item => {
     const match = parsed.find(x => x.imageId === item.id)!
@@ -56,7 +56,7 @@ export function summarizeCaptureV2(
   const agreed = labels.every(label => label !== null && label === labels[0])
   return agreed
     ? { status: 'suggested', grade: labels[0], views, modelVersion: selected.modelVersion,
-        message: 'Coincidencia entre todas las vistas. Propuesta experimental; revisión humana obligatoria.' }
+        message: 'Las vistas coinciden. Resultado preliminar; revisión humana obligatoria.' }
     : { status: 'needs_review', grade: null, views, modelVersion: selected.modelVersion,
         message: 'Las vistas discrepan o alguna no es evaluable. Se requiere revisión humana.' }
 }
@@ -75,11 +75,11 @@ export async function analyzeStoredV2(
   const model = models.find(row => row.task === 'PILOT117_V2' && row.modelSha256)
   if (!model) return {
     status: 'no_model', grade: null, modelVersion: null, views: [],
-    message: 'V2 no está disponible en FastAPI. Comprueba AGROSCAN_V2_MODELS_PATH.',
+    message: 'La clasificación no está habilitada para este producto. Las fotografías siguen guardadas; solicita ayuda al administrador.',
   }
   const previous = summarizeCaptureV2(await gateway.getQualityProposals(evaluationId), evidence, model.modelSha256)
   if (previous) return previous
   const result = await gateway.analyzeV2Quality(evaluationId)
   return summarizeCaptureV2(result, evidence, model.modelSha256) ??
-    needsReview('FastAPI no devolvió un análisis V2 verificable para estas fotografías.')
+    needsReview('No se obtuvo un análisis verificable para estas fotografías. Revisión requerida.')
 }

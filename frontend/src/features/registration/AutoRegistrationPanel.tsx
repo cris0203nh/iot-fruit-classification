@@ -141,9 +141,9 @@ export function AutoRegistrationPanel({
       closeCamera()
     } catch (failure) {
       setError(failure instanceof ApiResponseError
-        ? `FastAPI: ${failure.message}`
+        ? failure.message
         : failure instanceof ApiConnectionError
-          ? 'No se puede conectar con FastAPI.'
+          ? 'No se pudo conectar. Reintenta o solicita ayuda al administrador.'
           : failure instanceof Error ? failure.message : 'No se pudo analizar la fotografía.')
     } finally {
       setRunning(false)
@@ -195,7 +195,7 @@ export function AutoRegistrationPanel({
       setError(failure instanceof ApiResponseError
         ? `No se registró la pieza: ${failure.message}`
         : failure instanceof ApiConnectionError
-          ? 'No se confirmó el registro. Reintenta con esta misma detección: el backend no duplicará la pieza.'
+          ? 'No se confirmó el registro. Reintenta con esta misma detección: el sistema evitará duplicar la pieza.'
           : failure instanceof Error ? failure.message : 'No se confirmó el registro.')
     } finally {
       setRegistering(false)
@@ -207,33 +207,38 @@ export function AutoRegistrationPanel({
       <div className="evaluation-section-heading">
         <span className="evaluation-step" aria-hidden="true">01</span>
         <div>
-          <h2 id="ag053-title">Detectar fruta y asignar pieza</h2>
-          <p>Primero identifica mango o tomate con YOLOE. Luego elige un lote compatible; la referencia se genera en el servidor.</p>
+          <h2 id="ag053-title">{registered ? 'Pieza registrada' : 'Identificación y lote'}</h2>
         </div>
       </div>
 
       {registered ? (
         <div className="ag053__done" role="status">
           <strong>Identificación y registro confirmados</strong>
-          <p>{registered.product === 'mango' ? 'Mango' : 'Tomate'} · {registered.lotId} · Pieza {registered.pieceId} · Evaluación {registered.id}</p>
-          <p>Continúa al pesaje. La detección NO constituye clasificación de calidad E0/E1/E2.</p>
+          <dl className="ag053__record">
+            <div><dt>Producto</dt><dd>{registered.product === 'mango' ? 'Mango' : 'Tomate'}</dd></div>
+            <div><dt>Lote</dt><dd>{registered.lotId}</dd></div>
+            <div><dt>Pieza</dt><dd>{registered.pieceId}</dd></div>
+            <div><dt>Evaluación</dt><dd>{registered.id}</dd></div>
+          </dl>
+          <p>La identificación no es una clasificación de calidad.</p>
           {warning && <p className="ag053__warning">{warning}</p>}
           <Link to={`/trazabilidad/${encodeURIComponent(registered.id)}`}>Consultar trazabilidad</Link>
         </div>
       ) : (
-        <>
-          <div className="ag053__source">
-            <label className="ag053__file">
-              <Icon name="camera" size={17} /> Seleccionar fotografía
-              <input type="file" accept="image/jpeg,image/png" onChange={(event) => {
-                const selected = event.currentTarget.files?.[0]
-                event.currentTarget.value = ''
-                if (selected) void analyze(selected)
-              }} disabled={running || registering} />
-            </label>
-            <button className="action-button action-button--secondary" type="button" onClick={() => void openCamera()} disabled={running || registering || cameraBusy}>
-              {cameraBusy ? 'Abriendo…' : 'Usar cámara'}
-            </button>
+        <div className="ag053__workspace">
+          <div className="ag053__visual">
+            <div className="ag053__source">
+              <label className="ag053__file">
+                <Icon name="camera" size={17} /> Seleccionar fotografía
+                <input type="file" accept="image/jpeg,image/png" onChange={(event) => {
+                  const selected = event.currentTarget.files?.[0]
+                  event.currentTarget.value = ''
+                  if (selected) void analyze(selected)
+                }} disabled={running || registering} />
+              </label>
+              <button className="action-button action-button--secondary" type="button" onClick={() => void openCamera()} disabled={running || registering || cameraBusy}>
+                {cameraBusy ? 'Abriendo…' : 'Usar cámara'}
+              </button>
           </div>
           {cameraOpen && (
             <div className="ag053__camera">
@@ -244,45 +249,54 @@ export function AutoRegistrationPanel({
               </div>
             </div>
           )}
-          {running && <p role="status">YOLOE está analizando la fotografía real…</p>}
-          {previewUrl && <GeometryEvidence previewUrl={previewUrl} result={precheck} alt="Fotografía enviada a detección preliminar" />}
-          {precheck && (
-            <div className="ag053__result" role="status">
-              {precheck.readyToRegister && precheck.product ? (
-                <>
-                  <strong>Producto identificado: {precheck.product === 'mango' ? 'Mango' : 'Tomate'}</strong>
-                  <span>Confianza: {((precheck.confidence ?? 0) * 100).toFixed(1)} % · Candidatos: {precheck.candidateCount} · Modelo: {precheck.modelVersion}</span>
-                  <p>Identificación preliminar, sujeta a la comprobación del operador. No es un grado de calidad.</p>
-                </>
-              ) : (
-                <p>Detección no confirmada ({precheck.reason}). No se asignará automáticamente ningún tipo de fruta.</p>
-              )}
-            </div>
-          )}
-          {precheck?.readyToRegister && precheck.product && (
-            <div className="ag053__lots">
-              <label htmlFor="ag053-lot">Seleccionar lote abierto de {precheck.product}</label>
-              <select id="ag053-lot" value={lot} onChange={(event) => setLot(event.target.value)} disabled={registering || lotsLoading}>
-                <option value="">Selecciona un lote compatible</option>
-                {productLots.map((item) => <option value={item.code} key={item.id}>{item.code}</option>)}
-              </select>
-              <p>El backend asignará la siguiente referencia de pieza del lote, sin reutilizar piezas existentes.</p>
-              {productLots.length === 0 && <p>No hay lotes compatibles. <Link to="/lotes">Crear lote</Link></p>}
-              {lotsError && <p role="alert">{lotsError}</p>}
-              <div className="ag053__source">
-                <button type="button" className="action-button action-button--secondary" onClick={onRefreshLots} disabled={lotsLoading}>Actualizar lotes</button>
-                <button type="button" className="action-button action-button--primary" onClick={() => void register()} disabled={!selectedLot || registering}>
-                  {registering ? 'Registrando…' : 'Registrar pieza automáticamente'}
-                </button>
-              </div>
-            </div>
-          )}
-          {error && <p className="ag053__warning" role="alert">{error}</p>}
-          <div className="ag053__manual">
-            <p>Si YOLOE no está disponible, la detección es incierta o necesitas registrar una excepción, utiliza el procedimiento manual existente.</p>
-            <button type="button" className="action-button action-button--secondary" onClick={() => { closeCamera(); onManual() }} disabled={registering}>Registro manual / excepción</button>
+          {running && <p role="status">Analizando la fotografía…</p>}
+          {!cameraOpen && !previewUrl && <div className="ag053__placeholder">
+            <Icon name="camera" size={28} />
+            <strong>Fotografía de identificación</strong>
+            <span>Una sola fruta, quieta y enfocada.</span>
+          </div>}
+          {previewUrl && <GeometryEvidence previewUrl={previewUrl} result={precheck} alt="Fotografía enviada a detección preliminar" compact />}
           </div>
-        </>
+          <div className="ag053__registration">
+            {precheck && (
+              <div className="ag053__result" role="status">
+                {precheck.readyToRegister && precheck.product ? (
+                  <>
+                    <strong>Producto identificado: {precheck.product === 'mango' ? 'Mango' : 'Tomate'}</strong>
+                    <details className="operational-help">
+                      <summary>Detalles de identificación</summary>
+                      <span>Comprueba que el producto identificado coincide con la fruta de la fotografía.</span>
+                    </details>
+                    <p>Identificación preliminar, sujeta a la comprobación del operador. No es un grado de calidad.</p>
+                  </>
+                ) : (
+                  <p>No se pudo identificar una única fruta con seguridad. Repite la fotografía o utiliza el registro manual.</p>
+                )}
+              </div>
+            )}
+              <div className="ag053__lots">
+                <label htmlFor="ag053-lot">Lote abierto{precheck?.product ? ` de ${precheck.product}` : ''}</label>
+                <select id="ag053-lot" value={lot} onChange={(event) => setLot(event.target.value)} disabled={!precheck?.readyToRegister || registering || lotsLoading} aria-describedby="ag053-lot-help">
+                  <option value="">{lotsLoading ? 'Cargando lotes…' : precheck?.readyToRegister ? 'Selecciona un lote compatible' : 'Primero identifica la fruta'}</option>
+                  {productLots.map((item) => <option value={item.code} key={item.id}>{item.code}</option>)}
+                </select>
+                <p id="ag053-lot-help">La referencia de pieza se asigna al registrar. La foto se guarda como primera vista si se confirma la carga.</p>
+                {precheck?.readyToRegister && !lotsLoading && productLots.length === 0 && <p>No hay lotes compatibles. <Link to="/lotes">Crear lote</Link></p>}
+                {lotsError && <p role="alert">{lotsError}</p>}
+                <div className="ag053__source">
+                  <button type="button" className="action-button action-button--secondary" onClick={onRefreshLots} disabled={lotsLoading}>Actualizar lotes</button>
+                  <button type="button" className="action-button action-button--primary" onClick={() => void register()} disabled={!selectedLot || registering}>
+                    {registering ? 'Registrando…' : 'Registrar pieza'}
+                  </button>
+                </div>
+              </div>
+            {error && <p className="ag053__warning" role="alert">{error}</p>}
+            <div className="ag053__manual">
+              <p>¿No se reconoce la fruta? Puedes registrarla manualmente.</p>
+              <button type="button" className="action-button action-button--secondary" onClick={() => { closeCamera(); onManual() }} disabled={registering}>Registro manual / excepción</button>
+          </div>
+          </div>
+        </div>
       )}
     </section>
   )

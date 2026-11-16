@@ -3,6 +3,7 @@ import {
   loadProtectedEvidence,
   type FruitGeometryResult,
   type FruitPrecheck,
+  getSessionRole,
 } from '../../services/agroscanApi'
 import { projectedBoundingSize } from './geometryView.ts'
 import { ProtectedEvidenceImage } from '../capture/ProtectedEvidenceImage'
@@ -66,7 +67,7 @@ export function GeometryEvidence({ path, previewUrl, result, alt, compact = fals
       {path && failed && <p role="alert">No se pudo consultar la fotografía original.</p>}
       {path && !url && !failed && <p role="status">Cargando fotografía autenticada…</p>}
       {url && validFrame && result ? (
-        <svg className="ag054__canvas" role="img" aria-label={`${alt}. Superposición de YOLOE si existe detección.`}
+        <svg className="ag054__canvas" role="img" aria-label={`${alt}. Contorno de la fruta si está disponible.`}
           viewBox={`0 0 ${result.frameWidth} ${result.frameHeight}`} xmlns="http://www.w3.org/2000/svg">
           <image href={url} x={0} y={0} width={result.frameWidth} height={result.frameHeight} />
           {showMask && <polygon points={result.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
@@ -88,11 +89,11 @@ export function GeometryEvidence({ path, previewUrl, result, alt, compact = fals
         <p>No se dispone de fotografía.</p>
       ) : null}
 
-      {result && (
+      {result && getSessionRole() === 'administrador' && (
         <div className="ag054__technical">
           <button type="button" className="ag054__technical-toggle"
             aria-expanded={showTechnical} onClick={() => setShowTechnical(current => !current)}>
-            {showTechnical ? 'Ocultar análisis técnico' : 'Ver YOLOE, medidas y calibración (opcional)'}
+            {showTechnical ? 'Ocultar herramientas técnicas' : 'Herramientas técnicas de imagen'}
           </button>
           {showTechnical && <div className="ag054__details">
           <span className="ag054__label">{result.product === 'mango' ? 'Mango' : result.product === 'tomate' ? 'Tomate' : 'Producto no confirmado'}

@@ -6,6 +6,17 @@ import { analyzeStoredV2, type V2Evidence, type V2Preview } from './autoV2Previe
 
 type Props = { evaluationId: string; evidence: readonly V2Evidence[] }
 
+export function ClassificationResult({ preview }: { preview: V2Preview }) {
+  return <>
+    <p><strong>{preview.status === 'suggested' && preview.grade ? `Resultado preliminar: ${preview.grade}` :
+      preview.status === 'no_model' ? 'Clasificación no disponible' : 'Revisión requerida'}</strong></p>
+    <p>{preview.message}</p>
+    {preview.views.length > 0 && <ul>{preview.views.map((view, index) => <li key={view.id}>
+      Vista {index + 1} ({view.id}): {view.grade ?? 'no evaluable'}
+    </li>)}</ul>}
+  </>
+}
+
 /** Análisis preliminar automático al haber dos fotos persistidas.
  * No representa confirmación de adquisición ni clasificación oficial. */
 export function AutoV2QualityPanel({ evaluationId, evidence }: Props) {
@@ -22,29 +33,24 @@ export function AutoV2QualityPanel({ evaluationId, evidence }: Props) {
     }).then(result => {
       if (active) { setPreview(result); setError(null) }
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : 'Falló la inferencia V2.')
+      console.warn('Quality analysis failed', cause)
+      if (active) setError('No se pudo completar la clasificación. Las fotografías permanecen guardadas. Reintenta o solicita ayuda al administrador.')
     })
     return () => { active = false }
   }, [evaluationId, evidence, attempt, permitted])
 
-  return <section className="capture__v2-preview" aria-label="Clasificación automática preliminar V2" aria-live="polite">
-    <h4>Calidad externa · análisis V2 preliminar</h4>
-    {!permitted ? <p>Se requiere sesión de operador para ejecutar V2.</p> :
+  return <section className="capture__v2-preview" aria-label="Clasificación preliminar" aria-live="polite">
+    <h4>Clasificación</h4>
+    {!permitted ? <p>Se requiere una sesión de operador para ejecutar la clasificación.</p> :
       error ? <>
         <p role="alert">No se completó el análisis automático: {error}</p>
         <button className="action-button action-button--secondary" type="button"
-          onClick={() => { setPreview(null); setError(null); setAttempt(n => n + 1) }}>Reintentar análisis V2</button>
+          onClick={() => { setPreview(null); setError(null); setAttempt(n => n + 1) }}>Reintentar clasificación</button>
       </> : !preview ? <p role="status">Analizando automáticamente las fotografías guardadas…</p>
-        : <>
-          <p><strong>{preview.grade ? `Sugerencia experimental: ${preview.grade}` :
-            preview.status === 'no_model' ? 'Modelo V2 no disponible' : 'Revisión necesaria'}</strong></p>
-          <p>{preview.message}</p>
-          {preview.views.length > 0 && <ul>{preview.views.map((view, index) => <li key={view.id}>
-            Vista {index + 1} ({view.id}): {view.grade ?? 'no evaluable'}
-          </li>)}</ul>}
-          {preview.modelVersion && <small>Modelo: {preview.modelVersion}</small>}
-        </>}
-    <p className="capture__hint">No es una clasificación confirmada ni una probabilidad de acierto.
+        : <ClassificationResult preview={preview} />}
+    {preview?.status === 'no_model' && !error && <button type="button" className="action-button action-button--secondary"
+      onClick={() => { setPreview(null); setAttempt(n => n + 1) }}>Reintentar clasificación</button>}
+    <p className="capture__hint">Resultado pendiente de revisión humana; su precisión no está validada para uso comercial.
       El peso inicial y final siguen siendo obligatorios para confirmar la adquisición.</p>
   </section>
 }

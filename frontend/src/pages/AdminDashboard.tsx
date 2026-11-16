@@ -166,6 +166,42 @@ export function AdminDashboard() {
       </section>
 
       <section className="admin-section">
+        <div className="admin-section-heading">
+          <div>
+            <span className="admin-eyebrow">
+              ACCESOS ADMINISTRATIVOS
+            </span>
+            <h2>Gestión del sistema</h2>
+          </div>
+        </div>
+
+        <div className="admin-access-grid">
+
+          <AdminAccess
+            icon="user"
+            title="Gestión de usuarios"
+            description="Registrar usuarios, asignar roles y administrar cuentas."
+            path="/usuarios"
+          />
+
+          <AdminAccess
+            icon="network"
+            title="Trazabilidad"
+            description="Consultar el historial de cambios y revisiones."
+            path="/trazabilidad"
+          />
+
+          <AdminAccess
+            icon="chart"
+            title="Estadísticas"
+            description="Consultar los indicadores y resultados del sistema."
+            path="/estadisticas"
+          />
+
+        </div>
+      </section>
+
+      <section className="admin-section">
 
         <div className="admin-section-heading">
           <div>
@@ -177,7 +213,7 @@ export function AdminDashboard() {
 
           <button
             type="button"
-            className="admin-refresh"
+            className="action-button action-button--secondary admin-refresh"
             onClick={() => {
                setState({ kind: 'loading' })
                setBackendStatus('checking')
@@ -413,8 +449,8 @@ export function AdminDashboard() {
         <div className="admin-system-grid">
 
           <SystemStatus
-            title="Backend AgroScan"
-            description="Comunicación con la API FastAPI"
+            title="Servicio AgroScan"
+            description="Conexión con el servicio"
             status={backendStatus === 'online'
               ? 'Validado'
               : backendStatus === 'checking'
@@ -440,7 +476,7 @@ export function AdminDashboard() {
           <SystemStatus
             title="Inteligencia artificial"
             description="Clasificación y análisis de imágenes"
-            status="En desarrollo"
+            status="Sin disponibilidad confirmada"
             online={false}
           />
 
@@ -448,45 +484,9 @@ export function AdminDashboard() {
 
         <p className="admin-disclaimer">
           La cámara y la balanza no cuentan con validación física
-          acreditada. La disponibilidad de FastAPI no confirma que
+          acreditada. La conexión con el servicio no confirma que
           estos dispositivos estén conectados o funcionando.
         </p>
-      </section>
-
-      <section className="admin-section">
-        <div className="admin-section-heading">
-          <div>
-            <span className="admin-eyebrow">
-              ACCESOS ADMINISTRATIVOS
-            </span>
-            <h2>Gestión del sistema</h2>
-          </div>
-        </div>
-
-        <div className="admin-access-grid">
-
-          <AdminAccess
-            icon="user"
-            title="Gestión de usuarios"
-            description="Registrar usuarios, asignar roles y administrar cuentas."
-            path="/usuarios"
-          />
-
-          <AdminAccess
-            icon="network"
-            title="Trazabilidad"
-            description="Consultar el historial de cambios y revisiones."
-            path="/trazabilidad"
-          />
-
-          <AdminAccess
-            icon="chart"
-            title="Estadísticas"
-            description="Consultar los indicadores y resultados del sistema."
-            path="/estadisticas"
-          />
-
-        </div>
       </section>
 
       <footer className="admin-footer">

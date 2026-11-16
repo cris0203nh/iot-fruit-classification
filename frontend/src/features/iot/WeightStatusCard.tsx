@@ -49,7 +49,7 @@ export function WeightStatusCard() {
   const canUse = view.state === 'stable'
 
   return (
-    <div className="evaluation-acquisition__card weight-card" aria-label="Peso actual desde la API IoT">
+    <div className="evaluation-acquisition__card weight-card" aria-label="Lectura actual de la balanza">
       <div className="evaluation-acquisition__top"><Icon name="scale" size={21} /><strong>Pesaje ESP32</strong></div>
       <div className={`weight-card__state weight-card__state--${view.state}`} role="status" aria-live="polite">
         <strong className="weight-card__value">{formatWeight(view.weightG)}</strong>
@@ -57,15 +57,15 @@ export function WeightStatusCard() {
       </div>
       <p className="weight-card__description">{view.description}</p>
       <dl className="weight-card__meta">
-        <div><dt>Recibida por la API</dt><dd>{formatTime(view.receivedAt)}</dd></div>
+        <div><dt>Última lectura</dt><dd>{formatTime(view.receivedAt)}</dd></div>
         <div><dt>Dispositivo</dt><dd>{view.deviceId ?? 'Sin dispositivo vigente'}</dd></div>
       </dl>
       <p className="weight-card__notice">
         {canUse
-          ? 'Estado estable: apto únicamente para pruebas de visualización. No se registra automáticamente en la pieza.'
+          ? 'Lectura estable, pendiente de guardar en la pieza. Comprueba su procedencia antes de registrarla.'
           : 'Peso no apto para registro. Revisa la lectura y reintenta cuando sea estable y reciente.'}
       </p>
-      <p className="weight-card__origin">La API actual no indica si el dato proviene de simulación o del sensor real. No se acredita pesaje físico ni calibración.</p>
+      <p className="weight-card__origin">No se ha verificado la procedencia física ni la calibración de esta lectura. Comprueba la balanza antes de utilizar el peso.</p>
     </div>
   )
 }

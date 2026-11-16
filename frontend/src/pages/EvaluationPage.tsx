@@ -14,6 +14,7 @@ import {
 } from '../services/agroscanApi'
 import type { EvaluationDetail } from '../features/history/historyService'
 import './EvaluationPage.css'
+import './EvaluationWorkstation.css'
 
 
 type Product = FruitProduct | ''
@@ -128,7 +129,7 @@ export function EvaluationPage() {
       const message = uncertain
         ? 'No se pudo confirmar si la evaluación se registró. Consulta Historial antes de volver a intentarlo para evitar duplicados.'
         : error instanceof ApiResponseError && error.status === 404
-          ? 'El lote ya no existe en el backend. Actualiza el listado y selecciona otro lote.'
+          ? 'El lote ya no está disponible. Actualiza el listado y selecciona otro lote.'
           : error instanceof ApiResponseError && error.status === 409
             ? 'El lote está cerrado y no permite iniciar evaluaciones. Actualiza el listado.'
             : error instanceof Error ? `No se creó la evaluación: ${error.message}` : 'No fue posible crear la evaluación.'
@@ -149,18 +150,14 @@ export function EvaluationPage() {
   }
 
   return (
-    <div className="evaluacion">
+    <div className="evaluacion evaluation-workstation">
       <header className="evaluacion__head">
-        <p className="evaluacion__kicker">Módulo de evaluación</p>
-        <h1 className="evaluacion__title">Evaluación externa de frutas</h1>
-        <p className="evaluacion__lede">Identifica la fruta, registra su peso y guarda dos fotografías. La clasificación y las medidas se consultan al finalizar.</p>
+        <h1 className="evaluacion__title">Nueva evaluación</h1>
+        <section className="evaluation-current-step" role="status" aria-live="polite">
+          <span className="evaluation-current-step__counter">Etapa {guideStep} de {GUIDED_STEP_LABELS.length}</span>
+          <strong>{currentStepLabel}</strong>
+        </section>
       </header>
-
-      <section className="evaluation-current-step" role="status" aria-live="polite">
-        <span className="evaluation-current-step__counter">Etapa {guideStep} de {GUIDED_STEP_LABELS.length}</span>
-        <strong>{currentStepLabel}</strong>
-        <span>Completa este paso para continuar.</span>
-      </section>
 
       <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
         <ol>
@@ -177,12 +174,7 @@ export function EvaluationPage() {
         </ol>
       </nav>
 
-      <div className="evaluacion__aviso" role="status">
-        <span className="evaluacion__aviso-mark" aria-hidden="true" />
-        <p><strong>Antes de continuar:</strong> confirma el lote y utiliza la misma pieza durante el pesaje y las fotografías.</p>
-      </div>
-
-      <div className="evaluation-grid">
+      <div className={`evaluation-grid${created ? ' evaluation-grid--registered' : ''}`}>
         {!manualMode ? (
           <AutoRegistrationPanel
             lots={openLots}
@@ -200,6 +192,7 @@ export function EvaluationPage() {
           />
         ) : (
         <form className="evaluation-form" noValidate onSubmit={handleCreate}>
+          {!created && <>
           <div className="evaluation-section-heading">
             <span className="evaluation-step" aria-hidden="true">01</span>
             <div>
@@ -285,7 +278,8 @@ export function EvaluationPage() {
             </div>
           </div>
 
-          <div className={`evaluation-readiness${readyToRegister ? ' evaluation-readiness--ready' : ''}`} aria-label="Comprobación de datos para registrar la pieza">
+          <details className={`evaluation-readiness${readyToRegister ? ' evaluation-readiness--ready' : ''}`} aria-label="Comprobación de datos para registrar la pieza">
+            <summary>Comprobación de datos</summary>
             <span className="evaluation-readiness__title">{created ? 'Registro confirmado' : readyToRegister ? 'Datos preparados para registrar' : 'Antes de registrar'}</span>
             <ul>
               <li className={draft.product ? 'evaluation-readiness__done' : ''}>{draft.product ? <Icon name="check" size={14} /> : <span className="evaluation-readiness__pending" aria-hidden="true" />} Producto elegido</li>
@@ -293,7 +287,7 @@ export function EvaluationPage() {
               <li className={pieceValid ? 'evaluation-readiness__done' : ''}>{pieceValid ? <Icon name="check" size={14} /> : <span className="evaluation-readiness__pending" aria-hidden="true" />} Referencia de pieza válida</li>
             </ul>
             <p>Estos controles validan el formulario; el registro solo se confirma con la respuesta del servidor.</p>
-          </div>
+          </details>
 
           <div className="evaluation-form__actions">
             <button className="action-button action-button--primary" type="submit" disabled={locked || lotsState.kind !== 'ready'}>
@@ -311,10 +305,9 @@ export function EvaluationPage() {
               {submitError.uncertain && <Link className="text-link" to="/historial">Consultar Historial <Icon name="arrow-right" size={15} /></Link>}
             </div>
           )}
+          </>}
 
-          <div className={`evaluation-preparation${created ? ' evaluation-preparation--confirmed' : ''}`} aria-live="polite" aria-atomic="true">
-            {created ? (
-              <>
+          {created && <div className="evaluation-preparation evaluation-preparation--confirmed" aria-live="polite" aria-atomic="true">
                 <strong>Evaluación registrada correctamente</strong>
                 <dl className="evaluation-prep__grid">
                   <div><dt>ID</dt><dd>{created.id}</dd></div>
@@ -330,18 +323,12 @@ export function EvaluationPage() {
                   <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>
                     Ver detalle <Icon name="arrow-right" size={15} />
                   </Link>
+                  <button type="button" className="action-button action-button--secondary" onClick={clearForm} disabled={creating}>Nueva evaluación</button>
                   <Link className="action-button action-button--secondary" to={`/trazabilidad/${created.id}`}>
                     Ver trazabilidad
                   </Link>
                 </div>
-              </>
-            ) : (
-              <>
-                <strong>La evaluación aún no se ha creado</strong>
-                <p>Completa los campos y pulsa «Registrar evaluación». No se creará ningún registro hasta que el servidor confirme la operación.</p>
-              </>
-            )}
-          </div>
+          </div>}
         </form>
         )}
 
@@ -353,14 +340,14 @@ export function EvaluationPage() {
         />
       </div>
 
-      <section className="evaluacion__nota" aria-labelledby="next-steps-heading">
-        <h2 className="evaluacion__kicker" id="next-steps-heading">Siguiente etapa</h2>
+      <details className="operational-help">
+        <summary id="next-steps-heading">Ayuda: peso, fotografías y resultado</summary>
         <div className="evaluacion__nota-body">
           <span className="evaluacion__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
           <p>Registra el peso y las dos vistas. Consulta el resultado al terminar: si falta un modelo o una calibración, se indicará sin mostrar valores inventados.</p>
         </div>
         <Link to="/historial" className="evaluacion__link">Ver historial de evaluaciones <Icon name="arrow-right" size={15} /></Link>
-      </section>
+      </details>
     </div>
   )
 }

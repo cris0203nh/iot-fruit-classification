@@ -78,8 +78,8 @@ export async function runAutomaticQuality(
       const predictions = await gateway.analyzeV2Quality(evaluationId)
       const grade = summarizeV2Proposals(predictions, evidence.map(x => x.id))
       return grade
-        ? { status: 'suggested', grade, source: 'v2', message: 'Propuesta experimental V2; revisión humana obligatoria. No implica precisión validada.' }
-        : { status: 'needs_review', grade: null, source: 'v2', message: 'V2 analizó las imágenes, pero no obtuvo un grado concordante y evaluable. Revisar fotografías.' }
+        ? { status: 'suggested', grade, source: 'v2', message: 'Resultado preliminar; revisión humana obligatoria. Su precisión comercial no está validada.' }
+        : { status: 'needs_review', grade: null, source: 'v2', message: 'No se obtuvo una clasificación coincidente en todas las vistas. Revisa las fotografías.' }
     }
     const legacy = await gateway.getQualityModelStatus(evaluationId)
     if (!legacy.modelAvailable) {
@@ -87,7 +87,7 @@ export async function runAutomaticQuality(
     }
     const result = await gateway.analyzeQualityProposal(evaluationId)
     if (result.status === 'experimental_proposal' && GRADES.has(result.proposedGrade ?? '')) {
-      return { status: 'suggested', grade: result.proposedGrade as QualityGrade, source: 'quality_i01', message: 'Propuesta experimental sobre dos vistas; revisión humana obligatoria.' }
+      return { status: 'suggested', grade: result.proposedGrade as QualityGrade, source: 'quality_i01', message: 'Resultado preliminar sobre dos vistas; revisión humana obligatoria.' }
     }
     return { status: 'needs_review', grade: null, source: 'quality_i01', message: 'El modelo no obtuvo una propuesta concordante. Revisar las fotografías.' }
   } catch {

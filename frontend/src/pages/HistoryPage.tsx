@@ -146,14 +146,14 @@ export function HistoryPage() {
         </button>
         <button type="button" aria-pressed={currentView === 'piezas'} aria-controls="historial-vista-piezas"
           onClick={() => selectView('piezas')}>
-          <Icon name="boxes" size={17} /> Piezas y lotes · AG-040
+          <Icon name="boxes" size={17} /> Piezas y lotes
         </button>
       </nav>
 
       {state.kind === 'unavailable' && currentView === 'evaluaciones' && (
         <div className="historial__aviso" role="status">
           <span className="historial__aviso-icon" aria-hidden="true"><Icon name="alert" size={17} /></span>
-          <p><strong>Sin conexión con FastAPI:</strong> no se pudo consultar el historial. Los registros pueden seguir almacenados en SQLite; inicia el servidor y reintenta.</p>
+          <p><strong>Sin conexión:</strong> no se pudo consultar el historial. Esto no significa que los registros se hayan perdido. Reintenta la consulta.</p>
         </div>
       )}
 
@@ -162,7 +162,7 @@ export function HistoryPage() {
           <span className="historial__panel-icon" aria-hidden="true"><Icon name="history" size={18} /></span>
           <div>
             <h2 id="history-list-heading">Evaluaciones registradas</h2>
-            <p>Registros consultados desde FastAPI y almacenados en SQLite.</p>
+            <p>Busca una pieza o un lote y abre su detalle.</p>
           </div>
         </div>
 
@@ -223,7 +223,7 @@ export function HistoryPage() {
         </div>
 
         <div className="history-results-bar" aria-live="polite">
-          <span className="history-results-bar__count">{state.kind === 'ready' ? `${filteredRecords.length} ${filteredRecords.length === 1 ? 'evaluación' : 'evaluaciones'} encontradas` : state.kind === 'loading' ? 'Consultando backend…' : 'Consulta no disponible'}</span>
+          <span className="history-results-bar__count">{state.kind === 'ready' ? `${filteredRecords.length} ${filteredRecords.length === 1 ? 'evaluación' : 'evaluaciones'} encontradas` : state.kind === 'loading' ? 'Consultando registros…' : 'Consulta no disponible'}</span>
           <div className="history-results-bar__actions">
             <span className="history-results-bar__note">Datos consultados desde el servidor</span>
             <button type="button" className="action-button action-button--secondary" disabled={state.kind === 'loading'} onClick={refresh}>Actualizar registros</button>
@@ -255,8 +255,8 @@ export function HistoryPage() {
         </div>}
 
         {state.kind === 'loading' && <div className="history-state" role="status">Consultando historial…</div>}
-        {state.kind === 'unavailable' && <div className="history-state"><HistoryStateMessage kind="unavailable" title="FastAPI no disponible" explanation="No fue posible contactar con el backend. La ausencia de filas no significa que no existan evaluaciones guardadas." /><button type="button" className="action-button action-button--secondary" onClick={refresh}>Reintentar consulta</button></div>}
-        {state.kind === 'restricted' && <HistoryStateMessage kind="restricted" title="Acceso no autorizado" explanation="El backend ha denegado esta consulta (401/403). No se mostrarán datos de evaluaciones." />}
+        {state.kind === 'unavailable' && <div className="history-state"><HistoryStateMessage kind="unavailable" title="Servicio no disponible" explanation="No se pudo conectar con el servicio. La ausencia de filas no significa que no existan evaluaciones guardadas." /><button type="button" className="action-button action-button--secondary" onClick={refresh}>Reintentar consulta</button></div>}
+        {state.kind === 'restricted' && <HistoryStateMessage kind="restricted" title="Acceso no autorizado" explanation="Tu sesión no tiene permiso para esta consulta. No se mostrarán datos de evaluaciones." />}
         {state.kind === 'error' && (
           <div className="history-state">
             <HistoryStateMessage kind="error" title="No se pudo consultar el historial" explanation="Se produjo un error al obtener los registros. El historial no se ha actualizado." />
@@ -271,14 +271,14 @@ export function HistoryPage() {
         <PieceHistoryPanel suggestedLots={lots} />
       </div>
 
-      <section className="historial__nota" aria-labelledby="history-guide-title">
-        <h2 className="historial__kicker" id="history-guide-title">Información que se conservará</h2>
+      <details className="operational-help">
+        <summary id="history-guide-title">Sobre los registros y su conservación</summary>
         <div className="historial__nota-body">
           <span className="historial__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
-          <p>Las consultas muestran registros persistidos. Tras reiniciar FastAPI, vuelve a iniciar sesión y busca el mismo ID: los registros se recuperan desde SQLite. Las evaluaciones en proceso pueden no tener peso ni imágenes.</p>
+          <p>Los registros guardados se conservan al reiniciar el sistema. Búscalos por su identificador. Las evaluaciones en proceso pueden no tener peso ni imágenes.</p>
         </div>
         {getSessionRole() !== 'revisor' && <Link className="historial__link" to="/evaluacion">Ir a Evaluación <Icon name="arrow-right" size={15} /></Link>}
-      </section>
+      </details>
     </div>
   )
 }
@@ -379,7 +379,7 @@ function HistoryDetailContent({
           <HistoryStateMessage
             kind="unavailable"
             title="Backend desconectado"
-            explanation="No se puede consultar este detalle porque FastAPI no responde."
+            explanation="No se pudo conectar para consultar el detalle."
           />
         )}
 

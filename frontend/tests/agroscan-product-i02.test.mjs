@@ -84,12 +84,12 @@ const historical = (proposals, evidenceIds = views) => summarizeEvaluation({
 })
 test('I02: Historial sí muestra V2 experimental aunque el clasificador antiguo no esté instalado', () => {
   const result = historical([row(makeView(views[0]), makeView(views[1]))])
-  assert.equal(result.ai, 'Sugerencia V2 E1')
+  assert.equal(result.ai, 'Sugerencia E1')
   assert.match(result.aiNote, /no es dictamen/i)
 })
 test('I02: Historial no presenta propuestas antiguas de otra fotografía como actuales', () => {
   const result = historical([row(makeView(views[0]), makeView(views[1]))], [views[0], 'I-000103'])
-  assert.equal(result.ai, 'Análisis V2 requiere revisión')
+  assert.equal(result.ai, 'Clasificación requiere revisión')
 })
 
 test('I02: no analiza una evaluación sin confirmación de adquisición', async () => {

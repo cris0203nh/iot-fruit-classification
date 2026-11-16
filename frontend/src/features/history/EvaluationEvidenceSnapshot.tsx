@@ -34,19 +34,19 @@ export function EvaluationEvidenceSnapshot({ evaluationId, evidence, proposals }
   const quality = snapshot?.quality
   return <section className="agroscan-evidence-i04" aria-label="Resultados IA y dimensiones por fotografía">
     <h4>Resultados por fotografía · solo lectura</h4>
-    <p>Datos recuperados de FastAPI. No se ejecuta una inferencia nueva ni se confirma la clasificación.</p>
+    <p>Resultados guardados, pendientes de confirmación por un revisor.</p>
     {state.loading ? <p role="status">Consultando evidencia persistida…</p> : <>
       <p className="agroscan-evidence-i04__headline">
-        {proposals === null ? 'No se pudo consultar la propuesta V2.' :
+        {proposals === null ? 'No se pudo consultar la clasificación.' :
           quality?.status === 'suggested' && quality.grade
-            ? `Calidad sugerida: ${quality.grade} · experimental`
+            ? `Calidad sugerida: ${quality.grade} · preliminar`
             : quality?.status === 'needs_review' ? 'Calidad: requiere revisión humana'
-              : 'Sin propuesta V2 completa para las fotos actuales'}
+              : 'Sin clasificación completa para las fotografías actuales'}
       </p>
       <div className="agroscan-evidence-i04__table-wrap">
         <table>
-          <caption>Calidad experimental y proyección óptica nominal por vista</caption>
-          <thead><tr><th scope="col">Fotografía</th><th scope="col">Calidad V2</th>
+          <caption>Calidad preliminar y medidas aproximadas por vista</caption>
+          <thead><tr><th scope="col">Fotografía</th><th scope="col">Clasificación</th>
             <th scope="col">Eje mayor</th><th scope="col">Eje menor</th><th scope="col">Estado dimensional</th></tr></thead>
           <tbody>{evidence.map(image => {
             const predicted = quality?.views.find(v => v.id === image.id)
@@ -67,8 +67,8 @@ export function EvaluationEvidenceSnapshot({ evaluationId, evidence, proposals }
           })}</tbody>
         </table>
       </div>
-      <p className="agroscan-evidence-i04__caution">V2 es experimental y exige revisión humana. Los centímetros son aproximaciones
-        con escala nominal ArUco de 30 mm: no son dimensiones 3D validadas ni acreditan precisión.
+      <p className="agroscan-evidence-i04__caution">La clasificación requiere revisión humana; su precisión comercial no está validada. Las medidas son aproximadas
+        y no corresponden a dimensiones físicas verificadas.
         Las vistas no se promedian. El pesaje y la adquisición conservan sus requisitos independientes.</p>
     </>}
   </section>

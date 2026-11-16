@@ -1,0 +1,35 @@
+﻿ID;Categoria;Control_I01;Estatus_I05;Alcance_o_riesgo;Evidencia
+SEC-01;Seguridad;JWT requiere secreto configurado >=32 caracteres;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-02;Seguridad;JWT restringe HS256 y requiere sub/iat/exp;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-03;Seguridad;Login verifica contraseña cifrada y estado de usuario;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-04;Seguridad;Frontend no persiste JWT en localStorage ni URL;FUENTE_APROBADA_NAVEGADOR_PENDIENTE;"Cuatro pruebas de fuente; no sustituye interacción E2E en navegador";docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-05;Seguridad;Rutas autenticadas rechazan petición sin token;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-06;Seguridad;Operador no corrige ni anula evaluación por ruta formal;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-07;Seguridad;Revisor puede decidir pero no anular;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-08;Seguridad;Administración usuarios reservada al administrador;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-09;Seguridad;Backup y restore reservados al administrador;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-10;Seguridad;Cola de revisión requiere revisor;APROBADO_AUTOMATIZADO;I02: JWT, roles y regresiones con usuarios/SQLite de prueba;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-11;Seguridad;Autenticación de lectura IoT acorde al despliegue;RIESGO_ABIERTO;"Escritura de mediciones IoT sin credencial; evaluar exposición y autenticación de estación";docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+SEC-12;Seguridad;Regla de autorización de anotación E0/E1/E2 documentada;PENDIENTE_DECISION_FUNCIONAL;Aprobar formalmente separación de anotación experimental y revisión auditada;docs/ag046/runs/AG046_I02_20261116T132352_050856Z
+INT-01;Integridad;SQLite habilita claves foráneas por conexión;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-02;Integridad;Integridad estructural SQLite;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-03;Integridad;Integridad referencial SQLite;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-04;Integridad;Registros de imágenes tienen archivo físico y vínculo válido;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-05;Integridad;Carga JPG/PNG restringe formato y tamaño;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-06;Integridad;Fallo de disco no deja imagen huérfana;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-07;Integridad;Carga de imagen idempotente;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-08;Integridad;SHA-256 original validado antes de decisión formal;APROBADO_CON_HASH_HISTORICO_LIMITADO;"Valida hash previamente registrado; no acredita archivos históricos sin digest";docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-09;Integridad;Dos fotografías por evaluación respetan cierre de revisión;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+INT-10;Integridad;Reporte por lote entrega hash de CSV reproducible;APROBADO_AISLADO;I03: SQLite e imágenes sintéticas, no registros operativos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+BKP-01;Respaldo;Respaldo incorpora SQLite e imágenes declaradas;APROBADO_AISLADO;I03: ZIP, manifiesto, SHA, restore y rollback sintéticos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+BKP-02;Respaldo;Validar SHA-256 y rutas ZIP seguras;APROBADO_AISLADO;I03: ZIP, manifiesto, SHA, restore y rollback sintéticos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+BKP-03;Respaldo;Restauración conserva lotes, piezas, revisiones e imágenes;APROBADO_AISLADO;I03: ZIP, manifiesto, SHA, restore y rollback sintéticos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+BKP-04;Respaldo;Rollback preserva información si falla restauración;APROBADO_AISLADO;I03: ZIP, manifiesto, SHA, restore y rollback sintéticos;docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+BKP-05;Respaldo;Restauración no compite con otras escrituras;APROBADO_UN_PROCESO;"Protección durante suspensión ensayada con un proceso; multiproceso y escrituras externas pendientes";docs/ag046/runs/AG046_I03_20261116T141329_104177Z
+RST-01;Reinicio;Datos de lote y evaluación persisten tras reinicio real;APROBADO_REINICIO_AISLADO;"I04: tres procesos secuenciales con SQLite de prueba; sin entorno remoto";docs/ag046/runs/AG046_I04_20261116T144223_566776Z
+RST-02;Reinicio;Imágenes persisten byte a byte y se sirven tras reinicio;APROBADO_REINICIO_AISLADO;"I04: tres procesos secuenciales con SQLite de prueba; sin entorno remoto";docs/ag046/runs/AG046_I04_20261116T144223_566776Z
+RST-03;Reinicio;Decisiones y bitácora permanecen inmutables;APROBADO_REINICIO_AISLADO;"I04: tres procesos secuenciales con SQLite de prueba; sin entorno remoto";docs/ag046/runs/AG046_I04_20261116T144223_566776Z
+RST-04;Reinicio;Reinicio con servidor detenido y datos aislados;APROBADO_REINICIO_AISLADO;"I04: tres procesos secuenciales con SQLite de prueba; sin entorno remoto";docs/ag046/runs/AG046_I04_20261116T144223_566776Z
+MNT-01;Mantenimiento;README explica login, Alembic, respaldo y límites;DOCUMENTACION_CORREGIDA;README corregido y verificado contra secciones implementadas;docs/ag046/AG046_I05_CIERRE_EVIDENCIADO.md
+MNT-02;Mantenimiento;Evidencias de cada control conservadas sin secretos;MANIFIESTO_CON_SHA256;Archivos de ejecuciones locales conciliados sin adjuntar secretos;docs/ag046/AG046_I05_CIERRE_EVIDENCIADO.md
+MNT-03;Mantenimiento;Todos los defectos tienen estado y severidad;REGISTRO_DE_DEFECTOS_ACTUALIZADO;Incidencias y riesgos separados por tipo y estado;docs/ag046/AG046_I05_CIERRE_EVIDENCIADO.md

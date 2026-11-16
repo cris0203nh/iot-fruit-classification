@@ -1,0 +1,13 @@
+ID;Caso;Tipo;Estado_preparacion;Resultado_ejecucion;Interpretacion
+SEC-01;Clave JWT corta y algoritmo no admitido;API import;PRUEBA_PREPARADA;PENDIENTE;No se acepta secreto corto ni HS384
+SEC-02;JWT invalidos expirados y sin claims;API;PRUEBA_PREPARADA;PENDIENTE;401 sin revelar token
+SEC-03;Login Argon2 y usuario inactivo;API;PRUEBA_PREPARADA;PENDIENTE;200 valido y 401 denegado
+SEC-04;JWT en memoria Authorization y logout;Frontend fuente;PRUEBA_PREPARADA;PENDIENTE;No sustituye navegador
+SEC-05;Lectura sin sesion;API;PRUEBA_PREPARADA;PENDIENTE;401 sin escrituras
+SEC-06;Operador no corrige no decide ni anula;API;PRUEBA_PREPARADA;PENDIENTE;403 sin eventos
+SEC-07;Revisor decide y no anula;API;PRUEBA_PREPARADA;PENDIENTE;201 y 403
+SEC-08;Usuarios roles solo administracion;API;PRUEBA_PREPARADA;PENDIENTE;200/201 solo admin
+SEC-09;Backup restore solo admin;API con mocks;PRUEBA_PREPARADA;PENDIENTE;401/403 y 200 con mock
+SEC-10;Bandeja requiere revisor;API;PRUEBA_PREPARADA;PENDIENTE;200 revisor/admin
+SEC-11;Ingesta IoT sin token;Caracterizacion de riesgo;PRUEBA_PREPARADA;PENDIENTE;HTTP 200 es riesgo observado no aprobacion
+SEC-12;Anotacion experimental frente a decision formal;Caracterizacion de roles;PRUEBA_PREPARADA;PENDIENTE;Politica de autorizacion por confirmar

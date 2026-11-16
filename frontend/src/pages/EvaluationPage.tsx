@@ -153,13 +153,13 @@ export function EvaluationPage() {
       <header className="evaluacion__head">
         <p className="evaluacion__kicker">Módulo de evaluación</p>
         <h1 className="evaluacion__title">Evaluación externa de frutas</h1>
-        <p className="evaluacion__lede">Identifica primero la fruta con YOLOE, selecciona un lote compatible y registra una pieza con referencia automática. También está disponible el registro manual por excepción.</p>
+        <p className="evaluacion__lede">Identifica la fruta, registra su peso y guarda dos fotografías. La clasificación y las medidas se consultan al finalizar.</p>
       </header>
 
       <section className="evaluation-current-step" role="status" aria-live="polite">
         <span className="evaluation-current-step__counter">Etapa {guideStep} de {GUIDED_STEP_LABELS.length}</span>
         <strong>{currentStepLabel}</strong>
-        <span>La etapa indica la posición en la guía, no confirma automáticamente una medición o clasificación.</span>
+        <span>Completa este paso para continuar.</span>
       </section>
 
       <nav className="evaluation-progress" aria-label="Pasos para evaluar una pieza">
@@ -179,7 +179,7 @@ export function EvaluationPage() {
 
       <div className="evaluacion__aviso" role="status">
         <span className="evaluacion__aviso-mark" aria-hidden="true" />
-        <p><strong>Qué se registra ahora:</strong> la pieza quedará registrada con estado «En proceso» únicamente cuando FastAPI confirme el registro. El pesaje, las fotografías y la clasificación se verifican por separado.</p>
+        <p><strong>Antes de continuar:</strong> confirma el lote y utiliza la misma pieza durante el pesaje y las fotografías.</p>
       </div>
 
       <div className="evaluation-grid">
@@ -323,9 +323,8 @@ export function EvaluationPage() {
                   <div><dt>Pieza</dt><dd>{created.pieceId}</dd></div>
                 </dl>
                 <p>
-                  Estado inicial: <b>En proceso</b>. La evaluación existe en SQLite.
-                  Los pesos y fotografías deben asociarse a esta misma evaluación.
-                  No se ha registrado clasificación.
+                  Estado: <b>En proceso</b>. Continúa con el peso y las dos fotografías.
+                  La clasificación y las medidas aún no están disponibles.
                 </p>
                 <div className="evaluation-record-links">
                   <Link className="action-button action-button--primary" to={`/historial/${created.id}`}>
@@ -358,7 +357,7 @@ export function EvaluationPage() {
         <h2 className="evaluacion__kicker" id="next-steps-heading">Siguiente etapa</h2>
         <div className="evaluacion__nota-body">
           <span className="evaluacion__nota-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
-          <p>La identificación se registra mediante FastAPI. La visualización del peso ya consulta la API local, pero Fernando debe validar físicamente el HX711 y la calibración; la captura RGB inicial requiere verificación con un teléfono real y el análisis automático continúa pendiente. La evaluación no se considerará completada hasta que el backend confirme el flujo de adquisición y clasificación.</p>
+          <p>Registra el peso y las dos vistas. Consulta el resultado al terminar: si falta un modelo o una calibración, se indicará sin mostrar valores inventados.</p>
         </div>
         <Link to="/historial" className="evaluacion__link">Ver historial de evaluaciones <Icon name="arrow-right" size={15} /></Link>
       </section>

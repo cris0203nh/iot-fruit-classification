@@ -1,5 +1,5 @@
 ﻿
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiConnectionError,
   ApiResponseError,
@@ -19,6 +19,9 @@ import { nextCaptureView } from './captureViews'
 import { analyzeFruitGeometry, listFruitGeometries, type FruitGeometryResult } from '../../services/agroscanApi'
 import { GeometryOrOriginal } from '../geometry/GeometryEvidence'
 import { QualityProposalPanel } from '../quality/QualityProposalPanel'
+import { AutoV2QualityPanel } from '../quality/AutoV2QualityPanel'
+import { A4DimensionPanel } from '../geometry/A4DimensionPanel'
+import { ApproxA4Panel } from '../geometry/ApproxA4Panel'
 import './EvaluationImageCapture.css'
 
 type Props = {
@@ -63,6 +66,8 @@ export function EvaluationImageCapture({
   const stableFrames = useRef(0)
   const autoCaptureTriggered = useRef(false)
   const capturePhotoRef = useRef<() => Promise<void>>(async () => {})
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const autoStartAttemptedId = useRef<string | null>(null)
 
   const [candidate, setCandidate] = useState<Candidate | null>(null)
 const [saved, setSaved] = useState<Saved[]>([])
@@ -92,6 +97,8 @@ const [saved, setSaved] = useState<Saved[]>([])
 
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [checkingFile, setCheckingFile] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
 const [cameraOpen, setCameraOpen] = useState(false)
   const [cameraReady, setCameraReady] = useState(false)
@@ -109,7 +116,7 @@ const [cameraOpen, setCameraOpen] = useState(false)
   const canCapture = loadState === 'ready' && !uploading
 
   // El guardado no requiere confirmaciones manuales en pantalla.
-  const canSave = Boolean(candidate) && canCapture
+  const canSave = Boolean(candidate) && canCapture && !checkingFile
 
   // Notificar cantidad de fotografías guardadas.
   useEffect(() => {
@@ -315,7 +322,7 @@ const [cameraOpen, setCameraOpen] = useState(false)
   // ABRIR WEBCAM USB COMO CÁMARA PREDETERMINADA
   // ==================================================
 
-  async function openCamera() {
+  const openCamera = useCallback(async () => {
     if (!canCapture || cameraStarting) return
 
     setError(null)
@@ -446,29 +453,41 @@ const [cameraOpen, setCameraOpen] = useState(false)
     } finally {
       setCameraStarting(false)
     }
-  }
-  // Apertura automática después de confirmar el peso inicial.
-useEffect(() => {
-  if (
-    !autoStart ||
-    loadState !== 'ready' ||
-    cameraOpen ||
-    cameraStarting ||
-    candidate ||
-    saved.length >= 2
-  ) {
-    return
-  }
+  }, [canCapture, cameraStarting])
 
-  void openCamera()
-}, [
-  autoStart,
-  loadState,
-  cameraOpen,
-  cameraStarting,
-  candidate,
-  saved.length,
-])
+  // Apertura opcional y única por evaluación: se agenda fuera del efecto
+  // para no provocar actualizaciones de estado durante su ejecución.
+  // Los reintentos posteriores quedan en el botón manual de captura.
+  useEffect(() => {
+    if (
+      !autoStart ||
+      loadState !== 'ready' ||
+      cameraOpen ||
+      cameraStarting ||
+      candidate ||
+      saved.length >= 2 ||
+      autoStartAttemptedId.current === evaluationId
+    ) {
+      return
+    }
+
+    let cancelled = false
+    void Promise.resolve().then(() => {
+      if (cancelled || autoStartAttemptedId.current === evaluationId) return
+      autoStartAttemptedId.current = evaluationId
+      void openCamera()
+    })
+    return () => { cancelled = true }
+  }, [
+    autoStart,
+    loadState,
+    cameraOpen,
+    cameraStarting,
+    candidate,
+    saved.length,
+    evaluationId,
+    openCamera,
+  ])
 
   // Capturar y analizar fotografía.
   async function capturePhoto() {
@@ -568,6 +587,33 @@ useEffect(() => {
     setError(null)
   }
 
+  // Admite una fotografía JPG/PNG como vista adicional de la MISMA evaluación.
+  // No crea una evaluación, no salta el control de calidad ni confirma un grado.
+  async function chooseFile(file: File) {
+    if (!canCapture || checkingFile) return
+    const validation = captureFileError(file)
+    if (validation) {
+      setError(validation)
+      return
+    }
+    setCheckingFile(true)
+    setCandidate(null)
+    setError(null)
+    closeCamera()
+    try {
+      const quality = await analyzeCaptureQuality(file)
+      if (quality.status === 'invalid') {
+        setError(`Fotografía rechazada: ${quality.issues.join(' ')}`)
+        return
+      }
+      setCandidate({ file, url: URL.createObjectURL(file), quality })
+    } catch {
+      setError('No se pudo revisar la imagen seleccionada. Elige otro JPG o PNG.')
+    } finally {
+      setCheckingFile(false)
+    }
+  }
+
   // Guardar fotografía en la evaluación actual.
   async function save() {
     if (!candidate || !canSave || sending.current) return
@@ -643,18 +689,84 @@ useEffect(() => {
         </button>
       )}
 
+      <p className="capture__progress" role="status">
+        {saved.length >= 2
+          ? `${saved.length} fotografías guardadas. Ya puedes continuar al peso de confirmación.`
+          : `${saved.length} de 2 fotografías guardadas. ${saved.length === 1
+            ? 'Gira la misma fruta y registra la segunda vista.'
+            : 'Toma o sube la primera fotografía.'}`}
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+        className="capture__input"
+        aria-label="Elegir fotografía JPG o PNG"
+        onChange={event => {
+          const file = event.currentTarget.files?.[0]
+          event.currentTarget.value = ''
+          if (file) void chooseFile(file)
+        }}
+      />
+
+      {canCapture && !candidate && !cameraOpen && (
+        <div className="capture__actions capture__actions--primary">
+          <button type="button" className="action-button action-button--primary"
+            disabled={cameraStarting || checkingFile} onClick={() => void openCamera()}>
+            {cameraStarting ? 'Abriendo cámara…' : saved.length === 1
+              ? 'Tomar segunda fotografía' : 'Tomar fotografía con cámara'}
+          </button>
+          <button type="button" className="action-button action-button--secondary"
+            disabled={cameraStarting || checkingFile} onClick={() => fileInputRef.current?.click()}>
+            {checkingFile ? 'Revisando imagen…' : 'Subir imagen JPG/PNG'}
+          </button>
+        </div>
+      )}
+
+      {/* Al guardar la segunda vista, lanzar V2 preliminar, sin depender de pesajes. */}
+      {saved.length >= 2 && (
+        <AutoV2QualityPanel
+          key={`${evaluationId}:${saved.map(item => item.id).join('|')}`}
+          evaluationId={evaluationId}
+          evidence={saved}
+        />
+      )}
+
+      {/* I03B: aproximación por escala sin exigir homografía completa. */}
+      {saved.length >= 2 && (
+        <ApproxA4Panel
+          key={`approx:${evaluationId}:${saved.map(item => item.id).join('|')}`}
+          evaluationId={evaluationId}
+          evidence={saved}
+        />
+      )}
+
+      {/* La homografía A4 estricta permanece disponible como herramienta avanzada. */}
+      {saved.length >= 2 && (
+        <details className="capture__advanced">
+          <summary>Medición avanzada por homografía A4 (opcional)</summary>
+          <A4DimensionPanel
+            key={`a4:${evaluationId}:${saved.map(item => item.id).join('|')}`}
+            evaluationId={evaluationId}
+            evidence={saved}
+          />
+        </details>
+      )}
+
       {/* Fotografías ya guardadas. */}
       {saved.length > 0 && (
         <section aria-label="Fotografías guardadas">
 
           <p className="capture__hint">
-            {saved.length} fotografía(s) guardada(s) en {evaluationId}
+            Vistas registradas para {evaluationId}; los análisis técnicos son opcionales.
           </p>
 
           <ul className="capture__gallery">
             {saved.map(item => (
               <li key={item.id}>
 
+                <strong>{item.view} · {item.id}</strong>
                 <GeometryOrOriginal path={item.imageUrl} alt={`Fotografía ${item.view}`}
                   result={geometry.filter(row => row.imageId === item.id).at(-1)} />
                 {!geometry.some(row => row.imageId === item.id) && (
@@ -664,8 +776,6 @@ useEffect(() => {
                   </button>
                 )}
 
-                <strong>{item.view}</strong>
-                <span>{item.id}</span>
 
               </li>
             ))}
@@ -706,6 +816,10 @@ useEffect(() => {
               onClick={() => void capturePhoto()}
             >
               Capturar fotografía
+            </button>
+            <button type="button" className="action-button action-button--secondary"
+              disabled={checkingFile} onClick={() => fileInputRef.current?.click()}>
+              Subir imagen JPG/PNG
             </button>
 
             <button
@@ -786,23 +900,13 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Botón inicial para abrir cámara. */}
-      {canCapture && !candidate && !cameraOpen && (
-        <div className="capture__actions">
-
-          <button
-            className="action-button action-button--primary"
-            type="button"
-            disabled={cameraStarting}
-            onClick={() => void openCamera()}
-          >
-            {cameraStarting ? 'Abriendo cámara...' : 'Tomar fotografía'}
-          </button>
-
-        </div>
+      {saved.length >= 2 && (
+        <details className="capture__advanced"
+          onToggle={event => setAdvancedOpen(event.currentTarget.open)}>
+          <summary>Herramientas de calidad experimental (opcional)</summary>
+          {advancedOpen && <QualityProposalPanel evaluationId={evaluationId} />}
+        </details>
       )}
-
-      {saved.length >= 2 && <QualityProposalPanel evaluationId={evaluationId} autoAnalyze />}
 
       {error && (
         <p className="capture__error" role="alert">
@@ -811,8 +915,8 @@ useEffect(() => {
       )}
 
       <p className="capture__hint">
-        La fotografía se guarda en la evaluación actual.
-        Guardarla no genera clasificación automática.
+        V2 analiza preliminarmente las dos vistas después de guardarlas, incluso sin sensor conectado.
+        El peso sigue siendo obligatorio para confirmar la adquisición. Revisión humana requerida.
       </p>
 
     </div>

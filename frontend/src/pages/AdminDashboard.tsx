@@ -63,8 +63,6 @@ export function AdminDashboard() {
   useEffect(() => {
     let active = true
 
-    setBackendStatus('checking')
-
     getBackendHealth().then(
       () => {
         if (active) setBackendStatus('online')
@@ -181,8 +179,9 @@ export function AdminDashboard() {
             type="button"
             className="admin-refresh"
             onClick={() => {
-              setState({ kind: 'loading' })
-              setRetry(value => value + 1)
+               setState({ kind: 'loading' })
+               setBackendStatus('checking')
+               setRetry(value => value + 1)
             }}
           >
             <Icon name="history" size={17} />

@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/layout/Icon'
 import { EvaluationImageCapture } from '../capture/EvaluationImageCapture'
@@ -10,10 +10,13 @@ import {
   captureWeightPost,
   captureWeightPre,
   confirmEvaluationAcquisition,
+  getEvaluationById, getV2QualityStatus, analyzeV2Quality,
+  getQualityModelStatus, analyzeQualityProposal,
   type AcquisitionConfirmation,
   type WeightStep,
 } from '../../services/agroscanApi'
 import type { EvaluationDetail } from '../history/historyService'
+import { runAutomaticQuality, type AutomaticQualityResult } from '../quality/automaticQuality.ts'
 import {
   acquisitionOutcome,
   hasConfirmedImages,
@@ -89,23 +92,13 @@ export function EvaluationGuidedAcquisition({
   const busy = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [retired, setRetired] = useState(false)
-
-  // Reiniciar los datos locales cuando se inicia una evaluación distinta.
-  useEffect(() => {
-    setStep(2)
-    setPre(null)
-    setPost(null)
-    setImageCount(evaluation?.evidence.length ?? 0)
-    setProcessing(false)
-    setServerConfirmation(null)
-    setError(null)
-    setRetired(false)
-    busy.current = false
-  }, [evaluation?.id])
+  const [qualityRunning, setQualityRunning] = useState(false)
+  const [automaticQuality, setAutomaticQuality] = useState<AutomaticQualityResult | null>(null)
 
   const onEvidenceChange = useCallback((count: number) => {
     setImageCount(count)
     setServerConfirmation(null)
+    setAutomaticQuality(null)
 
   }, [])
 
@@ -215,6 +208,19 @@ export function EvaluationGuidedAcquisition({
       }
 
       setServerConfirmation(result)
+      // I02: ejecutar la inferencia solo DESPUÉS de confirmar dos fotos y el peso.
+      // El backend conserva snapshots idempotentes; este flujo nunca registra un grado final.
+      setAutomaticQuality(null)
+      setQualityRunning(true)
+      try {
+        const outcome = await runAutomaticQuality(evaluation.id, {
+          getEvaluationById, getV2QualityStatus, analyzeV2Quality,
+          getQualityModelStatus, analyzeQualityProposal,
+        })
+        setAutomaticQuality(outcome)
+      } finally {
+        setQualityRunning(false)
+      }
 
     } catch (failure) {
       setServerConfirmation(null)
@@ -318,8 +324,8 @@ export function EvaluationGuidedAcquisition({
               <h3>3. Capturar fotografías RGB</h3>
 
               <p>
-                Registra al menos dos fotografías de la misma fruta desde perspectivas diferentes.
-                Gírala manualmente sin crear otra evaluación.
+                Toma o sube dos fotografías de la misma fruta. Gírala para mostrar otra cara;
+                no es necesario calibrar las medidas para continuar.
               </p>
 
               <EvaluationImageCapture
@@ -328,7 +334,9 @@ export function EvaluationGuidedAcquisition({
                 onEvidenceChange={onEvidenceChange}
               />
               <p className="guided-acquisition__notice" role="status">
-                Fotografías persistidas: {imageCount}. Mínimo obligatorio: {MIN_CONFIRMED_IMAGES}.
+                {hasConfirmedImages(imageCount)
+                  ? `${imageCount} fotografías guardadas: requisito de imágenes completado.`
+                  : `Faltan ${Math.max(0, MIN_CONFIRMED_IMAGES - imageCount)} fotografía(s) para continuar.`}
               </p>
 
               <div className="guided-acquisition__actions">
@@ -347,10 +355,7 @@ export function EvaluationGuidedAcquisition({
                   disabled={!hasConfirmedImages(imageCount) || processing}
                   onClick={() => goTo(4)}
                 >
-                  Continuar con {imageCount}{' '}
-                  {imageCount === 1
-                    ? 'imagen guardada'
-                    : 'imágenes guardadas'}
+                  Continuar a confirmar peso
                   <Icon name="arrow-right" size={17} />
                 </button>
               </div>
@@ -501,8 +506,8 @@ export function EvaluationGuidedAcquisition({
                 role="status"
               >
                 {acquisitionConfirmed
-                  ? 'Adquisición confirmada por FastAPI. Esta confirmación no genera resultados de clasificación.'
-                  : 'La adquisición todavía no ha sido confirmada por el backend.'}
+                  ? 'Captura confirmada. Consulta la evaluación para ver resultados y revisiones.'
+                  : 'Falta confirmar el pesaje y las fotografías.'}
               </p>
 
               <div className="guided-acquisition__actions">
@@ -534,6 +539,22 @@ export function EvaluationGuidedAcquisition({
                 </Link>
               </div>
             </div>
+          )}
+
+          {acquisitionConfirmed && qualityRunning && (
+            <p className="guided-acquisition__notice" role="status">Analizando las dos vistas con el clasificador disponible…</p>
+          )}
+          {acquisitionConfirmed && !qualityRunning && automaticQuality && (
+            <p className={automaticQuality.status === 'suggested'
+              ? 'guided-acquisition__success' : 'guided-acquisition__notice'} role="status">
+              <strong>{automaticQuality.status === 'suggested'
+                ? `Sugerencia IA ${automaticQuality.grade} (experimental)`
+                : automaticQuality.status === 'no_model' ? 'Modelo E0/E1/E2 no disponible'
+                : automaticQuality.status === 'needs_review' ? 'Revisión de calidad requerida'
+                : 'No se pudo completar el análisis'}</strong>
+              {' · '}{automaticQuality.message}
+              {' '}<Link to={`/historial/${encodeURIComponent(evaluation.id)}`}>Ver resultado</Link>
+            </p>
           )}
 
           {error && (

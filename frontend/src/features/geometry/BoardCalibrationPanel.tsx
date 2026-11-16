@@ -45,8 +45,6 @@ export function BoardCalibrationPanel({ evaluationId, imageId, onMeasured }: Pro
 
   useEffect(() => {
     let active = true
-    setLoading(true)
-    setError(null)
     Promise.all([listBoardEstimates(evaluationId, imageId), listDimensionalComparisons(evaluationId, imageId)])
       .then(([calibrations, samples]) => {
         if (!active) return
@@ -59,7 +57,7 @@ export function BoardCalibrationPanel({ evaluationId, imageId, onMeasured }: Pro
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [evaluationId, imageId])
+  }, [evaluationId, imageId, onMeasured])
 
   const matching = records.filter(row => row.boardVersion === boardVersion)
   const selected = matching.at(-1)

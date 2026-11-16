@@ -1,0 +1,20 @@
+AG-046 / AGROP-54 — Consolidación I01-I05
+
+Estado local de la auditoría: CIERRE_TECNICO_AUTOMATIZADO_CON_PENDIENTES
+I01: auditoría estática y checklist de 34 controles.
+I02: 87/87 pruebas, conciliación válida.
+I03: 61/61 pruebas, conciliación válida.
+I04: 4/4 controles de reinicio aislado, conciliación válida.
+I04: los archivos Uvicorn pueden estar vacíos por logging en nivel warning sin access_log;
+la ejecución se acredita por JSON y comparaciones, no por contenido de logs vacíos.
+BKP-05: brecha de escritura durante respaldo corregida y verificada con una instancia FastAPI.
+Pendientes: SEC-11 IoT sin credencial; SEC-12 decisión de política; SEC-04 navegador;
+BKP-05 multiproceso/escrituras externas, cobertura histórica SHA y despliegue remoto.
+Pruebas con SQLite y fotos sintéticas. No se certificó hardware ni servicio productivo.
+Evidencias: docs/ag046/AG046_I05_CIERRE_EVIDENCIADO.md;
+docs/ag046/AG046_I05_MATRIZ_FINAL.csv;
+docs/ag046/AG046_I05_MANIFIESTO_SHA256.csv;
+y fuentes locales listadas en el manifiesto.
+HEAD: 42316b947fd4ce71e80b3832e70bd299ccd99d25 · rama: feature/AGROSCAN-demo-vercel
+
+No mover a Done sin decisión del equipo sobre criterios pendientes y publicación de cambios.

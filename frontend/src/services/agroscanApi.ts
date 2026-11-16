@@ -43,6 +43,8 @@ export class ApiDataError extends Error {
 const configuredBase = import.meta.env?.VITE_API_BASE_URL?.trim()
 // En desarrollo, Vite redirige /api a FastAPI; también funciona desde el teléfono en la LAN.
 const API_BASE = (configuredBase || '').replace(/\/+$/, '')
+// La inferencia YOLOE a traves de tunel HTTPS puede tardar mas que en localhost.
+const DEFAULT_API_TIMEOUT_MS = API_BASE.startsWith('https://') ? 30000 : 8000
 
 // Token de sesión exclusivamente en memoria; nunca se guarda en localStorage ni en URL.
 export type AgroScanRole = 'administrador' | 'operador' | 'revisor'
@@ -120,7 +122,7 @@ function detailMessage(body: unknown): string | null {
 async function request(
   path: string,
   options?: RequestInit,
-  timeoutMs = 8000
+  timeoutMs = DEFAULT_API_TIMEOUT_MS
 ): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)

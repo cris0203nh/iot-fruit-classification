@@ -11,29 +11,33 @@ SQLite viene incluida con Python; no se instala una base de datos aparte.
 
 ## Cómo arrancar
 
-Desde la raíz del repositorio, en el cmd de Windows:
+Desde la raíz del repositorio, con PowerShell (entorno local):
 
-```
+```powershell
 cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# Configurar AGROSCAN_JWT_SECRET mediante backend/.env local o variable de entorno.
+# Debe ser secreto, único y tener al menos 32 caracteres; nunca publicarlo.
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-- API: http://127.0.0.1:8000
-- Documentación para probar: http://127.0.0.1:8000/docs
-- La base `backend/data/agroscan.db` se crea sola y no se sube a GitHub.
+- API local: http://127.0.0.1:8000
+- Documentación interactiva: http://127.0.0.1:8000/docs
+- Persistencia: `backend/data/agroscan.db`, que **no** debe subirse a Git ni borrarse para resolver errores.
 
-Siempre ejecuta `uvicorn` desde la carpeta `backend`.
+**Inicialización y migraciones:** el proyecto ya contiene Alembic. Para una instalación nueva, revisar el historial y ejecutar desde `backend`:
 
-Para que el ESP32 se conecte por Wi-Fi:
-
+```powershell
+.\.venv\Scripts\python.exe -m alembic current
+.\.venv\Scripts\python.exe -m alembic upgrade head
 ```
-uvicorn app.main:app --host 0.0.0.0 --reload
-```
 
-El ESP32 envía a `http://<IP-de-la-laptop>:8000/api/iot/measurements`, en la misma red. Si Windows pide permiso en el firewall, acepta para redes privadas.
+Antes de migrar una base existente, realizar y verificar un respaldo, comprobar el estado de las migraciones y revisar cambios de esquema. **No borrar** `backend/data/agroscan.db` ni reemplazarla con una base de pruebas. El arranque normal de Uvicorn no sustituye las migraciones ni el aprovisionamiento de usuarios.
+
+**Red y puente IoT:** el firmware versionado usa USB/serie y un puente HTTP (véase `firmware/tools` y la guía en `docs/AGROP-21-AGROP-23-pesaje.md`); no asumir conectividad Wi-Fi directa. `POST /api/iot/measurements` aún admite solicitudes sin credencial de dispositivo (AG-046 SEC-11). Por ello, usar `127.0.0.1` y un puente local de confianza; no publicar la API en `0.0.0.0`, LAN pública, túneles o Internet sin implementar y probar autenticación/aislamiento de red. CORS no sustituye autenticación.
+
+Para la demo, la rama Vercel admite orígenes HTTPS exactos mediante `AGROSCAN_DEMO_ORIGINS`; esta configuración controla navegadores, no evita solicitudes HTTP directas.
 
 ## Endpoints
 
@@ -56,9 +60,19 @@ El ESP32 envía a `http://<IP-de-la-laptop>:8000/api/iot/measurements`, en la mi
 
 Detalle de solicitudes y respuestas: `docs/api-contract.md`.
 
-## Limitaciones actuales
+## Autenticación, roles y respaldo
 
-- Sin migraciones: si cambia el modelo, borra `backend/data/agroscan.db` (solo en pruebas).
-- Sin inicio de sesión: `actorId` lo envía el frontend.
-- Pendientes: imágenes, adaptador de visión, estadísticas, CSV, respaldo y restauración.
-- El peso enviado desde `/docs` es una simulación y no prueba la integración física.
+- `POST /api/auth/login`: acceso con usuario y contraseña; JWT HS256. Configurar `AGROSCAN_JWT_SECRET` y respetar los roles `administrador`, `operador` y `revisor`. El frontend mantiene el token en memoria, no en almacenamiento persistente.
+- Los endpoints de captura requieren operador/administrador; las decisiones formales de revisión requieren revisor/administrador; las operaciones de usuario y respaldo se reservan al administrador.
+- `POST /api/admin/backups`: crear un ZIP verificado con SQLite e imágenes; `POST /api/admin/backups/restore`: restaurar con comprobaciones de hash, rutas y rollback. La restauración es destructiva: validar primero en una copia aislada y conservar un respaldo previo.
+- El guard de escrituras AG-046 BKP-05 limita operaciones concurrentes en **un proceso FastAPI**. No es una exclusión compartida entre workers ni protege procesos que escriban SQLite fuera de la API.
+
+## Limitaciones comprobadas y pendientes
+
+- **SEC-11:** falta autenticar o aislar formalmente la ingesta IoT para despliegues accesibles desde otras redes. No exponer esa ruta en Internet.
+- **SEC-12:** pendiente aprobar la política para anotaciones experimentales hechas por operadores frente a decisiones humanas formales de revisores.
+- La integridad SHA-256 se verifica donde existen snapshots de procedencia; no todas las fotografías históricas tienen un hash de captura universal.
+- Las pruebas AG-046 I02–I04 usan usuarios, datos SQLite y fotografías sintéticos. No acreditan el hardware, los modelos, Render, Vercel, múltiples workers, navegadores reales ni el corte de energía a mitad de una transacción.
+- El peso enviado manualmente desde `/docs` no demuestra la integración física del dispositivo.
+
+Revisar `docs/ag046/AG046_I05_CIERRE_EVIDENCIADO.md` y su matriz de pendientes antes de declarar completada una instalación.

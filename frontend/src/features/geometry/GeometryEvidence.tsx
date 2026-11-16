@@ -25,25 +25,35 @@ type Props = {
 
 /** Renderiza fotografía autenticada y superposición en el MISMO viewBox. */
 export function GeometryEvidence({ path, previewUrl, result, alt, compact = false }: Props) {
-  const [protectedUrl, setProtectedUrl] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
+  // Las respuestas estan asociadas a la ruta que las origino.
+  // Al cambiar de evaluacion no se muestra una fotografia anterior.
+  const [imageState, setImageState] = useState<
+    | { path: string; status: 'loaded'; url: string }
+    | { path: string; status: 'failed' }
+    | null
+  >(null)
   const [plane, setPlane] = useState<PlanarMeasurement | null>(null)
   const [board, setBoard] = useState<BoardEstimate | null>(null)
+  const [showTechnical, setShowTechnical] = useState(!compact)
 
   useEffect(() => {
     if (!path) return
     const controller = new AbortController()
     let blobUrl: string | null = null
-    setProtectedUrl(null)
-    setFailed(false)
     loadProtectedEvidence(path, controller.signal).then(blob => {
       if (controller.signal.aborted) return
       blobUrl = URL.createObjectURL(blob)
-      setProtectedUrl(blobUrl)
-    }).catch(() => { if (!controller.signal.aborted) setFailed(true) })
+      setImageState({ path, status: 'loaded', url: blobUrl })
+    }).catch(() => {
+      if (!controller.signal.aborted) setImageState({ path, status: 'failed' })
+    })
     return () => { controller.abort(); if (blobUrl) URL.revokeObjectURL(blobUrl) }
   }, [path])
 
+  // El estado de otra ruta nunca debe reutilizarse en la imagen actual.
+  const protectedUrl = imageState && imageState.path === path && imageState.status === 'loaded'
+    ? imageState.url : null
+  const failed = Boolean(imageState && imageState.path === path && imageState.status === 'failed')
   const url = previewUrl ?? protectedUrl
   const validFrame = Boolean(result && Number.isFinite(result.frameWidth) && result.frameWidth > 0
     && Number.isFinite(result.frameHeight) && result.frameHeight > 0)
@@ -79,7 +89,12 @@ export function GeometryEvidence({ path, previewUrl, result, alt, compact = fals
       ) : null}
 
       {result && (
-        <div className="ag054__details">
+        <div className="ag054__technical">
+          <button type="button" className="ag054__technical-toggle"
+            aria-expanded={showTechnical} onClick={() => setShowTechnical(current => !current)}>
+            {showTechnical ? 'Ocultar análisis técnico' : 'Ver YOLOE, medidas y calibración (opcional)'}
+          </button>
+          {showTechnical && <div className="ag054__details">
           <span className="ag054__label">{result.product === 'mango' ? 'Mango' : result.product === 'tomate' ? 'Tomate' : 'Producto no confirmado'}
             {typeof result.confidence === 'number' && Number.isFinite(result.confidence)
               ? ` · Confianza ${(result.confidence * 100).toFixed(1)} %` : ''}</span>
@@ -99,9 +114,13 @@ export function GeometryEvidence({ path, previewUrl, result, alt, compact = fals
             typeof result.imageId === 'string' && typeof result.evaluationId === 'string' &&
             <>
             <BoardCalibrationPanel evaluationId={result.evaluationId} imageId={result.imageId} onMeasured={setBoard} />
-            <PhysicalCalibrationPanel evaluationId={result.evaluationId} imageId={result.imageId}
-              onMeasured={setPlane} />
+            <details className="ag054__legacy">
+              <summary>Escala ArUco individual (método anterior, opcional)</summary>
+              <PhysicalCalibrationPanel evaluationId={result.evaluationId} imageId={result.imageId}
+                onMeasured={setPlane} />
+            </details>
             </>}
+          </div>}
         </div>
       )}
     </div>

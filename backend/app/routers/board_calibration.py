@@ -23,7 +23,7 @@ from ..dependencies import require_authenticated, require_operator, require_revi
 from ..fruit_geometry_models import FruitGeometry
 from ..models import Evaluation, User
 from ..services.board_calibration import (
-    BOARD_VERSION, A4_BOARD_VERSION, BOARD_LAYOUTS, CalibrationRejected, compare_with_caliper, measure_board_projection,
+    BOARD_VERSION, A4_BOARD_VERSION, BOARD_LAYOUTS, CalibrationRejected, compare_with_caliper, measure_board_projection, measure_a4_marker_pixel_scale,
 )
 from .fruit_geometry import _evaluation, _evidence, _original_image
 
@@ -105,7 +105,7 @@ def create_board(evaluation_id: str, image_id: str, payload: BoardInput,
     sha = hashlib.sha256(raw).hexdigest()
     if geometry.image_sha256 != sha:
         raise HTTPException(409, 'El original y su geometría no tienen el mismo SHA-256.')
-    rules_version = RULES_VERSION if payload.boardVersion == BOARD_VERSION else 'ag054-board-plane-v2-a4'
+    rules_version = RULES_VERSION if payload.boardVersion == BOARD_VERSION else 'ag054-board-plane-v3-a4-global-fit'
     prior = db.scalar(select(BoardCalibration).where(
         BoardCalibration.image_id == img.id, BoardCalibration.geometry_id == geometry.id,
         BoardCalibration.image_sha256 == sha, BoardCalibration.rules_version == rules_version,
@@ -224,6 +224,78 @@ def create_comparison(evaluation_id: str, image_id: str, payload: ComparisonInpu
         raise HTTPException(409, 'Conflicto guardando comparación.')
     return _comparison_out(row)
 
+
+
+
+# I03B: estimacion opcional por escala en pixeles. No relaja las reglas A4 v3.
+APPROX_RULES_VERSION = 'ag054-board-plane-v4-a4-marker-pixels'
+
+
+class ApproxInput(BaseModel):
+    printedDimensionsVerified: bool
+
+
+@router.post('/{evaluation_id}/vision/board/{image_id}/approximate', status_code=201)
+def approximate_a4(evaluation_id: str, image_id: str, payload: ApproxInput,
+                   db: Session = Depends(get_db), operator: User = Depends(require_operator)):
+    # La estimacion automatica usa escala nominal: no supone comprobacion manual.
+    ev = _evaluation(db, evaluation_id)
+    if ev.status in ('error', 'cancelled'):
+        raise HTTPException(409, 'La evaluación no admite mediciones nuevas.')
+    img = _evidence(db, ev, image_id)
+    geometry = db.scalar(select(FruitGeometry).where(
+        FruitGeometry.evaluation_id == ev.id, FruitGeometry.image_id == img.id,
+    ).order_by(FruitGeometry.id.desc()))
+    if geometry is None or geometry.status != 'measured':
+        raise HTTPException(409, 'Se necesita geometria YOLOE valida para la fotografia.')
+    raw = _original_image(img)
+    sha = hashlib.sha256(raw).hexdigest()
+    if geometry.image_sha256 != sha:
+        raise HTTPException(409, 'La fotografia original no coincide con su geometria.')
+    previous = db.scalar(select(BoardCalibration).where(
+        BoardCalibration.image_id == img.id, BoardCalibration.geometry_id == geometry.id,
+        BoardCalibration.image_sha256 == sha, BoardCalibration.rules_version == APPROX_RULES_VERSION,
+    ))
+    if previous:
+        return _board_out(previous)
+    frame = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if frame is None or frame.shape[:2] != (geometry.frame_height, geometry.frame_width):
+        raise HTTPException(409, 'Original incompatible con dimensiones YOLOE.')
+    try:
+        result = measure_a4_marker_pixel_scale(frame, json.loads(geometry.polygon_json))
+        status, reason = 'pixel_scale_estimate', (
+            'approximate_marker_pixel_scale_no_3d' if payload.printedDimensionsVerified
+            else 'approximate_nominal_30mm_unverified_no_3d'
+        )
+    except CalibrationRejected as exc:
+        result = None
+        status, reason = 'needs_review', exc.reason
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    row = BoardCalibration(
+        evaluation_id=ev.id, image_id=img.id, geometry_id=geometry.id,
+        operator_id=operator.id, image_sha256=sha,
+        model_version=geometry.model_version, rules_version=APPROX_RULES_VERSION,
+        board_version=A4_BOARD_VERSION, status=status, reason=reason,
+        marker_ids_json=json.dumps(result['markerIds'] if result else [], allow_nan=False),
+        corners_json=json.dumps(result['markerCornersPx'] if result else {}, allow_nan=False),
+        measurements_json=json.dumps(result['measurements'] if result else None, allow_nan=False),
+        rms_reprojection_mm=None, platform_level_declared=False,
+        independent_support_declared=False, printed_scale_verified_declared=payload.printedDimensionsVerified,
+        fixed_camera_declared=False,
+    )
+    try:
+        db.add(row); db.commit(); db.refresh(row)
+    except IntegrityError:
+        db.rollback()
+        previous = db.scalar(select(BoardCalibration).where(
+            BoardCalibration.image_id == img.id, BoardCalibration.geometry_id == geometry.id,
+            BoardCalibration.image_sha256 == sha, BoardCalibration.rules_version == APPROX_RULES_VERSION,
+        ))
+        if previous:
+            return _board_out(previous)
+        raise HTTPException(409, 'Conflicto guardando estimacion aproximada.')
+    return _board_out(row)
 
 @router.get('/vision/board-validation/report')
 def report(db: Session = Depends(get_db), _user: User = Depends(require_reviewer)):

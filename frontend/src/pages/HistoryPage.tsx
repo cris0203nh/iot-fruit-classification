@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/layout/Icon'
 import { PieceHistoryPanel } from '../features/history/PieceHistoryPanel'
+import { EvaluationOutcomePanel } from '../features/history/EvaluationOutcomePanel'
 import { paramsForHistoryView, resolveHistoryView, type HistoryView } from '../features/history/historyView'
 import {
   filterHistory,
@@ -20,7 +21,6 @@ import {
   getSessionRole,
   resolveEvidenceUrl,
 } from '../services/agroscanApi'
-import { traceabilityService } from '../features/traceability/traceabilityService'
 import { GeometryOrOriginal } from '../features/geometry/GeometryEvidence'
 import { listFruitGeometries, type FruitGeometryResult } from '../services/agroscanApi'
 import './HistoryPage.css'
@@ -318,32 +318,7 @@ function HistoryDetailContent({
     void listFruitGeometries(evaluationId).then(rows => { if (active) setGeometries(rows) }).catch(() => {})
     return () => { active = false }
   }, [evaluationId])
-  const [newValue, setNewValue] = useState<'E0' | 'E1'>('E0')
-  const [reason, setReason] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [reviewMessage, setReviewMessage] = useState('')
-  const [reviewError, setReviewError] = useState('')
-
-  const isReviewer = getSessionRole() === 'revisor'
-
-  async function loadDetail() {
-    setState({ kind: 'loading' })
-
-    try {
-      const data = await historyService.getById(evaluationId)
-      setState({ kind: 'ready', data })
-    } catch (error: unknown) {
-      setState({
-        kind:
-          error instanceof ApiConnectionError
-            ? 'unavailable'
-            : error instanceof ApiResponseError &&
-                (error.status === 401 || error.status === 403)
-              ? 'restricted'
-              : 'error',
-      })
-    }
-  }
+  const isReviewer = getSessionRole() === 'revisor' || getSessionRole() === 'administrador'
 
   useEffect(() => {
     let current = true
@@ -373,62 +348,6 @@ function HistoryDetailContent({
       current = false
     }
   }, [evaluationId])
-
-  async function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    // Comprobar que la evaluación está cargada antes de acceder a sus datos.
-    if (
-      state.kind !== 'ready' ||
-      state.data === null ||
-      !isReviewer ||
-      saving
-    ) {
-      return
-    }
-
-    // Guardar una referencia segura para TypeScript.
-    const evaluation = state.data
-    const cleanReason = reason.trim()
-
-    if (!cleanReason) {
-      setReviewError('Debes escribir el motivo de la revisión.')
-      return
-    }
-
-    if (
-      !['pending_review', 'completed'].includes(evaluation.status)
-    ) {
-      setReviewError('Esta evaluación no admite nuevas revisiones.')
-      return
-    }
-
-    setSaving(true)
-    setReviewError('')
-    setReviewMessage('')
-
-    try {
-      await traceabilityService.addReview(evaluationId, {
-        reason: cleanReason,
-        newValue,
-      })
-
-      setReviewMessage('La revisión se registró correctamente.')
-      setReason('')
-
-      await loadDetail()
-    } catch (error: unknown) {
-      setReviewError(
-        error instanceof ApiResponseError
-          ? `No se pudo registrar la revisión: ${error.message}`
-          : error instanceof ApiConnectionError
-            ? 'No hay conexión con el backend.'
-            : 'Ocurrió un error al registrar la revisión.',
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <div className="page-stack history-page">
@@ -499,6 +418,8 @@ function HistoryDetailContent({
               <StatusLabel status={state.data.status} />
             </div>
 
+            <EvaluationOutcomePanel evaluation={state.data} />
+
             <dl className="history-detail__grid">
               <div>
                 <dt>Pieza</dt>
@@ -533,7 +454,7 @@ function HistoryDetailContent({
               </div>
 
               <div>
-                <dt>Categoría visual</dt>
+                <dt>Categoría original del registro</dt>
                 <dd>{state.data.visualCategory ?? 'No disponible'}</dd>
               </div>
 
@@ -577,123 +498,11 @@ function HistoryDetailContent({
             )}
 
             {isReviewer && (
-              <section
-                className="review-form-panel"
-                aria-labelledby="review-form-title"
-              >
-                <div className="panel-heading">
-                  <span className="round-icon round-icon--green">
-                    <Icon name="clipboard" size={21} />
-                  </span>
-
-                  <div>
-                    <h2 id="review-form-title">Registrar revisión</h2>
-                    <p>
-                      Verifica la evidencia y registra la clasificación
-                      correspondiente.
-                    </p>
-                  </div>
-                </div>
-
-                {['pending_review', 'completed'].includes(
-                  state.data.status,
-                ) ? (
-                  <form
-                    className="review-form"
-                    onSubmit={handleReviewSubmit}
-                  >
-                    <div className="history-field">
-                      <label htmlFor="review-original">
-                        Clasificación actual
-                      </label>
-
-                      <input
-                        id="review-original"
-                        value={
-                          state.data.visualCategory ?? 'No disponible'
-                        }
-                        readOnly
-                      />
-                    </div>
-
-                    <div className="history-field">
-                      <label htmlFor="review-new-value">
-                        Nueva clasificación
-                      </label>
-
-                      <select
-                        id="review-new-value"
-                        value={newValue}
-                        onChange={(event) =>
-                          setNewValue(
-                            event.target.value as 'E0' | 'E1',
-                          )
-                        }
-                        disabled={saving}
-                      >
-                        <option value="E0">E0 - Primera</option>
-                        <option value="E1">E1 - Segunda</option>
-                      </select>
-                    </div>
-
-                    <div className="history-field">
-                      <label htmlFor="review-reason">
-                        Motivo de la revisión *
-                      </label>
-
-                      <textarea
-                        id="review-reason"
-                        value={reason}
-                        onChange={(event) =>
-                          setReason(event.target.value)
-                        }
-                        placeholder="Explica por qué corresponde esta clasificación..."
-                        maxLength={500}
-                        rows={4}
-                        required
-                        disabled={saving}
-                      />
-
-                      <small>{reason.length}/500 caracteres</small>
-                    </div>
-
-                    {reviewError && (
-                      <div
-                        className="notice notice--warning"
-                        role="alert"
-                      >
-                        <Icon name="alert" size={18} />
-                        <span>{reviewError}</span>
-                      </div>
-                    )}
-
-                    {reviewMessage && (
-                      <div
-                        className="notice notice--success"
-                        role="status"
-                      >
-                        <Icon name="clipboard" size={18} />
-                        <span>{reviewMessage}</span>
-                      </div>
-                    )}
-
-                    <button
-                      className="action-button action-button--primary"
-                      type="submit"
-                      disabled={saving || !reason.trim()}
-                    >
-                      <Icon name="clipboard" size={18} />
-                      {saving
-                        ? 'Guardando revisión...'
-                        : 'Guardar revisión'}
-                    </button>
-                  </form>
-                ) : (
-                  <p role="status">
-                    Esta evaluación no está disponible para revisión.
-                  </p>
-                )}
-              </section>
+              <p className="history-review-shortcut">
+                <Link className="action-button action-button--primary" to={`/trazabilidad/${encodeURIComponent(state.data.id)}`}>
+                  Revisar fotografías y registrar dictamen <Icon name="arrow-right" size={15} />
+                </Link>
+              </p>
             )}
           </div>
         )}

@@ -155,3 +155,62 @@
   background: #111;
   object-fit: contain;
 }
+
+/* I02 UX: las operaciones esenciales se muestran antes de la geometría. */
+.capture__progress {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--ok);
+  background: rgba(44, 106, 76, 0.07);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.capture__actions--primary { margin-bottom: 6px; }
+.capture__gallery {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 360px));
+  justify-content: start;
+}
+.capture__gallery li { max-width: 360px; align-content: start; letter-spacing: normal; }
+.capture__gallery .ag054__canvas,
+.capture__gallery .ag054__plain { max-height: 250px; }
+.capture__advanced { border-top: 1px solid var(--rule); padding-top: 10px; }
+.capture__advanced > summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+
+/* I02: inferencia preliminar después de la segunda foto, independiente del pesaje. */
+.capture__v2-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  margin: 4px 0;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ok);
+  border-radius: 6px;
+}
+.capture__v2-preview h4, .capture__v2-preview p { margin: 0; }
+.capture__v2-preview ul { margin: 0; padding-left: 20px; }
+.capture__v2-preview li { margin: 3px 0; }
+.capture__v2-preview .action-button { justify-self: start; }
+
+/* I03: proyección dimensional ArUco A4, con controles físicos declarados. */
+.capture__a4-panel {
+  display: grid;
+  gap: 9px;
+  margin: 4px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.capture__a4-panel h4, .capture__a4-panel p { margin: 0; }
+.capture__a4-views { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.capture__a4-views li {
+  display: grid; gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.capture__a4-views small { color: var(--ink-soft); }
+.capture__a4-check { display: flex; align-items: start; gap: 9px; font-size: var(--fs-sm); line-height: 1.5; }
+.capture__a4-check input { flex: 0 0 auto; margin-top: 4px; accent-color: var(--ink); }
+.capture__a4-panel > .action-button { justify-self: start; }

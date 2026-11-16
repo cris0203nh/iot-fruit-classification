@@ -1,3 +1,6 @@
+import os
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,9 +9,25 @@ from .routers import auth, evaluations, images, iot, lots, users, uncertainty, r
 
 app = FastAPI(title="AgroScan API")
 
+def _demo_cors_origins() -> list[str]:
+    # Solo origenes HTTPS exactos; nunca usar * en una API expuesta por tunel.
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    for raw in os.environ.get("AGROSCAN_DEMO_ORIGINS", "").split(","):
+        value = raw.strip().rstrip("/")
+        if not value:
+            continue
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                or parsed.password or parsed.path or parsed.query or parsed.fragment):
+            raise RuntimeError("AGROSCAN_DEMO_ORIGINS: se exige origen HTTPS exacto")
+        if value not in origins:
+            origins.append(value)
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_demo_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

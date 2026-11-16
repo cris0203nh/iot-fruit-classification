@@ -1,12 +1,13 @@
 
+import os
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR = Path(os.environ["AGROSCAN_DATA_DIR"]).expanduser().resolve() if os.environ.get("AGROSCAN_DATA_DIR") else BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DATABASE_URL = f"sqlite:///{DATA_DIR / 'agroscan.db'}"
 

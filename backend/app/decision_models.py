@@ -7,9 +7,10 @@ from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
-class ReviewDecisionEvidence(Base):
+class ReviewDecisionEvidence(OrganizationScoped, Base):
     __tablename__ = 'review_decision_evidence'
     __table_args__ = (
         UniqueConstraint('evaluation_id', 'request_id', name='uq_ag038_evaluation_request'),

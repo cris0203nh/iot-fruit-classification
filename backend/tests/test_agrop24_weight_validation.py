@@ -7,6 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.iot_models import IotStation, IotDevice
+from app.organization_models import Organization
 from app.database import Base
 from app.models import Evaluation, Lot, Measurement
 from app.routers.evaluations import weight_pre
@@ -22,7 +24,15 @@ class AGROP24WeightValidationTests(unittest.TestCase):
         )
 
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        self.db.add(Organization(id=1, name="Test"))
+        self.db.commit()
+
+        self.db.add(IotStation(id=1, code='test', name='Test'))
+        self.db.commit()
+        self.device = IotDevice(station_id=1, device_id='station-001')
+        self.db.add(self.device)
+        self.db.commit()
 
         lot = Lot(
             code="LOTE-AGROP24",

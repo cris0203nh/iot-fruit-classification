@@ -2,12 +2,14 @@
 import json
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.services import backup_service
 from contextlib import closing
@@ -42,6 +44,7 @@ class AGROP53BackupTests(unittest.TestCase):
             patch.object(backup_service, "DB_PATH", self.db_path),
             patch.object(backup_service, "IMAGES_DIR", self.images_dir),
             patch.object(backup_service, "BACKUP_DIR", self.backup_dir),
+            patch.object(backup_service, "engine", Mock()),
         ]
 
         for item in self.patches:
@@ -194,6 +197,131 @@ class AGROP53BackupTests(unittest.TestCase):
 
         self.assertFalse(current_image.exists())
 
+
+    def test_respaldo_incluye_transacciones_confirmadas_en_wal(self):
+        with closing(sqlite3.connect(str(self.db_path))) as connection:
+            self.assertEqual(connection.execute("PRAGMA journal_mode=WAL").fetchone()[0], "wal")
+            connection.execute("PRAGMA wal_autocheckpoint=0")
+            connection.execute(
+                "INSERT INTO images VALUES (?, ?)",
+                (2, "images/wal.png"),
+            )
+            connection.commit()
+            (self.images_dir / "wal.png").write_bytes(b"WAL-SINTETICO")
+            self.assertTrue(Path(str(self.db_path) + "-wal").is_file())
+            backup_path = self.create_test_backup()
+            prepared = backup_service.prepare_restore(backup_path, self.root / "wal-staging")
+            with closing(sqlite3.connect(prepared["database"])) as restored:
+                self.assertEqual(restored.execute("SELECT COUNT(*) FROM images").fetchone()[0], 2)
+            self.assertEqual((self.root / "wal-staging/images/wal.png").read_bytes(), b"WAL-SINTETICO")
+
+    def test_rollback_recupera_estado_previo_si_falla_validacion_final(self):
+        backup_path = self.create_test_backup()
+        # Estado posterior al respaldo, siempre dentro del directorio temporal.
+        with closing(sqlite3.connect(str(self.db_path))) as connection:
+            connection.execute("UPDATE images SET relative_path = 'images/actual.png'")
+            connection.commit()
+        self.image_path.unlink()
+        current = self.images_dir / "actual.png"
+        current.write_bytes(b"ESTADO-ACTUAL-SINTETICO")
+        original_database = self.db_path.read_bytes()
+        validate = backup_service.validate_database
+        calls = 0
+
+        def fail_final_validation(path):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise backup_service.BackupError("Fallo final simulado")
+            return validate(path)
+
+        with patch.object(backup_service, "validate_database", side_effect=fail_final_validation):
+            with self.assertRaisesRegex(backup_service.BackupError, "Fallo final simulado"):
+                backup_service.restore_backup(backup_path)
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(self.db_path.read_bytes(), original_database)
+        self.assertEqual(current.read_bytes(), b"ESTADO-ACTUAL-SINTETICO")
+        self.assertFalse(self.image_path.exists())
+        self.assertEqual(validate(self.db_path)["imagePaths"], ["images/actual.png"])
+
+    def leave_residual_wal(self):
+        # Una conexión terminada abruptamente deja commits en WAL, sin handles abiertos.
+        subprocess.run([
+            sys.executable, "-c",
+            "import os, sqlite3, sys; "
+            "db=sqlite3.connect(sys.argv[1]); "
+            "db.execute('PRAGMA journal_mode=WAL'); "
+            "db.execute('PRAGMA wal_autocheckpoint=0'); "
+            "db.execute(\"UPDATE images SET relative_path='images/actual.png'\"); "
+            "db.commit(); os._exit(0)",
+            str(self.db_path),
+        ], check=True, timeout=15)
+        self.assertTrue(Path(str(self.db_path) + "-wal").is_file())
+        self.image_path.unlink()
+        (self.images_dir / "actual.png").write_bytes(b"POST-BACKUP")
+
+    def test_restaura_sin_reaplicar_wal_residual_tras_cierre_abrupto(self):
+        backup_path = self.create_test_backup()
+        self.leave_residual_wal()
+        result = backup_service.restore_backup(backup_path)
+
+        self.assertTrue(result["verified"])
+        self.assertEqual(backup_service.validate_database(self.db_path)["imagePaths"],
+                         ["images/evidencia-01.png"])
+        self.assertEqual(self.image_path.read_bytes(), b"IMAGEN-DE-PRUEBA-AGROP53")
+        with closing(sqlite3.connect(str(self.db_path))) as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "wal")
+
+    def test_rollback_conserva_commits_wal_y_fotos_ante_fallo_de_instalacion(self):
+        backup_path = self.create_test_backup()
+        self.leave_residual_wal()
+        real_replace = backup_service.os.replace
+
+        def fail_install(source, destination):
+            if Path(source).name == 'images' and Path(destination) == self.images_dir:
+                # La devolución desde rollback sí debe poder completarse.
+                if Path(source).parent.name != 'rollback':
+                    raise OSError('FALLO-INSTALACION-SINTETICO')
+            return real_replace(source, destination)
+
+        with patch.object(backup_service.os, 'replace', side_effect=fail_install):
+            with self.assertRaisesRegex(OSError, 'FALLO-INSTALACION-SINTETICO'):
+                backup_service.restore_backup(backup_path)
+        self.assertEqual(backup_service.validate_database(self.db_path)['imagePaths'],
+                         ['images/actual.png'])
+        self.assertEqual((self.images_dir / 'actual.png').read_bytes(), b'POST-BACKUP')
+        self.assertFalse(self.image_path.exists())
+        with closing(sqlite3.connect(str(self.db_path))) as db:
+            self.assertEqual(db.execute('PRAGMA journal_mode').fetchone()[0], 'wal')
+
+    def test_restore_rechaza_lector_wal_activo_sin_sustituir_archivos(self):
+        backup_path = self.create_test_backup()
+        real_connect = sqlite3.connect
+        with closing(real_connect(str(self.db_path))) as writer, \
+                closing(real_connect(str(self.db_path))) as reader:
+            writer.execute('PRAGMA journal_mode=WAL')
+            reader.execute('BEGIN')
+            reader.execute('SELECT * FROM images').fetchall()
+            writer.execute("UPDATE images SET relative_path='images/actual.png'")
+            writer.commit()
+            self.image_path.unlink()
+            current = self.images_dir / 'actual.png'
+            current.write_bytes(b'ACTUAL-CON-LECTOR')
+
+            def short_timeout(*args, **kwargs):
+                kwargs['timeout'] = 0.02
+                return real_connect(*args, **kwargs)
+
+            with patch.object(backup_service.sqlite3, 'connect', side_effect=short_timeout), \
+                    patch.object(backup_service.os, 'replace') as replace:
+                with self.assertRaisesRegex(backup_service.BackupError, 'ocupado'):
+                    backup_service.restore_backup(backup_path)
+                replace.assert_not_called()
+            self.assertEqual(current.read_bytes(), b'ACTUAL-CON-LECTOR')
+            self.assertEqual(writer.execute('SELECT relative_path FROM images').fetchone()[0],
+                             'images/actual.png')
+            reader.rollback()
 
     def test_rechaza_respaldo_inexistente(self):
         with self.assertRaises(backup_service.BackupError):

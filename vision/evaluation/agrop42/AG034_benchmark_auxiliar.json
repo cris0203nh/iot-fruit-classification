@@ -1,0 +1,248 @@
+{
+  "id": "AG-034",
+  "alcance": "CONTROL AUXILIAR identificacion mango/tomate por imagen, NO estado E0/E1/E2",
+  "origen": "90 imagenes externas; mango Ataulfo vs tomate Fruits-360; fuente ligada al producto",
+  "criterio_de_particion": "por (producto,id_ejemplar), 9/3/3 grupos por producto, semilla=34",
+  "totales": {
+    "vistas": 90,
+    "grupos_fuente": 30,
+    "vistas_train": 54,
+    "vistas_val": 18,
+    "vistas_test": 18
+  },
+  "regla_clasica_ajustada_solo_train": {
+    "indice": 0,
+    "feature": "fraccion_cromatica",
+    "orientacion": 1,
+    "umbral": 0.3357700255102041
+  },
+  "modelo_ligero": {
+    "nombre": "regresion_logistica_l2_python",
+    "numero_parametros": 12,
+    "serializacion_sin_pickle_bytes": 778
+  },
+  "evaluacion_prueba_comun": {
+    "reglas": {
+      "n_vistas": 18,
+      "accuracy_vistas": 1.0,
+      "recall_por_producto": {
+        "mango": 1.0,
+        "tomate": 1.0
+      },
+      "balanced_accuracy_vistas": 1.0,
+      "matriz_confusion_fuente": {
+        "mango": {
+          "mango": 9,
+          "tomate": 0
+        },
+        "tomate": {
+          "mango": 0,
+          "tomate": 9
+        }
+      }
+    },
+    "modelo_ligero": {
+      "n_vistas": 18,
+      "accuracy_vistas": 1.0,
+      "recall_por_producto": {
+        "mango": 1.0,
+        "tomate": 1.0
+      },
+      "balanced_accuracy_vistas": 1.0,
+      "matriz_confusion_fuente": {
+        "mango": {
+          "mango": 9,
+          "tomate": 0
+        },
+        "tomate": {
+          "mango": 0,
+          "tomate": 9
+        }
+      }
+    }
+  },
+  "evaluacion_validacion": {
+    "reglas": {
+      "n_vistas": 18,
+      "accuracy_vistas": 1.0,
+      "recall_por_producto": {
+        "mango": 1.0,
+        "tomate": 1.0
+      },
+      "balanced_accuracy_vistas": 1.0,
+      "matriz_confusion_fuente": {
+        "mango": {
+          "mango": 9,
+          "tomate": 0
+        },
+        "tomate": {
+          "mango": 0,
+          "tomate": 9
+        }
+      }
+    },
+    "modelo_ligero": {
+      "n_vistas": 18,
+      "accuracy_vistas": 1.0,
+      "recall_por_producto": {
+        "mango": 1.0,
+        "tomate": 1.0
+      },
+      "balanced_accuracy_vistas": 1.0,
+      "matriz_confusion_fuente": {
+        "mango": {
+          "mango": 9,
+          "tomate": 0
+        },
+        "tomate": {
+          "mango": 0,
+          "tomate": 9
+        }
+      }
+    }
+  },
+  "predicciones_test": [
+    {
+      "archivo": "mangos/MANGO_02/vista_01.jpg",
+      "id_ejemplar": "MANGO_02",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_02/vista_02.jpg",
+      "id_ejemplar": "MANGO_02",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_02/vista_03.jpg",
+      "id_ejemplar": "MANGO_02",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_08/vista_01.jpg",
+      "id_ejemplar": "MANGO_08",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_08/vista_02.jpg",
+      "id_ejemplar": "MANGO_08",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_08/vista_03.jpg",
+      "id_ejemplar": "MANGO_08",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_15/vista_01.jpg",
+      "id_ejemplar": "MANGO_15",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_15/vista_02.jpg",
+      "id_ejemplar": "MANGO_15",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "mangos/MANGO_15/vista_03.jpg",
+      "id_ejemplar": "MANGO_15",
+      "producto_fuente": "mango",
+      "reglas": "mango",
+      "modelo_ligero": "mango"
+    },
+    {
+      "archivo": "tomates/TOMATE_04/vista_01.jpg",
+      "id_ejemplar": "TOMATE_04",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_04/vista_02.jpg",
+      "id_ejemplar": "TOMATE_04",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_04/vista_03.jpg",
+      "id_ejemplar": "TOMATE_04",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_08/vista_01.jpg",
+      "id_ejemplar": "TOMATE_08",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_08/vista_02.jpg",
+      "id_ejemplar": "TOMATE_08",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_08/vista_03.jpg",
+      "id_ejemplar": "TOMATE_08",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_13/vista_01.jpg",
+      "id_ejemplar": "TOMATE_13",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_13/vista_02.jpg",
+      "id_ejemplar": "TOMATE_13",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    },
+    {
+      "archivo": "tomates/TOMATE_13/vista_03.jpg",
+      "id_ejemplar": "TOMATE_13",
+      "producto_fuente": "tomate",
+      "reglas": "tomate",
+      "modelo_ligero": "tomate"
+    }
+  ],
+  "tiempo_ms_por_vista_cpu": {
+    "extraccion_mediana": 30.025715499505168,
+    "reglas_inferencia": 0.0001334849999794743,
+    "modelo_inferencia": 0.0010649187778047537
+  },
+  "pico_tracemalloc_mib_py": 3.14,
+  "advertencias": [
+    "Los identificadores fuente no equivalen a sesiones físicas verificadas; prueba de ausencia de fuga por ID, no por instalación/cámara.",
+    "La separación de fuentes coincide con las clases (Ataulfo vs Fruits-360), por lo que puede existir fuga por dominio/fondo/encuadre.",
+    "Las etiquetas de producto no son etiquetas de atributos externos ni grados E0/E1/E2.",
+    "El pico tracemalloc mide asignaciones Python; NO es medición integral de RAM nativa ni benchmark ESP32.",
+    "Los tiempos dependen de CPU y entorno; no extrapolar a estación final.",
+    "Una exactitud alta en esta tarea auxiliar no demuestra segmentación correcta ni clasificación de defectos."
+  ],
+  "AG034_cierre_total_acreditado": false,
+  "proximo": "Revisar y etiquetar por rúbrica los defectos, capturar Kent y formar prueba independiente para comparación real de atributos."
+}

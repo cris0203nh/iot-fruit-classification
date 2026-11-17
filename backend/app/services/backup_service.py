@@ -348,6 +348,32 @@ def prepare_restore(archive_path: Path, staging: Path) -> dict:
     }
 
 
+def _checkpoint_before_replace() -> bool:
+    """Retira WAL/SHM mediante SQLite; nunca elimina un journal a mano."""
+    if not DB_PATH.exists():
+        return False
+    try:
+        with closing(sqlite3.connect(str(DB_PATH), timeout=5)) as connection:
+            was_wal = connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+            if was_wal:
+                busy, _, _ = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                if busy:
+                    raise BackupError("SQLite ocupado; cierre las conexiones antes de restaurar.")
+                # También rechaza conexiones WAL externas todavía abiertas.
+                mode = connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+                if mode != "delete":
+                    raise BackupError("No fue posible cerrar el WAL antes de restaurar.")
+            return was_wal
+    except sqlite3.OperationalError as exc:
+        raise BackupError("SQLite ocupado; no se sustituyó la base de datos.") from exc
+
+
+def _enable_wal_after_replace():
+    with closing(sqlite3.connect(str(DB_PATH))) as connection:
+        if connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] != "wal":
+            raise BackupError("No fue posible recuperar el modo WAL.")
+
+
 def restore_backup(archive_path: Path) -> dict:
     """
     Restauración con copia de seguridad previa para permitir rollback.
@@ -382,6 +408,7 @@ def restore_backup(archive_path: Path) -> dict:
 
         # Evita mantener conexiones del pool abiertas al sustituir SQLite.
         engine.dispose()
+        was_wal = _checkpoint_before_replace()
 
         try:
             if DB_PATH.exists():
@@ -398,6 +425,9 @@ def restore_backup(archive_path: Path) -> dict:
 
             os.replace(staged_images, IMAGES_DIR)
             new_images_installed = True
+
+            if was_wal:
+                _enable_wal_after_replace()
 
             final_check = validate_database(DB_PATH)
 
@@ -430,6 +460,9 @@ def restore_backup(archive_path: Path) -> dict:
 
             if database_moved and previous_database.exists():
                 os.replace(previous_database, DB_PATH)
+
+            if was_wal and DB_PATH.exists():
+                _enable_wal_after_replace()
 
             engine.dispose()
             raise

@@ -1,5 +1,8 @@
 ﻿import json
 import threading
+import os
+import re
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
 import serial
@@ -48,6 +51,14 @@ def send_command(ser):
 def main():
     global running
 
+    credential = os.getenv('AGROSCAN_DEVICE_TOKEN', '')
+    target = urlsplit(API_URL)
+    if not re.fullmatch(r'agd_[A-Za-z0-9_-]{43}', credential):
+        raise SystemExit('Configura AGROSCAN_DEVICE_TOKEN antes de conectar el dispositivo.')
+    if (target.scheme not in ('http', 'https') or not target.hostname or target.username or target.password
+            or target.query or target.fragment or (target.scheme == 'http' and target.hostname not in ('localhost', '127.0.0.1', '::1'))):
+        raise SystemExit('Se exige HTTPS remoto o HTTP local sin credenciales en la URL.')
+
     print("================================")
     print(" AGROSCAN - PUENTE SERIAL ESP32")
     print("================================")
@@ -57,7 +68,7 @@ def main():
         print(f"Velocidad: {BAUDRATE}")
         print("Esperando reinicio y telemetría del ESP32...")
 
-        with httpx.Client(timeout=5.0) as client:
+        with httpx.Client(timeout=5.0, follow_redirects=False, headers={'Authorization': 'Bearer ' + credential}) as client:
             input_thread = threading.Thread(
                 target=send_command,
                 args=(ser,),

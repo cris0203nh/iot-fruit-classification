@@ -5,9 +5,10 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uniqu
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
-class VisionAssessment(Base):
+class VisionAssessment(OrganizationScoped, Base):
     __tablename__ = 'vision_assessments'
     __table_args__ = (UniqueConstraint('image_id', 'image_sha256', 'rules_version',
                                        'model_version', name='uq_vision_image_model_rules'),)

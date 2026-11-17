@@ -8,6 +8,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 
+from app.organization_models import Organization
 from app.database import Base
 from app.models import Lot, Piece, Evaluation, Image
 from app.services import backup_service
@@ -40,10 +41,13 @@ class AGROP53RealIntegrationTests(unittest.TestCase):
             cursor.close()
 
         Base.metadata.create_all(self.engine)
+        with self.engine.begin() as connection:
+            connection.execute(Organization.__table__.insert().values(id=1, name="AgroScan Inicial", is_active=True))
 
         self.SessionLocal = sessionmaker(
             bind=self.engine,
             expire_on_commit=False,
+            info={"organization_id": 1},
         )
 
         # Redirigir el servicio a los archivos temporales.

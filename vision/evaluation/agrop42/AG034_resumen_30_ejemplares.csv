@@ -1,0 +1,31 @@
+id_ejemplar_fuente,producto,vistas,mascaras_visualmente_compatibles,mascaras_parciales,sin_mascara,mascaras_no_utilizables,observacion_IA,evidencia_fisica_independiente,etiqueta_comercial_validada
+MANGO_01,mango,3,1,0,2,0,"Piel principalmente verde con puntos discretos; dos vistas laterales y una superior, sin diagnóstico de daño.",no_acreditada,no
+MANGO_02,mango,3,1,0,2,0,Tonalidad verde con áreas amarillentas; detalle superficial moderado; no se observan lesiones graves inequívocas.,no_acreditada,no
+MANGO_03,mango,3,1,0,2,0,Superficie verde amarillenta y pequeños puntos dispersos; falta constancia de identidad física.,no_acreditada,no
+MANGO_04,mango,3,1,0,2,0,Mango curvado y verde; marcas menores no diagnósticas; tres perspectivas relacionadas según fuente.,no_acreditada,no
+MANGO_05,mango,3,1,0,2,0,Piel verde y amarillo claro con irregularidades de tono; no atribuir madurez o defectos automáticamente.,no_acreditada,no
+MANGO_06,mango,3,3,0,0,0,Mango verde-amarillo; una marca en un extremo; contorno visual distinguible.,no_acreditada,no
+MANGO_07,mango,3,3,0,0,0,Tonalidad amarilla; línea/marca superficial visible en varias vistas; requiere evaluación del criterio R03.,no_acreditada,no
+MANGO_08,mango,3,3,0,0,0,Piel amarilla con puntos/manchas marrones localizados; origen indeterminado por imagen.,no_acreditada,no
+MANGO_09,mango,3,3,0,0,0,Piel amarilla y marcas oscuras pequeñas en un extremo; no inferir patología.,no_acreditada,no
+MANGO_10,mango,3,3,0,0,0,Verde-amarillo con puntos oscuros localizados; se necesita atribución visual por rúbrica.,no_acreditada,no
+MANGO_11,mango,3,3,0,0,0,"Amarillo con marcas oscuras en una zona lateral; hallazgo descriptivo, no daño confirmado.",no_acreditada,no
+MANGO_12,mango,3,3,0,0,0,Piel amarilla y verde con algunas marcas discretas; vistas coherentes.,no_acreditada,no
+MANGO_13,mango,3,3,0,0,0,Amarillo/verde irregular y marcas superficiales; necesidad de contrastar criterios.,no_acreditada,no
+MANGO_14,mango,3,3,0,0,0,Coloración amarillo-verde; marcas menores visibles; no establecer grado comercial.,no_acreditada,no
+MANGO_15,mango,3,3,0,0,0,Amarillo con puntos oscuros notorios en ciertas caras; no diagnosticar infección ni magulladura.,no_acreditada,no
+TOMATE_01,tomate,3,3,0,0,0,Tomate rojo de superficie lobulada y brillos; sin daño externo inequívoco en vistas mostradas.,no_acreditada,no
+TOMATE_02,tomate,3,3,0,0,0,Tomate rojizo con zona amarillenta y pequeña marca/depresión observable; causa no verificable.,no_acreditada,no
+TOMATE_03,tomate,3,3,0,0,0,"Tomate naranja, lobulado, con cicatriz peduncular y marca localizada; evaluación de defecto pendiente.",no_acreditada,no
+TOMATE_04,tomate,3,0,3,0,0,Tomate rojo con marcas oscuras y textura irregular; la máscara pierde regiones profundas oscuras.,no_acreditada,no
+TOMATE_05,tomate,3,0,3,0,0,"Tomate rojizo con zonas oscuras y superficies irregulares visibles en dos vistas; revisar prioritariamente, sin diagnóstico.",no_acreditada,no
+TOMATE_06,tomate,3,3,0,0,0,Tomate rosado con transición verdosa parcial y contorno redondo; no inferir madurez interna.,no_acreditada,no
+TOMATE_07,tomate,3,0,3,0,0,Tomate rojizo oscuro con región inferior casi negra; máscara no cubre bien la zona oscura.,no_acreditada,no
+TOMATE_08,tomate,3,3,0,0,0,Tomate pequeño naranja con contorno regular y punto oscuro inferior aislado; origen incierto.,no_acreditada,no
+TOMATE_09,tomate,3,3,0,0,0,Tomate rojo intenso relativamente uniforme en estas vistas; sin conclusión sobre cara no visible.,no_acreditada,no
+TOMATE_10,tomate,3,3,0,0,0,Tomate amarillo con reflejo luminoso y contorno regular; sin interpretación de categoría comercial.,no_acreditada,no
+TOMATE_11,tomate,3,0,3,0,0,Tomate de pigmentación muy oscura y brillo rojo; máscara omite gran área oscura.,no_acreditada,no
+TOMATE_12,tomate,3,3,0,0,0,Tomate rojo de forma irregular; muestra de 100 px que limita evaluación de defectos finos.,no_acreditada,no
+TOMATE_13,tomate,3,3,0,0,0,Tomate rojo con surcos y lóbulos marcados; 100 px insuficientes para detalles pequeños.,no_acreditada,no
+TOMATE_14,tomate,3,0,3,0,0,Tomate rojo oscuro lobulado/alargado; sombras hacen perder píxeles en máscara; resolución baja.,no_acreditada,no
+TOMATE_15,tomate,3,0,0,0,3,Tomate verde con cáliz/pedúnculo visible; segmentación cromática focalizada en la parte superior y fallida.,no_acreditada,no

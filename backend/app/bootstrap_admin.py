@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 
 from .database import SessionLocal
 from .models import User, Role
+from .organization_models import Organization, OrganizationMembership
 from .security import hash_password
 
 
@@ -60,6 +61,12 @@ def main():
         )
 
         db.add(admin)
+        db.flush()
+        organization = db.scalar(select(Organization).where(Organization.name == 'AgroScan Inicial'))
+        if organization is None:
+            raise ValueError('Ejecuta primero las migraciones de organizaciones.')
+        db.add(OrganizationMembership(organization_id=organization.id, user_id=admin.id,
+                                      role_id=roles['administrador'].id))
         db.commit()
 
         print("\nAdministrador creado correctamente.")

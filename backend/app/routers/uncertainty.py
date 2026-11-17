@@ -85,6 +85,7 @@ def _eval(db: Session, evaluation_id: str) -> Evaluation:
 
 
 def _source_bytes(image: Image) -> tuple[bytes,str]:
+    from ..services.evidence_storage import evidence_path
     root = DATA_DIR.resolve(strict=True)
     rel = image.relative_path
     if not rel or '\\' in rel or ':' in rel:
@@ -92,7 +93,7 @@ def _source_bytes(image: Image) -> tuple[bytes,str]:
     relative = PurePosixPath(rel)
     if relative.is_absolute() or '..' in relative.parts:
         raise HTTPException(409,'Referencia de fotografía insegura')
-    path = root.joinpath(*relative.parts)
+    path = evidence_path(image, DATA_DIR)
     if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(root):
         raise HTTPException(409,'Fotografía original no disponible')
     if path.stat().st_size > MAX_IMAGE_BYTES:
@@ -163,7 +164,7 @@ def review_gate(evaluation_id: str,payload: ReviewGateRequest,
     if img is None or img.evaluation_id!=ev.id:
         raise HTTPException(404,'Fotografía no asociada')
     if payload.forceReview:
-        if not any(role.name in ('administrador','revisor') for role in user.roles):
+        if not db.info['organization_roles'].intersection(('administrador', 'revisor')):
             raise HTTPException(403,'Se requiere perfil revisor')
         if len(payload.note)<10:
             raise HTTPException(422,'Indique por qué necesita revisión')

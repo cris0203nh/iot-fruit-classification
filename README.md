@@ -14,3 +14,10 @@ Las pruebas de software y compilación no sustituyen la validación física ni l
 ## Actualización de validación física
 
 Fernando realizó ensayos físicos de montaje y pesaje documentados en Jira. Ver [resultados, limitaciones y pendientes de integración](docs/hardware/AGROP-21-23-validacion-fisica.md). No confundir estas pruebas con una ejecución end-to-end: falta acreditar el transporte del peso real a AgroScan. El firmware versionado utiliza USB/serie y puente HTTP, no Wi-Fi directo.
+
+## SaaS multiempresa (SaaS-01 a SaaS-08)
+
+SQLite y almacenamiento persistente permanecen en FastAPI; React se publica por separado.
+Consultar [preparación de publicación y bloqueos](docs/PUBLICACION-SAAS.md),
+[activación y aceptación del piloto](docs/SAAS-08.md) e [IoT seguro](docs/SAAS-07.md).
+No publicar datos operativos ni activar producción antes de resolver los bloqueos indicados.

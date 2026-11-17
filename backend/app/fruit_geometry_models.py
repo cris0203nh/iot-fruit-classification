@@ -5,13 +5,14 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uniqu
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class FruitGeometry(Base):
+class FruitGeometry(OrganizationScoped, Base):
     __tablename__ = 'fruit_geometries'
     __table_args__ = (
         UniqueConstraint('image_id', 'image_sha256', 'model_version', 'rules_version',

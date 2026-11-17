@@ -5,7 +5,9 @@ No ESP32, real fruit photo or actual professional diagnosis is used in tests.
 import hashlib
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -13,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Review, Role, User
@@ -31,10 +34,13 @@ class ReviewDecisionTests(unittest.TestCase):
                                     connect_args={'check_same_thread': False, 'timeout': 5})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        with self.engine.begin() as connection:
+            connection.execute(Organization.__table__.insert().values(id=1, name="AgroScan Inicial", is_active=True))
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.users = {}
         self.original = b'\xff\xd8\xffAG038-TEST-ORIGINAL\xff\xd9'
-        (self.root / 'evidence.jpg').write_bytes(self.original)
+        (self.root / 'images').mkdir()
+        (self.root / 'images/evidence.jpg').write_bytes(self.original)
         self.sha = hashlib.sha256(self.original).hexdigest()
         with self.Session() as db:
             for role in ('revisor', 'operador'):
@@ -43,6 +49,7 @@ class ReviewDecisionTests(unittest.TestCase):
                             is_active=True, roles=[Role(name=role)])
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.users[role] = user.id
             lot = Lot(code='AG038-SIM', product='mango', status='open')
             db.add(lot)
@@ -52,7 +59,7 @@ class ReviewDecisionTests(unittest.TestCase):
             db.add(ev)
             db.flush()
             img = Image(evaluation_id=ev.id, view='vista-1',
-                        relative_path='evidence.jpg', content_type='image/jpeg',
+                        relative_path='images/evidence.jpg', content_type='image/jpeg',
                         size_bytes=len(self.original))
             db.add(img)
             db.flush()
@@ -104,7 +111,7 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertEqual(log.json()['currentValue'], 'E2')
         self.assertEqual(len(log.json()['decisions']), 3)
         self.assertIsNone(log.json()['originalValue'])
-        self.assertEqual((self.root/'evidence.jpg').read_bytes(), self.original)
+        self.assertEqual((self.root/'images/evidence.jpg').read_bytes(), self.original)
         # Read-back from a distinct SQLite connection, not a cached Session.
         independent_engine = create_engine('sqlite:///' + str(self.root/'db.sqlite'))
         try:
@@ -141,6 +148,27 @@ class ReviewDecisionTests(unittest.TestCase):
         with self.Session() as db:
             self.assertEqual(len(db.scalars(select(Review)).all()), 1)
 
+    def test_revisiones_simultaneas_serializan_en_delete_y_wal(self):
+        self.assertEqual(self.create().status_code, 201)
+        for mode in ('delete', 'wal'):
+            with self.subTest(mode=mode):
+                self.engine.dispose()
+                with self.engine.connect() as db:
+                    self.assertEqual(db.exec_driver_sql(f'PRAGMA journal_mode={mode}').scalar(), mode)
+                revision = self.client.get(self.path, headers=self.auth()).json()['revisionId']
+                barrier = Barrier(2)
+
+                def confirm(_):
+                    barrier.wait(timeout=5)
+                    return self.create('confirm', 'E1', revision)
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    results = list(pool.map(confirm, range(2)))
+                self.assertEqual(sorted(item.status_code for item in results), [201, 409])
+                log = self.client.get(self.path, headers=self.auth()).json()
+                self.assertEqual(log['currentValue'], 'E1')
+                self.assertEqual(len(log['decisions']), 2 if mode == 'delete' else 3)
+
     def test_replay_with_modified_payload_is_conflict(self):
         rid = str(uuid4())
         self.assertEqual(self.create(request_id=rid).status_code, 201)
@@ -157,7 +185,7 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertEqual(self.create(image_id='I-999999').status_code, 404)
 
     def test_missing_image_blocks_decision(self):
-        (self.root / 'evidence.jpg').unlink()
+        (self.root / 'images/evidence.jpg').unlink()
         self.assertEqual(self.create().status_code, 409)
 
     def test_no_evaluable_does_not_invent_grade(self):

@@ -1,10 +1,11 @@
-﻿import unittest
+import unittest
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Role, User
@@ -21,7 +22,9 @@ class AGROP47UserManagementTests(unittest.TestCase):
         )
 
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        self.db.add(Organization(id=1, name="AgroScan Inicial"))
+        self.db.commit()
         self.client = TestClient(app)
 
         def override_get_db():
@@ -43,6 +46,9 @@ class AGROP47UserManagementTests(unittest.TestCase):
             self.db.add(user)
             self.users[name] = user
 
+        self.db.flush()
+        for user in self.users.values():
+            self.db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
         self.db.commit()
 
         for user in self.users.values():

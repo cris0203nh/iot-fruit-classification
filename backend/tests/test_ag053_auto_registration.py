@@ -17,6 +17,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.auto_registration_models import VisionPrecheck
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot, Piece, Role, User
@@ -35,7 +36,9 @@ class AG053AutoRegistrationTests(unittest.TestCase):
         )
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        with self.engine.begin() as connection:
+            connection.execute(Organization.__table__.insert().values(id=1, name="AgroScan Inicial", is_active=True))
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         with self.Session() as db:
             self.ids = {}
             for role in ('operador', 'revisor', 'administrador'):
@@ -46,6 +49,7 @@ class AG053AutoRegistrationTests(unittest.TestCase):
                 )
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.ids[role] = user.id
             db.add_all([
                 Lot(code='MANGO-053', product='mango', status='open'),
@@ -99,7 +103,7 @@ class AG053AutoRegistrationTests(unittest.TestCase):
             self.assertEqual(again.status_code, 201, again.text)
             self.assertEqual(again.json()['pieceId'], 'P-000002')
             with self.Session() as db:
-                records = db.scalars(select(Piece).join(Lot).where(Lot.code == lot)).all()
+                records = db.scalars(select(Piece).join(Lot, Piece.lot_id == Lot.id).where(Lot.code == lot)).all()
                 self.assertEqual(len(records), 2)
 
     def test_lote_incompatible_y_token_de_otro_usuario(self):
@@ -140,18 +144,23 @@ class AG053AutoRegistrationTests(unittest.TestCase):
         self.assertEqual(res.status_code, 503)
 
     def test_registros_simultaneos_no_duplican_referencia(self):
-        tokens = [self.precheck().json()['detectionToken'] for _ in range(4)]
-        # El detector está simulado, la base y las transacciones son reales.
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(self.register, tokens))
-        for res in results:
-            self.assertEqual(res.status_code, 201, res.text)
-        self.assertEqual(
-            {r.json()['pieceId'] for r in results},
-            {'P-000001', 'P-000002', 'P-000003', 'P-000004'},
-        )
-        with self.Session() as db:
-            self.assertEqual(len(db.scalars(select(Evaluation)).all()), 4)
+        for offset, mode in ((0, 'delete'), (4, 'wal')):
+            with self.subTest(mode=mode):
+                self.engine.dispose()
+                with self.engine.connect() as db:
+                    self.assertEqual(db.exec_driver_sql(f'PRAGMA journal_mode={mode}').scalar(), mode)
+                tokens = [self.precheck().json()['detectionToken'] for _ in range(4)]
+                # El detector está simulado, la base y las transacciones son reales.
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    results = list(pool.map(self.register, tokens))
+                for res in results:
+                    self.assertEqual(res.status_code, 201, res.text)
+                self.assertEqual(
+                    {r.json()['pieceId'] for r in results},
+                    {f'P-{number:06d}' for number in range(offset + 1, offset + 5)},
+                )
+                with self.Session() as db:
+                    self.assertEqual(len(db.scalars(select(Evaluation)).all()), offset + 4)
 
 
 if __name__ == '__main__':

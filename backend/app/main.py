@@ -1,16 +1,31 @@
 import os
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from .dependencies import require_operational_context, block_global_operations
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 
 from .services.capture_control import capture_operation
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models, auto_registration_models, fruit_geometry_models, planar_calibration_models, board_calibration_models, quality_prediction_models  # noqa: F401
 from .routers import auth, evaluations, images, iot, lots, users, uncertainty, review_decisions, piece_history, piece_history_report, auto_registration, fruit_geometry, planar_calibration, board_calibration, quality_prediction, review_queue, backup
+from .routers import platform
+from .routers import auth_identity, invitations
+from .routers import iot_admin, organization_export
 
 app = FastAPI(title="AgroScan API")
+
+
+@app.exception_handler(RequestValidationError)
+async def protect_platform_validation_inputs(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith(('/api/platform/', '/api/auth/google', '/api/auth/invitations', '/api/invitations', '/api/iot/')):
+        # No devolver contraseñas ni cuerpos completos en errores del alta privada.
+        errors = [{key: error[key] for key in ('loc', 'msg', 'type')} for error in exc.errors()]
+        return JSONResponse(status_code=422, content={'detail': errors})
+    return await request_validation_exception_handler(request, exc)
 
 # AG-046 BKP-05: proteger escrituras durante respaldo/restauración.
 # El estado está en memoria y protege SOLO un proceso FastAPI.
@@ -63,25 +78,22 @@ app.add_middleware(
     allow_origins=_demo_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(lots.router)
-app.include_router(evaluations.router)
+app.include_router(auth_identity.router)
+app.include_router(platform.router)
+operational = APIRouter(dependencies=[Depends(require_operational_context)])
+for router in (users.router, lots.router, evaluations.router, images.router,
+               uncertainty.router, review_decisions.router, piece_history.router,
+               piece_history_report.router, auto_registration.router, fruit_geometry.router,
+               planar_calibration.router, board_calibration.router, quality_prediction.router,
+               review_queue.router, invitations.router, iot_admin.router, organization_export.router):
+    operational.include_router(router)
+app.include_router(operational)
 app.include_router(iot.router)
-app.include_router(images.router)
-app.include_router(uncertainty.router)
-app.include_router(review_decisions.router)
-app.include_router(piece_history.router)
-app.include_router(piece_history_report.router)
-app.include_router(auto_registration.router)
-app.include_router(fruit_geometry.router)
-app.include_router(planar_calibration.router)
-app.include_router(board_calibration.router)
-app.include_router(quality_prediction.router)
-app.include_router(review_queue.router)
-app.include_router(backup.router)
+app.include_router(backup.router, dependencies=[Depends(block_global_operations)])
 
 
 @app.get("/api/health")

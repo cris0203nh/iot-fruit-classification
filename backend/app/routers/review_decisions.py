@@ -131,6 +131,7 @@ def _validate_change(action: str, previous: str | None, new: str | None) -> str:
 
 
 def _source_sha(image: Image) -> str:
+    from ..services.evidence_storage import evidence_path
     root = DATA_DIR.resolve(strict=True)
     rel = image.relative_path
     if not rel or '\\' in rel or ':' in rel:
@@ -138,7 +139,7 @@ def _source_sha(image: Image) -> str:
     relative = PurePosixPath(rel)
     if relative.is_absolute() or '..' in relative.parts:
         raise HTTPException(409, 'Ruta de evidencia insegura')
-    source = root.joinpath(*relative.parts)
+    source = evidence_path(image, DATA_DIR)
     if not source.is_file() or source.is_symlink() or not source.resolve().is_relative_to(root):
         raise HTTPException(409, 'Evidencia original no disponible')
     if not 0 < image.size_bytes <= MAX_BYTES or source.stat().st_size != image.size_bytes:

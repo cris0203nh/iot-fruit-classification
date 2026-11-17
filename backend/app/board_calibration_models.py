@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class BoardCalibration(Base):
+class BoardCalibration(OrganizationScoped, Base):
     __tablename__ = 'ag054_board_calibrations'
     __table_args__ = (UniqueConstraint('image_id', 'geometry_id', 'image_sha256', 'rules_version',
                                        name='uq_ag054_board_snapshot'),)
@@ -35,7 +36,7 @@ class BoardCalibration(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class DimensionalComparison(Base):
+class DimensionalComparison(OrganizationScoped, Base):
     __tablename__ = 'ag054_dimensional_comparisons'
     __table_args__ = (UniqueConstraint('board_calibration_id', 'major_manual_cm', 'minor_manual_cm',
                                       'instrument_id', 'rules_version', name='uq_ag054_dimensional_reference'),)

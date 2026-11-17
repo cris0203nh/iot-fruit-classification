@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Role, User
@@ -29,14 +30,16 @@ class AG055QualityTests(unittest.TestCase):
         self.engine=create_engine(f'sqlite:///{self.dir / "test.sqlite"}',connect_args={'check_same_thread':False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session=sessionmaker(bind=self.engine,expire_on_commit=False)
+        self.Session=sessionmaker(bind=self.engine,expire_on_commit=False,info={"organization_id":1})
         with self.Session() as db:
+            db.add(Organization(id=1,name="Test")); db.flush()
             self.tokens={}
             for role in ('operador','revisor'):
                 user=User(username='ag055_'+role,full_name='AG055 '+role,
                     password_hash=hash_password('TestSeguro12345!'),
                     is_active=True,roles=[Role(name=role)])
                 db.add(user);db.flush()
+                db.add(OrganizationMembership(organization_id=1,user_id=user.id,role_id=user.roles[0].id))
                 self.tokens[role]=create_access_token(user.id)
             lot=Lot(code='AG055-TOM',product='tomate',status='open',responsible='TEST')
             db.add(lot);db.flush()

@@ -156,7 +156,7 @@ def list_comparisons(evaluation_id: str, image_id: str,
                      db: Session = Depends(get_db), _user: User = Depends(require_authenticated)):
     ev = _evaluation(db, evaluation_id)
     img = _evidence(db, ev, image_id)
-    rows = db.scalars(select(DimensionalComparison).join(BoardCalibration).where(
+    rows = db.scalars(select(DimensionalComparison).join(BoardCalibration, DimensionalComparison.board_calibration_id == BoardCalibration.id).where(
         BoardCalibration.evaluation_id == ev.id, BoardCalibration.image_id == img.id,
     ).order_by(DimensionalComparison.id)).all()
     return [_comparison_out(row) for row in rows]

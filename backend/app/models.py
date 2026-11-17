@@ -7,7 +7,9 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
+    Index,
     String,
     Table,
     UniqueConstraint,
@@ -15,6 +17,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+from .organization_scope import OrganizationScoped
+from .organization_models import Organization, OrganizationMembership  # noqa: F401
+from .platform_models import PlatformOwner  # noqa: F401
+from .identity_models import GoogleIdentity, GoogleChallenge, OrganizationInvitation  # noqa: F401
+from .iot_models import IotDevice, IotStation  # noqa: F401
 from .vision_assessment_models import VisionAssessment  # noqa: F401
 from .decision_models import ReviewDecisionEvidence  # noqa: F401
 
@@ -23,21 +30,22 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Lot(Base):
+class Lot(OrganizationScoped, Base):
     __tablename__ = "lots"
+    __table_args__ = (UniqueConstraint("organization_id", "code", name="uq_lots_organization_code"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(32, collation="NOCASE"))
     product: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="open")
     responsible: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    pieces: Mapped[list["Piece"]] = relationship(back_populates="lot")
-    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="lot")
+    pieces: Mapped[list["Piece"]] = relationship(back_populates="lot", foreign_keys="Piece.lot_id")
+    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="lot", foreign_keys="Evaluation.lot_id")
 
 
-class Piece(Base):
+class Piece(OrganizationScoped, Base):
     __tablename__ = "pieces"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -48,15 +56,15 @@ class Piece(Base):
     status: Mapped[str] = mapped_column(String(20), default="registered")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    lot: Mapped["Lot"] = relationship(back_populates="pieces")
-    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="piece")
+    lot: Mapped["Lot"] = relationship(back_populates="pieces", foreign_keys="Piece.lot_id")
+    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="piece", foreign_keys="Evaluation.piece_ref_id")
 
     __table_args__ = (
         UniqueConstraint("lot_id", "code", name="uq_piece_lot_code"),
     )
 
 
-class Evaluation(Base):
+class Evaluation(OrganizationScoped, Base):
     __tablename__ = "evaluations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -98,14 +106,14 @@ class Evaluation(Base):
     failure_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    lot: Mapped["Lot"] = relationship(back_populates="evaluations")
-    piece: Mapped["Piece | None"] = relationship(back_populates="evaluations")
+    lot: Mapped["Lot"] = relationship(back_populates="evaluations", foreign_keys="Evaluation.lot_id")
+    piece: Mapped["Piece | None"] = relationship(back_populates="evaluations", foreign_keys="Evaluation.piece_ref_id")
 
     images: Mapped[list["Image"]] = relationship(
-        back_populates="evaluation", order_by="Image.id"
+        back_populates="evaluation", order_by="Image.id", foreign_keys="Image.evaluation_id"
     )
     reviews: Mapped[list["Review"]] = relationship(
-        back_populates="evaluation", order_by="Review.id"
+        back_populates="evaluation", order_by="Review.id", foreign_keys="Review.evaluation_id"
     )
 
     weight_pre_measurement: Mapped["Measurement | None"] = relationship(
@@ -116,7 +124,7 @@ class Evaluation(Base):
     )
 
 
-class Measurement(Base):
+class Measurement(OrganizationScoped, Base):
     __tablename__ = "measurements"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -137,14 +145,17 @@ class Measurement(Base):
     )
 
     __table_args__ = (
+        ForeignKeyConstraint(['organization_id', 'device_id'],
+            ['iot_devices.organization_id', 'iot_devices.device_id'], name='fk_measurements_device'),
+        Index('ix_measurements_org_received', 'organization_id', 'id'),
         UniqueConstraint(
-            "device_id", "boot_id", "seq",
+            "organization_id", "device_id", "boot_id", "seq",
             name="uq_measurement_seq"
         ),
     )
 
 
-class Image(Base):
+class Image(OrganizationScoped, Base):
     __table_args__ = (
     UniqueConstraint(
         "evaluation_id",
@@ -164,14 +175,14 @@ class Image(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    evaluation: Mapped["Evaluation"] = relationship(back_populates="images")
+    evaluation: Mapped["Evaluation"] = relationship(back_populates="images", foreign_keys="Image.evaluation_id")
     idempotency_key: Mapped[str | None] = mapped_column(
         String(64),
         nullable=True,
     )
 
 
-class Review(Base):
+class Review(OrganizationScoped, Base):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -185,7 +196,7 @@ class Review(Base):
     updated_value: Mapped[str | None] = mapped_column(String(50), nullable=True)
     performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    evaluation: Mapped["Evaluation"] = relationship(back_populates="reviews")
+    evaluation: Mapped["Evaluation"] = relationship(back_populates="reviews", foreign_keys="Review.evaluation_id")
 # Relación entre usuarios y roles.
 user_roles = Table(
     "user_roles",

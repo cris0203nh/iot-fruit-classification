@@ -21,10 +21,14 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
+from PIL import Image
+
 from .auditar_etiquetado import (
     AuditError, REVIEW_COLS, UNIVERSE_COLS, load_csv, load_universe, safe_file,
     MAX_IMAGE,
 )
+
+from .formulario_revision_offline import render_form
 
 VERSION = 'ag036-preparacion-ciega-v1'
 
@@ -83,16 +87,20 @@ def _guide(slot: str) -> bytes:
 ESTADO: SIN ETIQUETAR. Este paquete contiene imágenes originales comprobadas
 mediante SHA256 y filas preparadas, pero no acredita evaluación humana.
 
-1. Descomprima todo el ZIP en una carpeta privada; abra `indice.html` en el navegador.
+1. Descomprima todo el ZIP en una carpeta privada; abra `formulario_{slot}.html`
+   para la ficha de selección rápida. `indice.html` sigue disponible solo para leer imágenes.
 2. Identifique la rúbrica aplicable a cada producto/version (`kent-ext-*` / `tomato-ext-*`).
    Es una propuesta documental pendiente de aprobación formal. No atribuya defectos
    que no se ven ni infiera madurez interna, inocuidad o categoría comercial.
-3. Abra `revision_{slot}.csv`. Complete `revisor_id` (código suyo, NO el de otro
+3. En el formulario, elija E0/E1/E2/no evaluable por pieza, justifique y exporte
+   `AG036_Devolucion_{slot}.zip`; extraiga ese ZIP en `devoluciones/{slot}`.
+   Si prefiere editar el CSV a mano: abra `revision_{slot}.csv`. Complete `revisor_id` (código suyo, NO el de otro
    revisor), `fecha_revision_iso` con zona horaria (p. ej., 2026-11-08T15:00:00-05:00),
    `estado_revision` (`etiquetada`, `no_evaluable` o `pendiente`), `justificacion`.
    Solo si el estado es `etiquetada`, indique E0/E1/E2. Para E1/E2, complete
    `criterios_rxx` (códigos de la rúbrica del producto) y `ubicacion_evidencia`.
-4. Para cada dictamen finalizado, incluya evidencia documental propia en `soportes/`
+4. El formulario genera los soportes de texto de sus justificaciones reales.
+   Si edita el CSV manualmente, para cada dictamen finalizado incluya evidencia en `soportes/`
    y ponga su ruta relativa a dicha carpeta en `soporte_relativo`, por ejemplo
    `revision_pieza_001.txt`. La justificación debe expresar observaciones reales.
 5. Mantenga el archivo del otro revisor oculto hasta cerrar ambas revisiones.
@@ -140,6 +148,8 @@ def prepare(universe_csv: Path, images_root: Path, output_dir: Path) -> dict:
 
     seen_images = set()
     images = {}
+    previews = {}
+    preview_files = {}
     for row in rows:
         key = row['producto'], row['lote_id'], row['pieza_id']
         if key not in pieces_by_key:
@@ -153,6 +163,16 @@ def prepare(universe_csv: Path, images_root: Path, output_dir: Path) -> dict:
         if digest != row['sha256_imagen'].lower():
             raise AuditError('El contenido cambió durante la preparación: ' + rel)
         images[name] = blob
+        # Vista JPEG reducida solo para el formulario; el original sigue intacto.
+        preview_name = f'previsualizaciones/{digest[:20]}.jpg'
+        with Image.open(io.BytesIO(blob)) as photograph:
+            photograph.seek(0)
+            preview = photograph.convert('RGB')
+            preview.thumbnail((960, 960))
+            canvas = io.BytesIO()
+            preview.save(canvas, format='JPEG', quality=82, optimize=True)
+        preview_files[preview_name] = canvas.getvalue()
+        previews[rel] = preview_name
         pieces_by_key[key]['imagenes'].append({
             'imagen_relativa': rel, 'sha256_imagen': digest,
             'sesion_id': row['sesion_id'],
@@ -181,11 +201,13 @@ def prepare(universe_csv: Path, images_root: Path, output_dir: Path) -> dict:
             review_rows.append(r)
         bundle[slot] = {
             f'revision_{slot}.csv': _csv_bytes(REVIEW_COLS, review_rows),
+            f'formulario_{slot}.html': render_form(pieces, slot, previews),
             'indice.html': _viewer(pieces, slot),
             'GUIA_REVISION.md': _guide(slot),
             'inventario_vistas.json': (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8'),
             'soportes/': b'',
             **images,
+            **preview_files,
         }
     # Crear en un temporal y mover al destino solamente tras escribir ambos ZIP.
     output_dir.parent.mkdir(parents=True, exist_ok=True)

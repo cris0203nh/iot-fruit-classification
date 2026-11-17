@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Review, Role, User
@@ -31,14 +32,16 @@ class QueueApiTests(unittest.TestCase):
                                     connect_args={'check_same_thread': False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.users = {}
         with self.Session() as db:
+            db.add(Organization(id=1, name="Test")); db.flush()
             for role in ('operador', 'revisor', 'administrador'):
                 user = User(username='ag056_' + role, full_name='Prueba AG056 ' + role,
                             password_hash='TEST_NO_LOGIN', roles=[Role(name=role)], is_active=True)
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.users[role] = user.id
             db.commit()
         def use_test_db():
@@ -73,7 +76,8 @@ class QueueApiTests(unittest.TestCase):
             image_info = []
             for i in range(views):
                 raw = f'AG056 original {code} {piece} view {i}'.encode()
-                relative_path = f'E{ev.id}_photo{i}.jpg'
+                relative_path = f'images/E{ev.id}_photo{i}.jpg'
+                (self.root / 'images').mkdir(exist_ok=True)
                 (self.root / relative_path).write_bytes(raw)
                 img = Image(evaluation_id=ev.id, view=f'vista-{i+1}',
                             relative_path=relative_path, content_type='image/jpeg',

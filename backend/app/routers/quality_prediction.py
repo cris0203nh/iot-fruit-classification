@@ -72,8 +72,9 @@ def _load_model(product: str) -> tuple[dict | None, str | None]:
 
 
 def _read_image(img: Image) -> bytes:
+    from ..services.evidence_storage import evidence_path
     base=DATA_DIR.resolve()
-    target=(base/img.relative_path).resolve()
+    target=evidence_path(img, DATA_DIR)
     if not target.is_relative_to(base) or not target.is_file():
         raise HTTPException(409, 'La fotografía original no está disponible')
     if not 0 < img.size_bytes <= MAX_IMAGE_BYTES:
@@ -383,7 +384,8 @@ def v2_analyze(evaluation_id: str,db: Session=Depends(get_db),_user: User=Depend
     return _analyze_experimental_models(ev,db,_v2_models(ev.product),v2=True)
 
 
-def _review_run():
+def _review_run(organization_id, *, create=False):
+    from ..services.evidence_storage import review_folder
     configured=os.getenv('AGROSCAN_REVIEW_RUN')
     if not configured:
         raise HTTPException(409,'Cola de revisión no configurada')
@@ -391,7 +393,7 @@ def _review_run():
         root=private(Path(configured))
         if not root.is_dir():
             raise ValueError('missing directory')
-        return root
+        return review_folder(root, organization_id, create=create)
     except (OSError,ValueError):
         raise HTTPException(503,'Almacenamiento de revisión no disponible') from None
 
@@ -413,7 +415,7 @@ def _sample(ev, img, raw):
 def list_reviews(evaluation_id: str, db: Session=Depends(get_db),
                  _user: User=Depends(require_authenticated)):
     ev=_evaluation(db,evaluation_id)
-    root=_review_run()
+    root=_review_run(ev.organization_id)
     images=[]
     for img in ev.images:
         sample=_sample(ev,img,_read_image(img))
@@ -460,7 +462,7 @@ def create_human_review(evaluation_id: str, body: HumanReviewInput,
         raise HTTPException(409,'La fotografía no coincide con la inferencia original')
     view=next(v for v in details['perView'] if v['imageId']==body.imageId)
     try:
-        return save_review_sample(_review_run(),sample,{**body.model_dump(),'reviewer':user.username},
+        return save_review_sample(_review_run(ev.organization_id, create=True),sample,{**body.model_dump(),'reviewer':user.username},
             {'evaluationId':evaluation_id,'imageId':body.imageId,'predictionId':prediction.id,
              'modelSha256':prediction.model_sha256,'uncertainty':view.get('uncertainty'),
              'actorUserId':user.id,'actorSource':'authenticated_session',

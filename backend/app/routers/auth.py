@@ -1,11 +1,13 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..dependencies import get_current_user
-from ..models import User
+from ..dependencies import BUSINESS_ROLES, get_authenticated_identity, get_current_user
+from ..platform_models import PlatformOwner
+from ..models import User, Role
+from ..organization_models import Organization, OrganizationMembership
 from ..security import (
     create_access_token,
     verify_password,
@@ -35,20 +37,42 @@ def login(
         )
 
     token = create_access_token(user.id)
+    owner = db.get(PlatformOwner, 1)
 
     return {
         "access_token": token,
         "token_type": "bearer",
+        "is_superadmin": owner is not None and owner.user_id == user.id,
     }
 
 
 @router.get("/me")
 def get_me(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    owner = db.get(PlatformOwner, 1)
     return {
         "id": current_user.id,
         "username": current_user.username,
         "fullName": current_user.full_name,
-        "roles": [role.name for role in current_user.roles],
+        "roles": sorted(db.info['organization_roles']),
+        "organizationId": db.info['organization_id'],
+        "organizations": db.info['organizations'],
+        "isSuperadmin": owner is not None and owner.user_id == current_user.id,
     }
+
+
+@router.get('/organizations')
+def my_organizations(user: User = Depends(get_authenticated_identity), db: Session = Depends(get_db)):
+    rows = db.execute(select(Organization.id, Organization.name, Role.name.label('role'))
+        .join(OrganizationMembership, OrganizationMembership.organization_id == Organization.id)
+        .join(Role, OrganizationMembership.role_id == Role.id)
+        .where(OrganizationMembership.user_id == user.id,
+               OrganizationMembership.is_active.is_(True), Organization.is_active.is_(True),
+               Role.name.in_(BUSINESS_ROLES))
+        .order_by(Organization.id, Role.name)).all()
+    result = {}
+    for row in rows:
+        result.setdefault(row.id, {'id': row.id, 'name': row.name, 'roles': []})['roles'].append(row.role)
+    return list(result.values())

@@ -1,0 +1,8 @@
+.platform-shell { max-width: 1200px; margin: 0 auto; padding: 16px; }
+.platform-dashboard .section-heading { display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.platform-dashboard .users-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.platform-administrators { padding: 0; list-style: none; }
+.platform-administrators li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
+@media (max-width: 620px) {
+  .platform-dashboard .users-summary { grid-template-columns: 1fr; }
+}

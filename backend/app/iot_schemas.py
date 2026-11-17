@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MeasurementCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
     schema_version: int = 1
     device_id: str = Field(min_length=1, max_length=64)
     boot_id: str = Field(min_length=1, max_length=64)
@@ -27,4 +28,4 @@ class IotStatusOut(BaseModel):
     weightG: float | None
     stable: bool | None
     receivedAt: str | None
-    ageSeconds: float | None 
+    ageSeconds: float | None

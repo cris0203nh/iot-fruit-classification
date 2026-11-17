@@ -1,12 +1,13 @@
 ﻿from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 RoleName = Literal["administrador", "revisor", "operador"]
 
 
 class UserCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     username: str = Field(min_length=3, max_length=64)
     fullName: str = Field(min_length=2, max_length=120)
     password: str = Field(min_length=12, max_length=128)
@@ -30,10 +31,12 @@ class UserCreate(BaseModel):
 
 
 class UserRoleUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     role: RoleName
 
 
 class UserStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     isActive: bool
 
 

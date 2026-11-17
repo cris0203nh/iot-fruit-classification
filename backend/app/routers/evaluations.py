@@ -21,6 +21,8 @@ from ..evaluation_schemas import (
 )
 from ..models import Evaluation, Image, Lot, Measurement, Piece, Review, User
 from ..review_completion import reconcile_review_status
+from ..services.device_auth import active_measurements
+from ..services.evidence_storage import evidence_path
 
 from ..review_schemas import (
     CancelCreate,
@@ -112,7 +114,7 @@ def list_evaluations(
     status: Literal["processing", "completed", "pending_review", "error", "cancelled"] | None = None,
     db: Session = Depends(get_db),
 ):
-    stmt = select(Evaluation).join(Lot).order_by(Evaluation.id.desc())
+    stmt = select(Evaluation).join(Lot, Evaluation.lot_id == Lot.id).order_by(Evaluation.id.desc())
     if lot:
         stmt = stmt.where(func.lower(Lot.code) == lot.strip().lower())
     if product:
@@ -317,7 +319,7 @@ def latest_ready(db: Session, after: datetime) -> Measurement:
     """Obtiene la última adquisición y valida su vigencia y trazabilidad."""
 
     last = db.scalar(
-        select(Measurement).order_by(Measurement.id.desc()).limit(1)
+        active_measurements(select(Measurement)).order_by(Measurement.id.desc()).limit(1)
     )
 
     if last is None:
@@ -575,7 +577,7 @@ def confirm_acquisition(
         )
 
     for image in images:
-        image_path = DATA_DIR / image.relative_path
+        image_path = evidence_path(image, DATA_DIR)
 
         if not image_path.is_file() or image.size_bytes <= 0:
             raise HTTPException(

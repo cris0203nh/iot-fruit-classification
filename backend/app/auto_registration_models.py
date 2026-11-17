@@ -9,13 +9,14 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class VisionPrecheck(Base):
+class VisionPrecheck(OrganizationScoped, Base):
     __tablename__ = 'vision_prechecks'
 
     token: Mapped[str] = mapped_column(String(64), primary_key=True)

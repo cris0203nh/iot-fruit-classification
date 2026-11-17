@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Measurement, Review, Role, User
@@ -49,7 +50,9 @@ class AG046I02SecurityTests(unittest.TestCase):
         )
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        with self.engine.begin() as connection:
+            connection.execute(Organization.__table__.insert().values(id=1, name="AgroScan Inicial", is_active=True))
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.ids = {}
         with self.Session() as db:
             for role in ('operador', 'revisor', 'administrador'):
@@ -60,6 +63,7 @@ class AG046I02SecurityTests(unittest.TestCase):
                 )
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.ids[role] = user.id
             lot = Lot(code='AG046-I02', product='tomate', status='open')
             db.add(lot)
@@ -281,42 +285,42 @@ class AG046I02SecurityTests(unittest.TestCase):
         self.assertEqual(inactive.status_code, 200)
         self.assertFalse(inactive.json()['isActive'])
 
-    def test_sec09_respaldo_y_restore_solo_administrador(self):
-        before = self.counts()
-        with patch.object(backup_router, 'create_backup') as backup_mock, \
-             patch.object(backup_router, 'restore_backup') as restore_mock:
-            for role in ('operador', 'revisor'):
-                headers = self.auth(role)
-                self.assertEqual(self.client.post('/api/admin/backups', headers=headers).status_code, 403)
-                self.assertEqual(self.client.post('/api/admin/backups/restore', headers=headers,
-                    files={'file': ('respaldo.zip', b'ZIP-SINTETICO', 'application/zip')}).status_code, 403)
-            self.assertEqual(self.client.post('/api/admin/backups').status_code, 401)
-            self.assertEqual(self.client.post('/api/admin/backups/restore',
-                files={'file': ('respaldo.zip', b'ZIP-SINTETICO', 'application/zip')}).status_code, 401)
+    def test_token_emitido_pierde_privilegios_al_cambiar_rol(self):
+        credential = self.auth('administrador')
+        self.assertEqual(self.client.get('/api/users', headers=credential).status_code, 200)
+        with self.Session() as db:
+            user = db.get(User, self.ids['administrador'])
+            memberships = db.scalars(select(OrganizationMembership).where(OrganizationMembership.user_id == user.id)).all()
+            for membership in memberships:
+                db.delete(membership)
+            db.flush()
+            db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=db.scalar(select(Role.id).where(Role.name == 'operador'))))
+            db.commit()
+        # El mismo JWT debe consultar permisos vigentes, sin esperar su expiración.
+        self.assertEqual(self.client.get('/api/users', headers=credential).status_code, 403)
+        with patch.object(backup_router, 'create_backup') as backup_mock:
+            self.assertEqual(self.client.post('/api/admin/backups', headers=credential).status_code, 503)
             backup_mock.assert_not_called()
-            restore_mock.assert_not_called()
+
+    def test_sec09_respaldo_y_restore_bloqueados_hasta_saas07(self):
+        before = self.counts()
+        with patch.object(backup_router, 'create_backup') as create, patch.object(backup_router, 'restore_backup') as restore:
+            for role in ('operador', 'revisor', 'administrador', None):
+                headers = self.auth(role) if role else {}
+                self.assertEqual(self.client.post('/api/admin/backups', headers=headers).status_code, 503)
+                self.assertEqual(self.client.post('/api/admin/backups/restore', headers=headers,
+                    files={'file': ('respaldo.zip', b'SYNTHETIC', 'application/zip')}).status_code, 503)
+            create.assert_not_called()
+            restore.assert_not_called()
         self.assertEqual(self.counts(), before)
 
-    def test_sec09_admin_invoca_backups_simulados_sin_tocar_db(self):
-        destination = self.root / 'backups'
-        destination.mkdir(exist_ok=True)
-        with patch.object(backup_router, 'BACKUP_DIR', destination), \
-             patch.object(backup_router, 'create_backup', return_value={
-                 'path': str(destination / 'test.zip'), 'filename': 'test.zip',
-                 'imageFiles': 1, 'evaluationImages': 1,
-             }) as backup_mock, \
-             patch.object(backup_router, 'restore_backup', return_value={
-                 'restored': True, 'verified': True, 'evaluationImages': 1,
-             }) as restore_mock:
-            response = self.client.post('/api/admin/backups', headers=self.auth('administrador'))
-            self.assertEqual(response.status_code, 200, response.text)
-            restored = self.client.post('/api/admin/backups/restore',
-                headers=self.auth('administrador'),
-                files={'file': ('respaldo.zip', b'ZIP-DE-PRUEBA-NO-REAL', 'application/zip')})
-            self.assertEqual(restored.status_code, 200, restored.text)
-            backup_mock.assert_called_once()
-            restore_mock.assert_called_once()
-        self.assertEqual(self.counts(), (3, 0, 0))
+    def test_sec09_bloqueo_respaldo_no_crea_archivos(self):
+        destination = self.root / 'not-created'
+        with patch.object(backup_router, 'BACKUP_DIR', destination):
+            response = self.client.post('/api/admin/backups/restore', headers=self.auth('administrador'),
+                files={'file': ('respaldo.zip', b'SYNTHETIC', 'application/zip')})
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(destination.exists())
 
     def test_sec10_bandeja_acceso_por_rol(self):
         self.assertEqual(self.client.get('/api/reviews/queue').status_code, 401)
@@ -336,8 +340,8 @@ class AG046I02SecurityTests(unittest.TestCase):
             'calibration_version': 'AG046-TEST',
             'observed_at': datetime.now(timezone.utc).isoformat(),
         })
-        self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(self.counts()[2], before + 1)
+        self.assertEqual(response.status_code, 401, response.text)
+        self.assertEqual(self.counts()[2], before)
         # SEC-11 continuará PENDIENTE DE POLÍTICA/ENDURECIMIENTO.
 
     def test_sec12_permisos_distintos_para_anotacion_y_decision_formal(self):
@@ -353,7 +357,7 @@ class AG046I02SecurityTests(unittest.TestCase):
         }
         reviewer = self.client.post(url, headers=self.auth('revisor'), json=payload)
         operator = self.client.post(url, headers=self.auth('operador'), json=payload)
-        self.assertEqual(reviewer.status_code, 403, reviewer.text)
+        self.assertEqual(reviewer.status_code, 404, reviewer.text)
         self.assertEqual(operator.status_code, 404, operator.text)
         self.assertEqual(self.counts(), (3, 0, 0))
 

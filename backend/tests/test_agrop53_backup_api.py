@@ -115,40 +115,12 @@ class AGROP53BackupAPITests(unittest.TestCase):
             "Authorization": f"Bearer {token}"
         }
 
-    def test_administrador_puede_crear_respaldo(self):
-
-        def fake_create_backup():
-            self.assertTrue(self.capture_state["active"])
-
-            return {
-                "path": str(self.backup_dir / "respaldo.zip"),
-                "filename": "respaldo.zip",
-                "imageFiles": 3,
-                "evaluationImages": 3,
-            }
-
-        with patch.object(
-            backup_router,
-            "create_backup",
-            side_effect=fake_create_backup,
-        ) as mocked:
-
-            response = self.client.post(
-                "/api/admin/backups",
-                headers=self.headers("administrador"),
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["success"])
-
-        self.assertNotIn(
-            "path",
-            response.json()["backup"],
-        )
-
-        mocked.assert_called_once()
-
-        self.assertFalse(self.capture_state["active"])
+    def test_administrador_no_puede_invocar_respaldo_global_hasta_saas07(self):
+        with patch.object(backup_router, 'create_backup') as mocked:
+            response = self.client.post('/api/admin/backups', headers=self.headers('administrador'))
+        self.assertEqual(response.status_code, 503)
+        mocked.assert_not_called()
+        self.assertFalse(self.capture_state['active'])
 
     def test_operador_y_revisor_no_pueden_crear_respaldo(self):
 
@@ -164,7 +136,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
                         headers=self.headers(role),
                     )
 
-                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.status_code, 503)
                 mocked.assert_not_called()
 
     def test_usuario_sin_token_no_puede_crear_respaldo(self):
@@ -173,62 +145,16 @@ class AGROP53BackupAPITests(unittest.TestCase):
             "/api/admin/backups",
         )
 
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 503)
 
-    def test_administrador_puede_restaurar_respaldo(self):
-
-        contenido = b"ZIP-DE-PRUEBA-AGROP53"
-
-        def fake_restore_backup(path):
-
-            self.assertTrue(self.capture_state["active"])
-            self.assertTrue(Path(path).is_file())
-
-            self.assertEqual(
-                Path(path).read_bytes(),
-                contenido,
-            )
-
-            return {
-                "restored": True,
-                "verified": True,
-                "evaluationImages": 3,
-            }
-
-        with patch.object(
-            backup_router,
-            "restore_backup",
-            side_effect=fake_restore_backup,
-        ) as mocked:
-
-            response = self.client.post(
-                "/api/admin/backups/restore",
-                headers=self.headers("administrador"),
-                files={
-                    "file": (
-                        "respaldo.zip",
-                        contenido,
-                        "application/zip",
-                    )
-                },
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["success"])
-
-        self.assertTrue(
-            response.json()["restoration"]["verified"]
-        )
-
-        mocked.assert_called_once()
-
-        self.assertFalse(self.capture_state["active"])
-
-        # El archivo temporal de carga debe eliminarse.
-        self.assertEqual(
-            list(self.backup_dir.iterdir()),
-            [],
-        )
+    def test_administrador_no_puede_invocar_restore_global_hasta_saas07(self):
+        with patch.object(backup_router, 'restore_backup') as mocked:
+            response = self.client.post('/api/admin/backups/restore', headers=self.headers('administrador'),
+                files={'file': ('respaldo.zip', b'SYNTHETIC', 'application/zip')})
+        self.assertEqual(response.status_code, 503)
+        mocked.assert_not_called()
+        self.assertEqual(list(self.backup_dir.iterdir()), [])
+        self.assertFalse(self.capture_state['active'])
 
     def test_operador_y_revisor_no_pueden_restaurar(self):
 
@@ -252,7 +178,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
                         },
                     )
 
-                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.status_code, 503)
                 mocked.assert_not_called()
 
     def test_usuario_sin_token_no_puede_restaurar(self):
@@ -268,7 +194,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 503)
 
     def test_rechaza_archivo_con_extension_incorrecta(self):
 
@@ -289,7 +215,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 503)
         mocked.assert_not_called()
 
     def test_rechaza_archivo_vacio(self):
@@ -311,7 +237,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 503)
         mocked.assert_not_called()
 
         self.assertFalse(self.capture_state["active"])
@@ -338,7 +264,7 @@ class AGROP53BackupAPITests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 503)
 
         # El bloque finally del control debe liberar la captura.
         self.assertFalse(self.capture_state["active"])

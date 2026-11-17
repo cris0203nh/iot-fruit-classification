@@ -22,6 +22,7 @@ from ..dependencies import require_authenticated, require_operator
 from ..evaluation_schemas import ImageOut
 from ..models import User, Evaluation, Image
 from ..services.capture_control import capture_guard
+from ..services.evidence_storage import capture_folder, evidence_path
 
 router = APIRouter(prefix="/api", tags=["imagenes"])
 
@@ -121,7 +122,7 @@ async def upload_image(
             detail="El archivo no coincide con un JPG o PNG válido.",
         )
 
-    folder = IMAGES_DIR / f"E-{ev.id:06d}"
+    folder = capture_folder(DATA_DIR, ev.organization_id, ev.id)
     name = f"{uuid.uuid4().hex}{ALLOWED[file.content_type]}"
 
     final_path = folder / name
@@ -419,7 +420,7 @@ def get_image(
     if img is None:
         raise HTTPException(status_code=404, detail="Imagen no encontrada.")
 
-    path = DATA_DIR / img.relative_path
+    path = evidence_path(img, DATA_DIR, missing_status=404)
 
     if not path.is_file():
         raise HTTPException(

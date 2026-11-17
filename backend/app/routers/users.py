@@ -1,11 +1,12 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import require_admin
 from ..models import User, Role
+from ..organization_models import OrganizationMembership
 from ..security import hash_password
 from ..user_schemas import (
     UserCreate,
@@ -19,13 +20,27 @@ router = APIRouter(
 )
 
 
-def user_output(user: User):
+def member_roles(db: Session, user_id: int):
+    return db.execute(select(Role.name, OrganizationMembership.is_active)
+        .join(OrganizationMembership, OrganizationMembership.role_id == Role.id)
+        .where(OrganizationMembership.organization_id == db.info["organization_id"],
+               OrganizationMembership.user_id == user_id)).all()
+
+
+def scoped_user(db: Session, user_id: int):
+    return db.scalar(select(User).where(User.id == user_id, User.id.in_(
+        select(OrganizationMembership.user_id).where(
+            OrganizationMembership.organization_id == db.info["organization_id"]))))
+
+
+def user_output(db: Session, user: User):
+    memberships = member_roles(db, user.id)
     return {
         "id": user.id,
         "username": user.username,
         "fullName": user.full_name,
-        "isActive": user.is_active,
-        "roles": [role.name for role in user.roles],
+        "isActive": user.is_active and any(item.is_active for item in memberships),
+        "roles": sorted(item.name for item in memberships),
     }
 
 
@@ -35,10 +50,11 @@ def list_users(
     current_user: User = Depends(require_admin),
 ):
     users = db.scalars(
-        select(User).order_by(User.id)
+        select(User).where(User.id.in_(select(OrganizationMembership.user_id).where(
+            OrganizationMembership.organization_id == db.info["organization_id"]))).order_by(User.id)
     ).all()
 
-    return [user_output(user) for user in users]
+    return [user_output(db, user) for user in users]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -78,6 +94,8 @@ def create_user(
     db.add(user)
 
     try:
+        db.flush()
+        db.add(OrganizationMembership(organization_id=db.info["organization_id"], user_id=user.id, role_id=role.id))
         db.commit()
         db.refresh(user)
     except IntegrityError:
@@ -87,7 +105,7 @@ def create_user(
             detail="No se pudo registrar el usuario.",
         )
 
-    return user_output(user)
+    return user_output(db, user)
 
 
 @router.patch("/{user_id}/role")
@@ -97,7 +115,7 @@ def update_user_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    user = db.get(User, user_id)
+    user = scoped_user(db, user_id)
 
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
@@ -115,11 +133,16 @@ def update_user_role(
     if role is None:
         raise HTTPException(status_code=404, detail="Rol no encontrado.")
 
-    user.roles = [role]
+    active = any(item.is_active for item in member_roles(db, user.id))
+    db.execute(delete(OrganizationMembership).where(
+        OrganizationMembership.organization_id == db.info["organization_id"],
+        OrganizationMembership.user_id == user.id))
+    db.add(OrganizationMembership(organization_id=db.info["organization_id"],
+        user_id=user.id, role_id=role.id, is_active=active))
     db.commit()
     db.refresh(user)
 
-    return user_output(user)
+    return user_output(db, user)
 
 
 @router.patch("/{user_id}/status")
@@ -129,7 +152,7 @@ def update_user_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    user = db.get(User, user_id)
+    user = scoped_user(db, user_id)
 
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
@@ -140,8 +163,26 @@ def update_user_status(
             detail="No puedes desactivar tu propia cuenta.",
         )
 
-    user.is_active = payload.isActive
+    memberships = db.scalars(select(OrganizationMembership).where(
+        OrganizationMembership.organization_id == db.info["organization_id"],
+        OrganizationMembership.user_id == user.id)).all()
+    for membership in memberships:
+        membership.is_active = payload.isActive
     db.commit()
     db.refresh(user)
 
-    return user_output(user)
+    return user_output(db, user)
+
+
+@router.delete('/{user_id}/membership', status_code=204)
+def revoke_membership(user_id: int, db: Session = Depends(get_db),
+                      current_user: User = Depends(require_admin)):
+    user = scoped_user(db, user_id)
+    if user is None:
+        raise HTTPException(404, 'Usuario no encontrado.')
+    if user.id == current_user.id:
+        raise HTTPException(409, 'No puedes revocar tu propia membresía administrativa.')
+    db.execute(delete(OrganizationMembership).where(
+        OrganizationMembership.organization_id == db.info['organization_id'],
+        OrganizationMembership.user_id == user.id))
+    db.commit()

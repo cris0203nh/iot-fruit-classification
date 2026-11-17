@@ -42,6 +42,7 @@ test('SEC-04: el token se entrega en la cabecera Authorization, no en URL', () =
 
 test('SEC-04: el cliente borra la sesión ante fallo de verificación de perfil', () => {
   const auth = block('async function authenticateWithRoles(', '/** Inicio de sesión general')
-  assert.match(auth, /const\s+me\s*=\s*await\s+request\(['"]\/api\/auth\/me['"]\)/)
-  assert.match(auth, /catch\s*\(error\)\s*\{\s*clearOperatorSession\(\)/)
+  assert.match(auth, /const\s+me\s*=\s*await\s+request\(['"]\/api\/auth\/me['"](?:,|\))/)
+  assert.match(auth, /catch\s*\(error\)/)
+  assert.match(auth, /if\s*\(attempt\s*===\s*sessionEpoch\)\s*clearOperatorSession\(\)/)
 })

@@ -26,6 +26,7 @@ import type {
 import { Icon } from '../components/layout/Icon'
 
 import './UsersPage.css'
+import { InvitationManager } from '../features/auth/InvitationManager'
 
 const roleLabels: Record<AdminRole, string> = {
   administrador: 'Administrador',
@@ -304,6 +305,7 @@ export function UsersPage() {
 
   return (
     <div className="page-stack users-page">
+      <InvitationManager />
 
       {/* ENCABEZADO */}
 

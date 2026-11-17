@@ -8,6 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.iot_models import IotStation, IotDevice
+from app.organization_models import Organization
 from app.database import Base
 from app.iot_schemas import MeasurementCreate
 from app.models import Measurement
@@ -23,7 +25,15 @@ class IotStatusTests(unittest.TestCase):
             poolclass=StaticPool,
         )
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        self.db.add(Organization(id=1, name="AgroScan Inicial"))
+        self.db.commit()
+        self.db.add(IotStation(id=1, code='test', name='Test'))
+        self.db.commit()
+        self.device = IotDevice(station_id=1, device_id='station-001')
+        self.db.add(self.device)
+        self.db.commit()
+
 
     def tearDown(self):
         self.db.close()
@@ -47,7 +57,7 @@ class IotStatusTests(unittest.TestCase):
             observed_at=datetime.now(timezone.utc),
         )
 
-        receive_measurement(payload, self.db)
+        receive_measurement(payload, self.db, self.device)
 
         status = iot_status(self.db)
 
@@ -67,7 +77,7 @@ class IotStatusTests(unittest.TestCase):
             observed_at=datetime.now(timezone.utc),
         )
 
-        receive_measurement(payload, self.db)
+        receive_measurement(payload, self.db, self.device)
 
         status = iot_status(self.db)
 
@@ -108,7 +118,7 @@ class IotStatusTests(unittest.TestCase):
             observed_at=datetime.now(timezone.utc),
         )
 
-        receive_measurement(payload, self.db)
+        receive_measurement(payload, self.db, self.device)
 
         measurement = self.db.query(Measurement).one()
 
@@ -118,7 +128,7 @@ class IotStatusTests(unittest.TestCase):
 
         self.db.commit()
 
-        result = receive_measurement(payload, self.db)
+        result = receive_measurement(payload, self.db, self.device)
 
         self.assertTrue(result["duplicate"])
         self.assertFalse(iot_status(self.db)["online"])

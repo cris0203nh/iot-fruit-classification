@@ -58,18 +58,48 @@ const DEFAULT_API_TIMEOUT_MS = API_BASE.startsWith('https://') ? 30000 : 8000
 export type AgroScanRole = 'administrador' | 'operador' | 'revisor'
 let sessionToken: string | null = null
 let sessionRole: AgroScanRole | null = null
+let sessionPlatformOwner = false
+export type SessionOrganization = { id: number; name: string; roles: AgroScanRole[] }
+let sessionOrganizationId: number | null = null
+let sessionOrganizations: SessionOrganization[] = []
+let sessionEpoch = 0
+let organizationSwitching = false
+
+export class OrganizationSelectionRequiredError extends Error {
+  constructor() {
+    super('Selecciona una empresa para continuar.')
+    this.name = 'OrganizationSelectionRequiredError'
+  }
+}
 
 export function clearOperatorSession(): void {
   sessionToken = null
   sessionRole = null
+  sessionPlatformOwner = false
+  sessionOrganizationId = null
+  sessionOrganizations = []
+  sessionEpoch += 1
+  organizationSwitching = false
 }
 
 export function getSessionRole(): AgroScanRole | null {
   return sessionRole
 }
 
+export function isPlatformOwner(): boolean {
+  return sessionToken !== null && sessionPlatformOwner
+}
+
+export function getSessionOrganizationId(): number | null {
+  return sessionOrganizationId
+}
+
+export function getSessionOrganizations(): SessionOrganization[] {
+  return sessionOrganizations.map((organization) => ({ ...organization, roles: [...organization.roles] }))
+}
+
 export function isAgroscanAuthenticated(): boolean {
-  return sessionToken !== null && sessionRole !== null
+  return sessionToken !== null && (sessionRole !== null || sessionPlatformOwner)
 }
 
 export function isOperatorAuthenticated(): boolean {
@@ -130,14 +160,21 @@ function detailMessage(body: unknown): string | null {
 async function request(
   path: string,
   options?: RequestInit,
-  timeoutMs = DEFAULT_API_TIMEOUT_MS
+  timeoutMs = DEFAULT_API_TIMEOUT_MS,
+  organizationOverride?: number,
 ): Promise<unknown> {
+  if (organizationSwitching && organizationOverride === undefined) {
+    throw new ApiResponseError(409, 'Cambio de empresa en curso.')
+  }
+  const epoch = sessionEpoch
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response: Response
   try {
     const headers = sessionToken ? new Headers(options?.headers) : options?.headers
     if (sessionToken && headers instanceof Headers) headers.set('Authorization', `Bearer ${sessionToken}`)
+    const organizationId = organizationOverride ?? sessionOrganizationId
+    if (organizationId !== null && headers instanceof Headers) headers.set('X-Organization-ID', String(organizationId))
     response = await fetch(`${API_BASE}${path}`, { ...options, ...(headers ? { headers } : {}), signal: controller.signal })
   } catch {
     throw new ApiConnectionError()
@@ -146,12 +183,17 @@ async function request(
   }
 
   let body: unknown
+  if (response.status === 204) {
+    if (epoch !== sessionEpoch) throw new ApiResponseError(409, 'La sesión cambió. Repite la operación.')
+    return null
+  }
   try {
     body = await response.json()
   } catch {
     if (!response.ok) throw new ApiResponseError(response.status, `La API devolvió el estado HTTP ${response.status}.`)
     throw new ApiDataError()
   }
+  if (epoch !== sessionEpoch) throw new ApiResponseError(409, 'La empresa activa cambió. Repite la consulta.')
   if (!response.ok) throw new ApiResponseError(response.status, detailMessage(body) || `La API devolvió el estado HTTP ${response.status}.`)
   return body
 }
@@ -548,12 +590,40 @@ export async function uploadEvaluationPhoto(
 
 
 /** AGROP-47: autentica al operador contra FastAPI y verifica su rol real. */
+function parseOrganizations(value: unknown): SessionOrganization[] {
+  if (!Array.isArray(value)) throw new ApiDataError()
+  const result: SessionOrganization[] = []
+  const ids = new Set<number>()
+  for (const item of value) {
+    if (!object(item) || typeof item.id !== 'number' || !Number.isSafeInteger(item.id) || item.id < 1
+      || typeof item.name !== 'string' || !item.name.trim() || ids.has(item.id) || !Array.isArray(item.roles)
+      || !item.roles.length || !item.roles.every((role: unknown) => role === 'administrador' || role === 'operador' || role === 'revisor')) {
+      throw new ApiDataError()
+    }
+    ids.add(item.id)
+    result.push({ id: item.id, name: item.name, roles: item.roles as AgroScanRole[] })
+  }
+  return result
+}
+
+function profileRole(me: unknown, allowedRoles: readonly AgroScanRole[]): AgroScanRole {
+  if (!object(me) || !Array.isArray(me.roles) || !me.roles.every((role: unknown) => typeof role === 'string')) {
+    throw new ApiDataError()
+  }
+  const recognized: readonly AgroScanRole[] = ['administrador', 'operador', 'revisor']
+  const role = recognized.find((candidate) => (me.roles as string[]).includes(candidate) && allowedRoles.includes(candidate))
+  if (!role) throw new ApiResponseError(403, 'Esta cuenta no tiene permisos para acceder al módulo solicitado.')
+  return role
+}
+
 async function authenticateWithRoles(
   username: string,
   password: string,
   allowedRoles: readonly AgroScanRole[],
-): Promise<AgroScanRole> {
+  allowPlatform = false,
+): Promise<AgroScanRole | 'superadmin'> {
   clearOperatorSession()
+  const attempt = sessionEpoch
   if (!username.trim() || !password) throw new ApiDataError()
   const credentials = new URLSearchParams({ username: username.trim(), password })
   const login = await request('/api/auth/login', {
@@ -561,32 +631,240 @@ async function authenticateWithRoles(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: credentials,
   })
+  return completeAuthentication(login, attempt, allowedRoles, allowPlatform)
+}
+
+async function completeAuthentication(login: unknown, attempt: number,
+  allowedRoles: readonly AgroScanRole[], allowPlatform = true): Promise<AgroScanRole | 'superadmin'> {
+  if (attempt !== sessionEpoch) throw new ApiResponseError(409, 'La sesión cambió. Repite el acceso.')
+  clearOperatorSession()
+  attempt = sessionEpoch
   if (!object(login) || typeof login.access_token !== 'string' || !login.access_token || login.token_type !== 'bearer') {
     throw new ApiDataError()
   }
   sessionToken = login.access_token
   try {
-    const me = await request('/api/auth/me')
-    if (!object(me) || !Array.isArray(me.roles) || !me.roles.every((role: unknown) => typeof role === 'string')) {
-      throw new ApiDataError()
+    if (allowPlatform && login.is_superadmin === true) {
+      const profile = await request('/api/platform/me')
+      if (!object(profile) || profile.isSuperadmin !== true || typeof profile.id !== 'number'
+        || !Number.isSafeInteger(profile.id) || profile.id < 1 || typeof profile.username !== 'string') {
+        throw new ApiDataError()
+      }
+      sessionPlatformOwner = true
+      return 'superadmin'
     }
-    const recognized: readonly AgroScanRole[] = ['administrador', 'operador', 'revisor']
-    const validatedRoles: string[] = me.roles
-    const role = recognized.find((candidate) => validatedRoles.includes(candidate) && allowedRoles.includes(candidate))
-    if (!role) {
-      throw new ApiResponseError(403, 'Esta cuenta no tiene permisos para acceder al módulo solicitado.')
+    const preferred = login.organization_id
+    if (preferred !== undefined && (typeof preferred !== 'number' || !Number.isSafeInteger(preferred) || preferred < 1)) throw new ApiDataError()
+    const me = await request('/api/auth/me', undefined, DEFAULT_API_TIMEOUT_MS, preferred as number | undefined)
+    const role = profileRole(me, allowedRoles)
+    if (object(me)) {
+      if (me.organizationId !== undefined) {
+        if (typeof me.organizationId !== 'number' || !Number.isSafeInteger(me.organizationId) || me.organizationId < 1) throw new ApiDataError()
+        sessionOrganizationId = me.organizationId
+      }
+      if (me.organizations !== undefined) sessionOrganizations = parseOrganizations(me.organizations)
     }
     sessionRole = role
     return role
   } catch (error) {
-    clearOperatorSession()
+    if (attempt === sessionEpoch && error instanceof ApiResponseError && error.status === 409) {
+      try {
+        sessionOrganizations = parseOrganizations(await request('/api/auth/organizations'))
+        if (sessionOrganizations.length > 1) throw new OrganizationSelectionRequiredError()
+      } catch (selectionError) {
+        if (selectionError instanceof OrganizationSelectionRequiredError) throw selectionError
+        if (attempt === sessionEpoch) clearOperatorSession()
+        throw selectionError
+      }
+    }
+    if (attempt === sessionEpoch) clearOperatorSession()
     throw error
   }
 }
 
+/** Valida la membresía en backend antes de activar la nueva empresa. */
+export async function selectOrganization(organizationId: number): Promise<AgroScanRole> {
+  if (!sessionToken) throw new ApiResponseError(401, 'Inicia sesión para elegir una empresa.')
+  if (organizationSwitching) throw new ApiResponseError(409, 'Cambio de empresa en curso.')
+  if (!sessionOrganizations.some((organization) => organization.id === organizationId)) {
+    throw new ApiResponseError(403, 'Empresa no autorizada.')
+  }
+  sessionEpoch += 1
+  const attempt = sessionEpoch
+  organizationSwitching = true
+  sessionRole = null
+  sessionOrganizationId = null
+  try {
+    const me = await request('/api/auth/me', undefined, DEFAULT_API_TIMEOUT_MS, organizationId)
+    if (!object(me) || me.organizationId !== organizationId) throw new ApiDataError()
+    const role = profileRole(me, ['administrador', 'operador', 'revisor'])
+    sessionOrganizations = parseOrganizations(me.organizations)
+    if (!sessionOrganizations.some((organization) => organization.id === organizationId)) throw new ApiDataError()
+    sessionOrganizationId = organizationId
+    sessionRole = role
+    return role
+  } catch (error) {
+    if (attempt === sessionEpoch) clearOperatorSession()
+    throw error
+  } finally {
+    if (attempt === sessionEpoch) organizationSwitching = false
+  }
+}
+
 /** Inicio de sesión general: los revisores pueden consultar, nunca operar el registro. */
-export async function loginAgroscan(username: string, password: string): Promise<AgroScanRole> {
-  return authenticateWithRoles(username, password, ['administrador', 'operador', 'revisor'])
+export async function loginAgroscan(username: string, password: string): Promise<AgroScanRole | 'superadmin'> {
+  return authenticateWithRoles(username, password, ['administrador', 'operador', 'revisor'], true)
+}
+
+export async function googleConfiguration(): Promise<{ enabled: boolean; clientId: string | null }> {
+  const body = await request('/api/auth/google/config')
+  if (!object(body) || typeof body.enabled !== 'boolean' || (body.enabled ? typeof body.clientId !== 'string' || !body.clientId : body.clientId !== null)) throw new ApiDataError()
+  return body as { enabled: boolean; clientId: string | null }
+}
+
+export async function googleChallenge(): Promise<string> {
+  const body = await request('/api/auth/google/challenge', { method: 'POST', credentials: 'include', headers: { 'X-AgroScan-Intent': 'google' } })
+  if (!object(body) || typeof body.nonce !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.nonce)) throw new ApiDataError()
+  return body.nonce
+}
+
+export async function loginGoogle(credential: string, invitationToken?: string): Promise<AgroScanRole | 'superadmin'> {
+  clearOperatorSession()
+  const attempt = sessionEpoch
+  const body = await request(invitationToken ? '/api/auth/google/accept-invitation' : '/api/auth/google/login', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential, ...(invitationToken ? { token: invitationToken } : {}) }),
+  })
+  return completeAuthentication(body, attempt, ['administrador', 'operador', 'revisor'])
+}
+
+export async function linkGoogle(credential: string, password: string): Promise<void> {
+  const body = await request('/api/auth/google/link', { method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential, password }) })
+  if (!object(body) || body.linked !== true) throw new ApiDataError()
+}
+
+export type EnterpriseInvitation = { id: number; email: string; role: AgroScanRole; expiresAt: string; status: 'pending' | 'accepted' | 'revoked' | 'expired' }
+export type InvitationPreview = { email: string; organizationName: string; role: AgroScanRole; expiresAt: string }
+function invitationPreview(value: unknown): value is InvitationPreview {
+  return object(value) && typeof value.email === 'string' && typeof value.organizationName === 'string'
+    && ['administrador','operador','revisor'].includes(value.role as string) && typeof value.expiresAt === 'string'
+    && Number.isFinite(Date.parse(value.expiresAt))
+}
+function enterpriseInvitation(value: unknown): value is EnterpriseInvitation {
+  return object(value) && typeof value.id === 'number' && Number.isSafeInteger(value.id) && value.id > 0
+    && invitationPreview({ ...value, organizationName: '' }) && ['pending','accepted','revoked','expired'].includes(value.status as string)
+}
+export async function listInvitations(): Promise<EnterpriseInvitation[]> {
+  const body = await request('/api/invitations')
+  if (!Array.isArray(body) || !body.every(enterpriseInvitation)) throw new ApiDataError()
+  return body
+}
+export async function createInvitation(email: string, role: AgroScanRole): Promise<EnterpriseInvitation & { token: string }> {
+  const body = await request('/api/invitations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) })
+  const token = object(body) ? body.token : undefined
+  if (!enterpriseInvitation(body) || typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new ApiDataError()
+  return { ...body, token }
+}
+export async function revokeInvitation(id: number): Promise<void> {
+  await request(`/api/invitations/${platformId(id)}`, { method: 'DELETE' })
+}
+export async function previewInvitation(token: string): Promise<InvitationPreview> {
+  const body = await request('/api/auth/invitations/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
+  if (!invitationPreview(body)) throw new ApiDataError()
+  return body
+}
+export async function acceptInvitation(token: string, password: string): Promise<AgroScanRole | 'superadmin'> {
+  const attempt = sessionEpoch
+  const body = await request('/api/auth/invitations/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password }) })
+  return completeAuthentication(body, attempt, ['administrador','operador','revisor'])
+}
+export async function registerInvitation(token: string, account: { username: string; fullName: string; password: string }): Promise<AgroScanRole | 'superadmin'> {
+  clearOperatorSession()
+  const attempt = sessionEpoch
+  const body = await request('/api/auth/invitations/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, ...account }) })
+  return completeAuthentication(body, attempt, ['administrador','operador','revisor'])
+}
+
+export type PlatformMetrics = { organizations: number; activeOrganizations: number; users: number; activeUsers: number; evaluations: number }
+export type PlatformOrganization = { id: number; name: string; isActive: boolean; userCount: number; evaluationCount: number }
+export type PlatformUser = { id: number; username: string; fullName: string; isActive: boolean }
+export type PlatformOverview = { metrics: PlatformMetrics; organizations: PlatformOrganization[]; users: PlatformUser[] }
+
+function requirePlatformSession() {
+  if (!isPlatformOwner()) throw new ApiResponseError(403, 'Acceso exclusivo del propietario.')
+}
+
+function platformId(value: number) {
+  if (!Number.isSafeInteger(value) || value < 1) throw new ApiDataError()
+  return value
+}
+
+function isPlatformUser(value: unknown): value is PlatformUser {
+  return object(value) && typeof value.id === 'number' && Number.isSafeInteger(value.id) && value.id > 0
+    && typeof value.username === 'string' && typeof value.fullName === 'string' && typeof value.isActive === 'boolean'
+}
+
+export async function loadPlatformOverview(): Promise<PlatformOverview> {
+  requirePlatformSession()
+  const [metrics, organizations, users] = await Promise.all([
+    request('/api/platform/metrics'), request('/api/platform/organizations'), request('/api/platform/users'),
+  ])
+  const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+  if (!object(metrics) || !['organizations', 'activeOrganizations', 'users', 'activeUsers', 'evaluations'].every((key) => count(metrics[key]))
+    || !Array.isArray(organizations) || !organizations.every((item) => object(item) && typeof item.id === 'number'
+      && Number.isSafeInteger(item.id) && item.id > 0 && typeof item.name === 'string' && typeof item.isActive === 'boolean'
+      && count(item.userCount) && count(item.evaluationCount))
+    || !Array.isArray(users) || !users.every(isPlatformUser)) throw new ApiDataError()
+  return { metrics: metrics as PlatformMetrics, organizations: organizations as PlatformOrganization[], users }
+}
+
+export async function createPlatformOrganization(name: string): Promise<PlatformOrganization> {
+  requirePlatformSession()
+  const clean = name.trim()
+  if (clean.length < 2 || clean.length > 120) throw new ApiDataError()
+  const result = await request('/api/platform/organizations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: clean }),
+  })
+  if (!object(result) || typeof result.id !== 'number' || !Number.isSafeInteger(result.id) || result.id < 1
+    || result.name !== clean || result.isActive !== true || result.userCount !== 0 || result.evaluationCount !== 0) throw new ApiDataError()
+  return result as PlatformOrganization
+}
+
+export async function setPlatformOrganizationStatus(id: number, isActive: boolean): Promise<void> {
+  requirePlatformSession()
+  const result = await request(`/api/platform/organizations/${platformId(id)}/status`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive }),
+  })
+  if (!object(result) || result.id !== id || result.isActive !== isActive) throw new ApiDataError()
+}
+
+export async function listPlatformAdministrators(organizationId: number): Promise<PlatformUser[]> {
+  requirePlatformSession()
+  const result = await request(`/api/platform/organizations/${platformId(organizationId)}/administrators`)
+  if (!Array.isArray(result) || !result.every(isPlatformUser)) throw new ApiDataError()
+  return result
+}
+
+export async function designatePlatformAdministrator(organizationId: number, userId: number): Promise<void> {
+  requirePlatformSession()
+  const result = await request(`/api/platform/organizations/${platformId(organizationId)}/administrators/${platformId(userId)}`, { method: 'PUT' })
+  if (!object(result) || result.organizationId !== organizationId || result.userId !== userId
+    || result.role !== 'administrador' || result.isActive !== true) throw new ApiDataError()
+}
+
+export async function createPlatformAdministrator(organizationId: number, input: Omit<AdminUserCreateInput, 'role'>): Promise<PlatformUser> {
+  requirePlatformSession()
+  const result = await request(`/api/platform/organizations/${platformId(organizationId)}/administrators`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, role: 'administrador' }),
+  })
+  if (!isPlatformUser(result)) throw new ApiDataError()
+  return result
+}
+
+export async function removePlatformAdministrator(organizationId: number, userId: number): Promise<void> {
+  requirePlatformSession()
+  await request(`/api/platform/organizations/${platformId(organizationId)}/administrators/${platformId(userId)}`, { method: 'DELETE' })
 }
 
 /** Mantiene la restricción anterior para flujos que requieren operador o administrador. */
@@ -599,9 +877,12 @@ export async function loadProtectedEvidence(path: string, signal?: AbortSignal):
   const url = resolveEvidenceUrl(path)
   if (!url) throw new ApiDataError()
   if (!sessionToken) throw new ApiResponseError(401, 'Inicia sesión para consultar las fotografías.')
+  if (organizationSwitching) throw new ApiResponseError(409, 'Cambio de empresa en curso.')
+  const epoch = sessionEpoch
   let response: Response
   try {
-    response = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}` }, signal })
+    response = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}`,
+      ...(sessionOrganizationId !== null ? { 'X-Organization-ID': String(sessionOrganizationId) } : {}) }, signal })
   } catch (error) {
     if (signal?.aborted) throw error
     throw new ApiConnectionError()
@@ -610,6 +891,7 @@ export async function loadProtectedEvidence(path: string, signal?: AbortSignal):
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim()
   if (contentType !== 'image/jpeg' && contentType !== 'image/png') throw new ApiDataError()
   const blob = await response.blob()
+  if (epoch !== sessionEpoch) throw new ApiResponseError(409, 'La empresa activa cambió. Repite la consulta.')
   if (blob.size === 0 || blob.size > 5 * 1024 * 1024) throw new ApiDataError()
   return blob
 }

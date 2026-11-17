@@ -5,9 +5,10 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
-class QualityPrediction(Base):
+class QualityPrediction(OrganizationScoped, Base):
     __tablename__ = 'ag055_quality_predictions'
     __table_args__ = (UniqueConstraint('evaluation_id', 'source_fingerprint', 'model_sha256',
                                        name='uq_ag055_evaluation_source_model'),)

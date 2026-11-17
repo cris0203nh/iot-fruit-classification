@@ -216,9 +216,32 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-backend/data/ 
+backend/data/
 
 # Respaldos locales de bases de datos
 backend/backups/
 # Datos de demostracion local aislados (nunca publicar)
 .agroscan_demo/
+
+# Preparación privada del piloto: nunca añadir respaldos o secretos al checkpoint.
+.agroscan-checkpoints/
+.env.*
+entrada_fotos/
+saas03-migration-*/
+backend/ag046-i03-*/
+backend/metrics/results/
+carga_fotos.csv
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+*.p12
+*.pfx
+backend/dataset/salidas/
+vision/evaluation/agrop42/revisiones_dataset.template.csv
+docs/ag046/runs/
+docs/agroscan-i05/runs/

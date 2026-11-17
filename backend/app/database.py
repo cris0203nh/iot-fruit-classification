@@ -37,6 +37,7 @@ class Base(DeclarativeBase):
 
 def get_db():
     db = SessionLocal()
+    db.info['organization_required'] = True
     try:
         yield db
     finally:

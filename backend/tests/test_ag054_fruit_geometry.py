@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.fruit_geometry_models import FruitGeometry
 from app.main import app
@@ -55,8 +56,9 @@ class AG054ApiTests(unittest.TestCase):
                                     connect_args={'check_same_thread': False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         with self.Session() as db:
+            db.add(Organization(id=1, name="Test")); db.flush()
             self.roles = {}
             for name in ('operador', 'revisor'):
                 user = User(username='ag054_'+name, full_name='AG054 '+name,
@@ -64,6 +66,7 @@ class AG054ApiTests(unittest.TestCase):
                             roles=[Role(name=name)])
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.roles[name] = user.id
             lot = Lot(code='AG054-MANGO', product='mango', status='open', responsible='Prueba')
             db.add(lot)

@@ -6,6 +6,8 @@ import datetime as dt
 import http.client
 import json
 import math
+import os
+import re
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -29,8 +31,18 @@ class NoRedirect(HTTPRedirectHandler):
 
 def validate_url(url):
     p = urlsplit(url)
-    if p.scheme not in ('http', 'https') or not p.hostname or p.username or p.password or p.fragment:
+    if p.scheme not in ('http', 'https') or not p.hostname or p.username or p.password or p.fragment or p.query:
         raise ValueError('URL HTTP(S) sin credenciales ni fragmento requerida')
+    if p.scheme == 'http' and p.hostname not in ('localhost', '127.0.0.1', '::1'):
+        raise ValueError('El envío remoto de credenciales exige HTTPS')
+
+
+def device_headers(url, credential=None):
+    validate_url(url)
+    credential = credential if credential is not None else os.getenv('AGROSCAN_DEVICE_TOKEN', '')
+    if not re.fullmatch(r'agd_[A-Za-z0-9_-]{43}', credential):
+        raise ValueError('Configura AGROSCAN_DEVICE_TOKEN con la credencial individual del dispositivo')
+    return {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + credential}
 
 def extract_measurement(
     envelope,
@@ -76,14 +88,14 @@ def extract_measurement(
     return result
 
 def send(url, payload, attempts=3, timeout=2.0, delay=0.25):
-    validate_url(url)
+    headers = device_headers(url)
     if type(attempts) is not int or not 1 <= attempts <= 3 or not 0 < timeout <= 2 or not 0 <= delay <= 1:
         raise ValueError('Intentos 1–3, timeout (0,2], delay [0,1] requeridos')
     body = json.dumps(payload, allow_nan=False, separators=(',', ':')).encode()
     opener = build_opener(NoRedirect())
     last_error = None
     for i in range(attempts):
-        req = Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        req = Request(url, data=body, headers=headers, method='POST')
         try:
             with opener.open(req, timeout=timeout) as response:
                 if response.status != 200:
@@ -124,7 +136,10 @@ def main(argv=None):
     parser.add_argument('--tare-on-open', action='store_true', help='Solo con plataforma vacía; solicita tara al abrir')
     args = parser.parse_args(argv)
     if args.url:
-        validate_url(args.url)
+        try:
+            device_headers(args.url)
+        except ValueError as exc:
+            parser.error(str(exc))
     try:
         import serial
     except ImportError:

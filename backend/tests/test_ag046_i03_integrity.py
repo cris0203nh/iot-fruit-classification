@@ -22,6 +22,7 @@ from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, enable_sqlite_foreign_keys, get_db
 from app.decision_models import ReviewDecisionEvidence
 from app.main import app
@@ -58,7 +59,9 @@ class AG046I03IntegrityTests(unittest.TestCase):
         event.listen(self.engine, 'connect', enable_sqlite_foreign_keys)
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        with self.engine.begin() as connection:
+            connection.execute(Organization.__table__.insert().values(id=1, name="AgroScan Inicial", is_active=True))
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
 
         for module, attr, value in (
             (backup_service, 'DATA_DIR', self.data),
@@ -84,6 +87,7 @@ class AG046I03IntegrityTests(unittest.TestCase):
                 )
                 db.add(user)
                 db.flush()
+                db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 self.users[role] = user.id
 
             lot = Lot(code='AG046-I03-MANGO', product='mango', status='open')
@@ -164,10 +168,10 @@ class AG046I03IntegrityTests(unittest.TestCase):
             db.commit()
 
     def test_int01_llaves_foraneas_activas_por_conexion(self):
-        with self.engine.connect() as db:
-            self.assertEqual(db.exec_driver_sql('PRAGMA foreign_keys').scalar(), 1)
-        with self.engine.connect() as db:
-            self.assertEqual(db.exec_driver_sql('PRAGMA foreign_keys').scalar(), 1)
+        with self.engine.connect() as first, self.engine.connect() as second:
+            self.assertIsNot(first.connection.driver_connection, second.connection.driver_connection)
+            for db in (first, second):
+                self.assertEqual(db.exec_driver_sql('PRAGMA foreign_keys').scalar(), 1)
 
     def test_int02_integrity_check_sqlite_ok(self):
         with closing(sqlite3.connect(self.db_file)) as db:
@@ -177,9 +181,10 @@ class AG046I03IntegrityTests(unittest.TestCase):
     def test_int03_sin_fks_huerfanas_y_rechaza_una_nueva(self):
         with closing(sqlite3.connect(self.db_file)) as db:
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesRegex(IntegrityError, 'FOREIGN KEY constraint failed'):
             with self.engine.begin() as db:
-                db.execute(text("INSERT INTO pieces(lot_id,code) VALUES (999999,'ORPHAN')"))
+                db.execute(text("INSERT INTO pieces(organization_id,lot_id,code,status,created_at) "
+                                "VALUES (1,999999,'ORPHAN','registered','2026-01-01')"))
         with closing(sqlite3.connect(self.db_file)) as db:
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
 

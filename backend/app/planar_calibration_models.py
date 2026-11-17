@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
+from .organization_scope import OrganizationScoped
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class PlanarCalibration(Base):
+class PlanarCalibration(OrganizationScoped, Base):
     __tablename__ = 'ag054_planar_calibrations'
     __table_args__ = (UniqueConstraint('image_id', 'geometry_id', 'image_sha256',
                                        'marker_id', 'marker_side_mm', 'rules_version',

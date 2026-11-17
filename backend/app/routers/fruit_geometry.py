@@ -23,6 +23,7 @@ from ..dependencies import require_authenticated, require_operator
 from ..fruit_geometry_models import FruitGeometry
 from ..models import Evaluation, Image, User
 from ..services.fruit_geometry import InvalidGeometry, measure_polygon
+from ..services.evidence_storage import evidence_path
 from .auto_registration import MIN_CONFIDENCE, MODEL_VERSION, _infer_products
 
 router = APIRouter(prefix='/api/evaluations', tags=['AG-054 · geometria RGB'])
@@ -53,7 +54,7 @@ def _evidence(db: Session, ev: Evaluation, image_id: str) -> Image:
 
 def _original_image(img: Image) -> bytes:
     base = DATA_DIR.resolve()
-    target = (base / img.relative_path).resolve()
+    target = evidence_path(img, DATA_DIR)
     if not target.is_relative_to(base) or not target.is_file():
         raise HTTPException(409, 'La fotografía original no está disponible.')
     if img.size_bytes < 1 or img.size_bytes > MAX_ORIGINAL_BYTES:

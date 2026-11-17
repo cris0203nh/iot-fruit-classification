@@ -1,4 +1,5 @@
 import copy
+from unittest.mock import patch
 import importlib.util
 import json
 from pathlib import Path
@@ -17,6 +18,18 @@ def envelope(sim=False):
             'calibration_version':'simulated-test-1' if sim else 'cal-test-1'}}
 
 class BridgeTests(unittest.TestCase):
+    def setUp(self):
+        env = patch.dict('os.environ', {'AGROSCAN_DEVICE_TOKEN': 'agd_' + 'T'*43})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_credentials_required_and_transport(self):
+        with patch.dict('os.environ', {'AGROSCAN_DEVICE_TOKEN': ''}):
+            with self.assertRaises(ValueError): bridge.device_headers('http://localhost/x')
+        self.assertEqual(bridge.device_headers('https://example.test/x')['Authorization'], 'Bearer agd_'+'T'*43)
+        for url in ('http://example.test/x', 'https://example.test/x?secret=yes'):
+            with self.assertRaises(ValueError): bridge.device_headers(url)
+
     def test_valid_and_events(self):
         self.assertEqual(bridge.extract_measurement(envelope())['weight_g'],250)
         self.assertIsNone(bridge.extract_measurement({'type':'event','status':'sensor_unavailable'}))
@@ -52,7 +65,11 @@ class BridgeTests(unittest.TestCase):
         bodies=[]
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
+            def assert_header(self):
+                if self.headers.get('Authorization') != 'Bearer agd_'+'T'*43:
+                    raise AssertionError('Credencial de dispositivo ausente')
             def do_POST(self):
+                self.assert_header()
                 bodies.append(self.rfile.read(int(self.headers['Content-Length'])))
                 item=replies[min(len(bodies)-1,len(replies)-1)]
                 code,ack=item

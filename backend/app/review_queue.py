@@ -45,6 +45,12 @@ def _image_sha(image: Image, root: Path) -> str | None:
     require containment, and verify the open handle against pre/post metadata.
     """
     rel = image.relative_path
+    from fastapi import HTTPException
+    from .services.evidence_storage import evidence_relative
+    try:
+        evidence_relative(image)
+    except HTTPException:
+        return None
     if not isinstance(rel, str) or not rel or "\\" in rel or ":" in rel:
         return None
     part = PurePosixPath(rel)

@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Review, Role, User
@@ -35,9 +36,10 @@ class FinalApiTests(unittest.TestCase):
                                     connect_args={'check_same_thread': False, 'timeout': 5})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.users = {}
         with self.Session() as db:
+            seed_company(db)
             for role in ('operador', 'revisor', 'administrador'):
                 user = User(username='ag056_i04_' + role,
                     full_name='Prueba AG056 ' + role, password_hash='TEST_NO_LOGIN',
@@ -45,6 +47,7 @@ class FinalApiTests(unittest.TestCase):
                 db.add(user)
                 db.flush()
                 self.users[role] = user.id
+                seed_memberships(db, user)
             lot = Lot(code='AG056-FINAL', product='tomate', status='open')
             db.add(lot)
             db.flush()
@@ -56,10 +59,11 @@ class FinalApiTests(unittest.TestCase):
             self.photos = []
             for ix in range(2):
                 raw = f'AG056 simulated photograph {ix}'.encode()
-                path = self.root / f'photo-{ix}.jpg'
+                path = self.root / 'images' / f'photo-{ix}.jpg'
+                path.parent.mkdir(exist_ok=True)
                 path.write_bytes(raw)
                 im = Image(evaluation_id=ev.id, view=f'vista-{ix+1}',
-                           relative_path=path.name, content_type='image/jpeg',
+                           relative_path=path.relative_to(self.root).as_posix(), content_type='image/jpeg',
                            size_bytes=len(raw))
                 db.add(im)
                 db.flush()

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.board_calibration_models import BoardCalibration, DimensionalComparison
@@ -107,12 +108,13 @@ class BoardApi(unittest.TestCase):
                                     connect_args={'check_same_thread': False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.raw, self.polygon = sample()
         self.photo = self.root/'images'/'original.jpg'
         self.photo.write_bytes(self.raw)
         frame = cv2.imdecode(np.frombuffer(self.raw,dtype=np.uint8),cv2.IMREAD_COLOR)
         with self.Session() as db:
+            seed_company(db)
             users = {}
             for role in ('operador','revisor'):
                 user = User(username='ag054_i03_'+role,full_name='Test '+role,
@@ -121,6 +123,7 @@ class BoardApi(unittest.TestCase):
                 db.add(user)
                 db.flush()
                 users[role] = user.id
+                seed_memberships(db, user)
             lot = Lot(code='AG054-I03-LOTE', product='mango', status='open', responsible='test')
             db.add(lot); db.flush()
             piece = Piece(lot_id=lot.id, code='P-000001'); db.add(piece); db.flush()

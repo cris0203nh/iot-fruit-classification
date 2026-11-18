@@ -13,6 +13,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company
 from app.database import Base
 from app.models import Evaluation, Image, Lot, Review
 from app.decision_models import ReviewDecisionEvidence
@@ -33,8 +34,9 @@ class ReviewCompletionPersistenceTests(unittest.TestCase):
                                     connect_args={'check_same_thread': False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(self.engine, expire_on_commit=False, info={"organization_id": 1})
         with self.Session() as db:
+            seed_company(db)
             lot = Lot(code='AG056-I04', product='mango', status='open')
             db.add(lot)
             db.flush()
@@ -46,7 +48,8 @@ class ReviewCompletionPersistenceTests(unittest.TestCase):
             self.images = []
             for ix in range(2):
                 raw = f'AG056 synthetic view {ix}'.encode()
-                path = f'view-{ix}.jpg'
+                path = f'images/view-{ix}.jpg'
+                (self.root / 'images').mkdir(exist_ok=True)
                 (self.root / path).write_bytes(raw)
                 photo = Image(evaluation_id=ev.id, view=f'vista-{ix+1}',
                               relative_path=path, content_type='image/jpeg', size_bytes=len(raw))

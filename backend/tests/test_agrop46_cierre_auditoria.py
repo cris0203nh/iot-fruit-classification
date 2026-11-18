@@ -11,9 +11,10 @@ from audit.ag038_cierre import audit
 class AG038CierreAuditoriaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # La auditoría prohíbe la evidencia bajo el repositorio; un test previo
-        # puede haber establecido tempfile.tempdir dentro de backend/.
-        cls.tmp = tempfile.TemporaryDirectory(prefix='ag038-test-cierre-', dir=Path.home())
+        # Respetar el temporal externo del runner; no exigir permisos en el home.
+        # La auditoría mantiene su rechazo de salidas dentro del repositorio.
+        cls.tmp = tempfile.TemporaryDirectory(prefix='ag038-test-cierre-')
+        cls.addClassCleanup(cls.tmp.cleanup)
         cls.resultdir = Path(cls.tmp.name) / 'salida'
         cls.result = audit(cls.resultdir)
 

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Piece, Role, User
@@ -74,17 +75,19 @@ class PlanarHttp(unittest.TestCase):
         self.engine = create_engine(f"sqlite:///{(self.path/'test.db').as_posix()}", connect_args={'check_same_thread':False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         raw, poly = sample()
         self.raw = raw
         self.photo = self.path / 'images' / 'original.jpg'
         self.photo.write_bytes(raw)
         with self.Session() as db:
+            seed_company(db)
             roles = {v: Role(name=v) for v in ('operador','revisor')}
             users = {v: User(username='ag054_'+v, full_name='AG054 '+v,
                              password_hash=hash_password('TestPassword123!'), is_active=True,
                              roles=[roles[v]]) for v in roles}
             db.add_all(users.values())
+            seed_memberships(db, *users.values())
             lot = Lot(code='I02-REAL', product='mango', status='open', responsible='prueba')
             db.add(lot)
             db.flush()

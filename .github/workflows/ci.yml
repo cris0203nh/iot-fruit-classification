@@ -35,27 +35,68 @@ jobs:
           test -f .github/workflows/vision.yml
           test -f .github/workflows/devsecops.yml
           test -f .github/workflows/dast.yml
+          test -f .github/workflows/integracion.yml
           test -f scripts/devsecops/normalize.py
           test -f scripts/devsecops/dast_smoke.py
+          test -f scripts/ci/select_jobs.py
+          test -f scripts/ci/check_gate.py
+
+  cambios:
+    name: Detectar cambios - seleccionar módulos
+    needs: preparacion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.seleccion.outputs.backend }}
+      frontend: ${{ steps.seleccion.outputs.frontend }}
+      iot: ${{ steps.seleccion.outputs.iot }}
+      vision: ${{ steps.seleccion.outputs.vision }}
+      integracion: ${{ steps.seleccion.outputs.integracion }}
+      dast: ${{ steps.seleccion.outputs.dast }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probar contratos de selección y consolidación
+        run: python -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - name: Clasificar rutas cambiadas, sin ignorar rutas desconocidas
+        id: seleccion
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          python scripts/ci/select_jobs.py \
+            --event "$EVENTO" \
+            --base "$BASE_SHA" \
+            --output "$GITHUB_OUTPUT" \
+            --summary "$GITHUB_STEP_SUMMARY"
 
   backend:
     name: Backend - API y SQLite
-    needs: preparacion
+    needs: [preparacion, cambios]
+    if: ${{ needs.cambios.outputs.backend == 'true' }}
     uses: ./.github/workflows/backend.yml
 
   frontend:
     name: Frontend - React y TypeScript
-    needs: preparacion
+    needs: [preparacion, cambios]
+    if: ${{ needs.cambios.outputs.frontend == 'true' }}
     uses: ./.github/workflows/frontend.yml
 
   iot:
     name: IoT - firmware y puente
-    needs: preparacion
+    needs: [preparacion, cambios]
+    if: ${{ needs.cambios.outputs.iot == 'true' }}
     uses: ./.github/workflows/pesaje.yml
 
   vision:
     name: Visión - contratos y geometría
-    needs: preparacion
+    needs: [preparacion, cambios]
+    if: ${{ needs.cambios.outputs.vision == 'true' }}
     uses: ./.github/workflows/vision.yml
 
   seguridad:
@@ -65,43 +106,51 @@ jobs:
 
   dast:
     name: DAST - API local y ZAP pasivo
-    needs: preparacion
+    needs: [preparacion, cambios]
+    if: ${{ needs.cambios.outputs.dast == 'true' }}
     uses: ./.github/workflows/dast.yml
+
+  integracion:
+    name: Integración - flujos SaaS, IoT y visión
+    needs: [preparacion, cambios, backend, frontend, iot, vision]
+    if: >-
+      ${{ always() && needs.preparacion.result == 'success' &&
+          needs.cambios.result == 'success' &&
+          needs.cambios.outputs.integracion == 'true' &&
+          (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
+          (needs.frontend.result == 'success' || needs.frontend.result == 'skipped') &&
+          (needs.iot.result == 'success' || needs.iot.result == 'skipped') &&
+          (needs.vision.result == 'success' || needs.vision.result == 'skipped') }}
+    uses: ./.github/workflows/integracion.yml
 
   ci:
     name: CI - validación global
     if: ${{ always() }}
-    needs: [preparacion, backend, frontend, iot, vision, seguridad, dast]
+    needs: [preparacion, cambios, backend, frontend, iot, vision, seguridad, dast, integracion]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Consolidar resultados sin ocultar fallos ni omisiones
-        shell: bash
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Consolidar resultados y comprobar omisiones justificadas
         env:
-          PREPARACION: ${{ needs.preparacion.result }}
-          BACKEND: ${{ needs.backend.result }}
-          FRONTEND: ${{ needs.frontend.result }}
-          IOT: ${{ needs.iot.result }}
-          VISION: ${{ needs.vision.result }}
-          SEGURIDAD: ${{ needs.seguridad.result }}
-          DAST: ${{ needs.dast.result }}
-        run: |
-          {
-            echo '## AgroScan CI — resultado consolidado'
-            echo '| Apartado | Resultado |'
-            echo '|---|---|'
-            echo "| Preparación | $PREPARACION |"
-            echo "| Backend | $BACKEND |"
-            echo "| Frontend | $FRONTEND |"
-            echo "| IoT | $IOT |"
-            echo "| Visión | $VISION |"
-            echo "| Seguridad SAST/SCA/secretos | $SEGURIDAD |"
-            echo "| DAST API | $DAST |"
-          } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$PREPARACION" "$BACKEND" "$FRONTEND" "$IOT" "$VISION" "$SEGURIDAD" "$DAST"; do
-            if [ "$result" != success ]; then
-              echo 'CI bloqueado: algún apartado falló, se canceló o no llegó a ejecutarse.' >&2
-              exit 1
-            fi
-          done
-          echo 'Todos los apartados obligatorios aprobaron.'
+          SELECT_BACKEND: ${{ needs.cambios.outputs.backend }}
+          SELECT_FRONTEND: ${{ needs.cambios.outputs.frontend }}
+          SELECT_IOT: ${{ needs.cambios.outputs.iot }}
+          SELECT_VISION: ${{ needs.cambios.outputs.vision }}
+          SELECT_INTEGRACION: ${{ needs.cambios.outputs.integracion }}
+          SELECT_DAST: ${{ needs.cambios.outputs.dast }}
+          RESULT_PREPARACION: ${{ needs.preparacion.result }}
+          RESULT_CAMBIOS: ${{ needs.cambios.result }}
+          RESULT_BACKEND: ${{ needs.backend.result }}
+          RESULT_FRONTEND: ${{ needs.frontend.result }}
+          RESULT_IOT: ${{ needs.iot.result }}
+          RESULT_VISION: ${{ needs.vision.result }}
+          RESULT_INTEGRACION: ${{ needs.integracion.result }}
+          RESULT_DAST: ${{ needs.dast.result }}
+          RESULT_SEGURIDAD: ${{ needs.seguridad.result }}
+        run: python scripts/ci/check_gate.py

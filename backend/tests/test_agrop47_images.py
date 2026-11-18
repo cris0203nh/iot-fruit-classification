@@ -36,7 +36,6 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(
             prefix="agrop47-images-"
         )
-        )
         images_router.DATA_DIR = Path(self.temp_dir.name)
         images_router.IMAGES_DIR = images_router.DATA_DIR / "images"
 

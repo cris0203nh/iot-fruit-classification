@@ -1,3 +1,4 @@
+
 name: AgroScan CI - visión
 
 on:
@@ -11,25 +12,58 @@ jobs:
     name: Pruebas RGB, geometría y contratos visuales
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Instalar dependencias de contratos de visión
         run: |
           python -m pip install -r backend/requirements.txt
           python -m pip install opencv-contrib-python-headless==4.12.0.88 Pillow==12.3.0
           python -m pip install -r vision/requirements-experiment.txt
+
       - name: Verificar OpenCV con ArUco, Pillow y scikit-learn
-        run: python -c 'import cv2; from PIL import Image; from sklearn.svm import SVC; assert hasattr(cv2, "aruco"), "Falta ArUco"'
+        run: |
+          python -c 'import cv2; from PIL import Image; from sklearn.svm import SVC; assert hasattr(cv2, "aruco"), "Falta ArUco"'
+
+      - name: Preparar entorno temporal y JWT de pruebas
+        shell: bash
+        run: |
+          test_dir="$(mktemp -d)"
+          echo "AGROSCAN_DATA_DIR=$test_dir" >> "$GITHUB_ENV"
+
+          python - <<'PY'
+          import os
+          import secrets
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(
+                  "AGROSCAN_JWT_SECRET="
+                  + secrets.token_hex(32)
+                  + "\n"
+              )
+          PY
+
       - name: Suite de visión con datos de ensayo
         env:
           PYTHONPATH: .:backend
-        run: python -m unittest discover -s vision/tests -p 'test_*.py' -v
+        run: |
+          python -m unittest discover \
+            -s vision/tests \
+            -p 'test_*.py' \
+            -v
+
       - name: Regresiones I03 de geometría del sistema
         env:
           PYTHONPATH: .:backend
-        run: python -m unittest discover -s tests -p 'test_agroscan_i03_*.py' -v
+        run: |
+          python -m unittest discover \
+            -s tests \
+            -p 'test_agroscan_i03_*.py' \
+            -v

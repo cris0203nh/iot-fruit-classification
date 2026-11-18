@@ -1,0 +1,50 @@
+name: AgroScan CI - integración controlada
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  contratos:
+    name: Flujos A/B, captura, revisión, IoT y trazabilidad
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias de API y visión usadas por las pruebas
+        run: |
+          python -m pip install -r backend/requirements.txt
+          python -m pip install opencv-contrib-python-headless==4.12.0.88 Pillow==12.3.0
+      - name: Crear SQLite/JWT exclusivamente temporales
+        shell: bash
+        run: |
+          echo "AGROSCAN_DATA_DIR=$(mktemp -d)" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          import secrets
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as file:
+              file.write('AGROSCAN_JWT_SECRET=' + secrets.token_hex(32) + '\n')
+          PY
+      - name: Flujo HTTP de pesaje, captura y revisión simulados
+        env:
+          PYTHONPATH: .:backend:backend/tests
+        run: python -m unittest discover -s backend/tests -p 'test_agrop45_flujo_integral_simulado.py' -v
+      - name: E2E HTTP de mango y tomate (sin hardware físico)
+        env:
+          PYTHONPATH: .:backend:backend/tests
+        run: python -m unittest discover -s backend/tests -p 'test_agrop51_e2e_mango_tomate.py' -v
+      - name: Piloto A/B SaaS-08 y bridge HTTP autenticado
+        env:
+          PYTHONPATH: .:backend:backend/tests
+        run: python -m unittest discover -s backend/tests -p 'test_saas08_pilot.py' -v
+      - name: Contratos del proxy local de demostración
+        env:
+          PYTHONPATH: .:backend:backend/tests
+        run: python -m unittest discover -s tests -p 'test_agroscan_demo_deploy.py' -v

@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot, Piece
@@ -33,7 +34,8 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
             connection.execute("PRAGMA foreign_keys=ON")
 
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        seed_company(self.db)
 
         role = Role(name="operador")
         user = User(
@@ -45,6 +47,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         )
 
         self.db.add(user)
+        seed_memberships(self.db, user)
         self.db.commit()
         self.db.refresh(user)
 
@@ -52,15 +55,16 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
         def isolated_db():
-            with Session(self.engine) as session:
+            with Session(self.engine, info={"organization_id": 1}) as session:
                 yield session
 
         app.dependency_overrides[get_db] = isolated_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=self.headers)
 
     def tearDown(self):
         self.client.close()
         app.dependency_overrides.pop(get_db, None)
+        self.db.close()
         self.engine.dispose()
 
     def create_lot(self, code="DEMO-MANGO-01", product="mango"):
@@ -127,19 +131,19 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
     def test_registro_requiere_lote_existente(self):
         response = self.register("DEMO-NO-EXISTE")
         self.assertEqual(response.status_code, 404)
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             self.assertEqual(len(db.scalars(select(Piece)).all()), 0)
             self.assertEqual(len(db.scalars(select(Evaluation)).all()), 0)
 
     def test_lote_cerrado_no_permite_registrar_piezas(self):
         lot_id = self.create_lot().json()["id"]
         # Preparación controlada: el contrato HTTP aún no expone cerrar un lote.
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             lot = db.get(Lot, lot_id)
             lot.status = "closed"
             db.commit()
         self.assertEqual(self.register("DEMO-MANGO-01").status_code, 409)
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             self.assertEqual(len(db.scalars(select(Piece)).all()), 0)
 
     def test_pieza_y_evaluacion_con_identificadores_persistidos(self):
@@ -160,7 +164,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
             ).json(),
             saved,
         )
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev = db.scalar(select(Evaluation))
             piece = db.scalar(select(Piece))
             self.assertIsNotNone(ev.piece_ref_id)
@@ -172,7 +176,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         first = self.register("DEMO-MANGO-01").json()
         second = self.register("DEMO-MANGO-01").json()
         self.assertNotEqual(first["id"], second["id"])
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             pieces = db.scalars(select(Piece)).all()
             evaluations = db.scalars(select(Evaluation)).all()
             self.assertEqual(len(pieces), 1)
@@ -188,7 +192,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
         self.assertEqual(tomate.status_code, 201)
         self.assertEqual(mango.json()["product"], "mango")
         self.assertEqual(tomate.json()["product"], "tomate")
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             pieces = db.scalars(select(Piece).order_by(Piece.id)).all()
             self.assertEqual(len(pieces), 2)
             self.assertNotEqual(pieces[0].lot_id, pieces[1].lot_id)
@@ -197,7 +201,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
     def test_crud_demo_en_orm_con_actualizacion_y_eliminacion_aisladas(self):
         # La API pública cubre Create/Read; Update/Delete se prueban solo
         # sobre entidades demo sin evaluaciones, dentro de SQLite en memoria.
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             lot = Lot(code="DEMO-CRUD-01", product="mango", responsible="DEMO")
             db.add(lot)
             db.flush()
@@ -206,14 +210,14 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
             db.commit()
             lot_id, piece_id = lot.id, piece.id
 
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             saved = db.get(Lot, lot_id)
             self.assertEqual(saved.code, "DEMO-CRUD-01")
             self.assertEqual(db.get(Piece, piece_id).code, "DEMO-PIEZA-CRUD")
             saved.responsible = "DEMO-EDITADO"
             db.commit()
 
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             self.assertEqual(db.get(Lot, lot_id).responsible, "DEMO-EDITADO")
             db.delete(db.get(Piece, piece_id))
             db.flush()
@@ -224,7 +228,7 @@ class AGROP30LotsPiecesTests(unittest.TestCase):
 
     def test_restriccion_unicidad_de_pieza_en_mismo_lote(self):
         lot_id = self.create_lot().json()["id"]
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             db.add(Piece(lot_id=lot_id, code="DEMO-P001"))
             db.commit()
             db.add(Piece(lot_id=lot_id, code="DEMO-P001"))

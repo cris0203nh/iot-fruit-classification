@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_actor
+from app.security import create_access_token
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot
@@ -26,8 +28,11 @@ class CaptureAGROP26Tests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.engine = create_engine(f"sqlite:///{(self.root / 'test.db').as_posix()}")
         Base.metadata.create_all(self.engine)
-        Session = sessionmaker(bind=self.engine)
+        Session = sessionmaker(bind=self.engine, info={"organization_id": 1})
         with Session() as db:
+            seed_company(db)
+            actor = seed_actor(db)
+            self.auth_headers = {"Authorization": "Bearer "+create_access_token(actor.id)}
             lot = Lot(code="DEMO-AGROP26", product="tomate", status="open", responsible="")
             db.add(lot)
             db.flush()
@@ -43,16 +48,12 @@ class CaptureAGROP26Tests(unittest.TestCase):
 
         app.dependency_overrides[get_db] = test_session
 
-        # Autenticación simulada exclusivamente para pruebas aisladas.
-        app.dependency_overrides[images.require_operator] = lambda: None
-        app.dependency_overrides[images.require_authenticated] = lambda: None
-        app.dependency_overrides[evaluations.require_authenticated] = lambda: None
         self.data_dir = patch.object(images, "DATA_DIR", self.root)
         self.image_dir = patch.object(images, "IMAGES_DIR", self.root / "images")
         self.data_dir.start()
         self.image_dir.start()
         (self.root / "images").mkdir()
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=self.auth_headers)
 
     def tearDown(self):
         self.client.close()
@@ -114,7 +115,7 @@ class CaptureAGROP26Tests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/evaluations/{self.eval_id}").json()["imageCount"], 0)
 
     def test_evaluacion_cerrada_no_admite_imagen(self):
-        Session = sessionmaker(bind=self.engine)
+        Session = sessionmaker(bind=self.engine, info={"organization_id": 1})
         with Session() as db:
             ev = db.get(Evaluation, int(self.eval_id[2:]))
             ev.status = "cancelled"

@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Review, Role, User
@@ -58,7 +59,8 @@ class APIGateTests(unittest.TestCase):
         self.engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.users = {}
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
+            seed_company(db)
             for role_name in ('administrador', 'revisor', 'operador'):
                 user = User(username=f'ag037_{role_name}', full_name=role_name,
                             password_hash=hash_password('PruebaSegura123'), is_active=True,
@@ -66,6 +68,7 @@ class APIGateTests(unittest.TestCase):
                 db.add(user)
                 db.flush()
                 self.users[role_name] = user.id
+                seed_memberships(db, user)
             lot = Lot(code='AG037-LOTE', product='mango', status='open')
             db.add(lot)
             db.flush()
@@ -74,15 +77,16 @@ class APIGateTests(unittest.TestCase):
             db.flush()
             self.ev_id = ev.id
             self.image_bytes = b'\xff\xd8\xffEVIDENCIA ORIGINAL AG037\xff\xd9'
-            (self.data_dir / 'original.jpg').write_bytes(self.image_bytes)
-            img = Image(evaluation_id=ev.id, view='vista-1', relative_path='original.jpg',
+            (self.data_dir / 'images').mkdir()
+            (self.data_dir / 'images/original.jpg').write_bytes(self.image_bytes)
+            img = Image(evaluation_id=ev.id, view='vista-1', relative_path='images/original.jpg',
                         content_type='image/jpeg', size_bytes=len(self.image_bytes))
             db.add(img)
             db.flush()
             self.image_id = img.id
             db.commit()
         def override_db():
-            with Session(self.engine) as db:
+            with Session(self.engine, info={"organization_id": 1}) as db:
                 yield db
         app.dependency_overrides[get_db] = override_db
         self.client = TestClient(app)
@@ -110,8 +114,8 @@ class APIGateTests(unittest.TestCase):
         self.assertEqual(result.status_code,200,result.text)
         self.assertEqual(result.json()['status'],'pending_review')
         self.assertEqual(result.json()['imageSha256'],old_sha)
-        self.assertEqual((self.data_dir/'original.jpg').read_bytes(),self.image_bytes)
-        with Session(self.engine) as db:
+        self.assertEqual((self.data_dir/'images/original.jpg').read_bytes(),self.image_bytes)
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev = db.get(Evaluation,self.ev_id)
             self.assertIsNone(ev.visual_category)
             self.assertEqual(ev.status,'pending_review')
@@ -126,25 +130,25 @@ class APIGateTests(unittest.TestCase):
         self.assertEqual(trace.json()['reviews'][0]['type'],'uncertainty')
 
     def test_manual_flag_preserves_original_category_after_completed(self):
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev = db.get(Evaluation,self.ev_id)
             ev.status='completed';ev.visual_category='primera'
             db.commit()
         result = self.run_gate(forceReview=True,note='La fruta está fuera del encuadre')
         self.assertEqual(result.status_code,200,result.text)
         self.assertEqual(result.json()['reason'],'solicitud_manual')
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev = db.get(Evaluation,self.ev_id)
             self.assertEqual(ev.status,'pending_review')
             self.assertEqual(ev.visual_category,'primera')
-            self.assertEqual(ev.images[0].relative_path,'original.jpg')
+            self.assertEqual(ev.images[0].relative_path,'images/original.jpg')
 
     def test_idempotent_manual_review(self):
         self.assertEqual(self.run_gate(forceReview=True,note='Fotografía muy borrosa').status_code,200)
         repeat = self.run_gate(forceReview=True,note='Fotografía muy borrosa')
         self.assertEqual(repeat.status_code,200)
         self.assertTrue(repeat.json()['eventAlreadyRecorded'])
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             self.assertEqual(len(db.scalars(select(Review)).all()),1)
 
     def test_ready_does_not_auto_accept_quality(self):
@@ -152,7 +156,7 @@ class APIGateTests(unittest.TestCase):
             response=self.run_gate('operador')
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()['decision'],'ready_to_capture')
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             self.assertEqual(db.get(Evaluation,self.ev_id).status,'processing')
             self.assertIsNone(db.get(Evaluation,self.ev_id).visual_category)
             self.assertEqual(len(db.scalars(select(Review)).all()),0)
@@ -175,16 +179,16 @@ class APIGateTests(unittest.TestCase):
         r=self.client.post(f'/api/evaluations/E-{self.ev_id:06d}/vision/review-gate',
                           headers=self.auth('revisor'),json={'imageId':'I-999999'})
         self.assertEqual(r.status_code,404)
-        (self.data_dir/'original.jpg').unlink()
+        (self.data_dir/'images/original.jpg').unlink()
         self.assertEqual(self.run_gate(forceReview=True,note='Fotografía no evaluable').status_code,409)
 
     def test_block_cancelled_evaluation(self):
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             db.get(Evaluation,self.ev_id).status='cancelled';db.commit()
         self.assertEqual(self.run_gate(forceReview=True,note='Fotografía no evaluable').status_code,409)
 
     def test_reviewer_can_resolve_without_overwriting_original(self):
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             db.get(Evaluation,self.ev_id).visual_category='primera';db.commit()
         self.assertEqual(self.run_gate(forceReview=True,note='Fotografía no evaluable').status_code,200)
         response=self.client.post(f'/api/evaluations/E-{self.ev_id:06d}/vision/resolve',
@@ -192,7 +196,7 @@ class APIGateTests(unittest.TestCase):
                                       'reason':'Inspección visual de evidencia original',
                                       'outcome':'E1'})
         self.assertEqual(response.status_code,200,response.text)
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev=db.get(Evaluation,self.ev_id)
             self.assertEqual(ev.status,'completed')
             self.assertEqual(ev.visual_category,'primera')
@@ -206,12 +210,12 @@ class APIGateTests(unittest.TestCase):
                     json={'outcome':'no_evaluable','reason':'No se distinguen los defectos externos'})
         self.assertEqual(result.status_code,200,result.text)
         self.assertEqual(result.json()['reviewOutcome'],'no_evaluable')
-        with Session(self.engine) as db:
+        with Session(self.engine, info={"organization_id": 1}) as db:
             ev=db.get(Evaluation,self.ev_id)
             self.assertEqual(ev.status,'completed')
             self.assertIsNone(ev.visual_category)
             self.assertEqual(len(db.scalars(select(Review)).all()),2)
-        self.assertEqual((self.data_dir/'original.jpg').read_bytes(),self.image_bytes)
+        self.assertEqual((self.data_dir/'images/original.jpg').read_bytes(),self.image_bytes)
 
     def test_operator_cannot_resolve(self):
         self.run_gate(forceReview=True,note='La foto no permite evaluar')

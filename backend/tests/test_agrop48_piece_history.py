@@ -11,9 +11,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from saas_fixtures import seed_company, seed_actor
 from app.database import Base, get_db
-from app.dependencies import require_authenticated
 from app.main import app
+from app.security import create_access_token
 from app.models import Evaluation, Image, Lot, Piece, Review
 from app.vision_assessment_models import VisionAssessment
 from app.decision_models import ReviewDecisionEvidence
@@ -24,9 +25,12 @@ class PieceHistoryTests(unittest.TestCase):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.addCleanup(self.engine.dispose)
-        self.Session = lambda: Session(self.engine)
+        self.Session = lambda: Session(self.engine, info={"organization_id": 1})
         self.lot_code = "AG040-LOTE-MANGO"
         with self.Session() as db:
+            seed_company(db)
+            user = seed_actor(db, role="revisor")
+            token = create_access_token(user.id)
             db.add_all([
                 Lot(code=self.lot_code, product="mango", status="open"),
                 Lot(code="AG040-OTRO-LOTE", product="mango", status="open"),
@@ -88,9 +92,8 @@ class PieceHistoryTests(unittest.TestCase):
             with self.Session() as db:
                 yield db
         app.dependency_overrides[get_db] = override
-        app.dependency_overrides[require_authenticated] = lambda: None
         self.addCleanup(app.dependency_overrides.clear)
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers={"Authorization": "Bearer "+token})
         self.addCleanup(self.client.close)
 
     def _list(self, lot=None):
@@ -202,12 +205,12 @@ class PieceHistoryTests(unittest.TestCase):
         self.assertEqual(before, after)
 
     def test_authentication_is_required(self):
-        app.dependency_overrides.pop(require_authenticated)
+        authorization = self.client.headers.pop("Authorization")
         try:
             r = self._list()
             self.assertEqual(r.status_code, 401)
         finally:
-            app.dependency_overrides[require_authenticated] = lambda: None
+            self.client.headers["Authorization"] = authorization
 
     def _report(self, lot=None):
         return self.client.get("/api/piece-history/report", params={"lot": lot or self.lot_code})
@@ -285,11 +288,11 @@ class PieceHistoryTests(unittest.TestCase):
     def test_report_requires_auth_and_valid_lot(self):
         self.assertEqual(self._report("INEXISTENTE").status_code, 404)
         self.assertEqual(self._report("x" * 33).status_code, 422)
-        app.dependency_overrides.pop(require_authenticated)
+        authorization = self.client.headers.pop("Authorization")
         try:
             self.assertEqual(self._report().status_code, 401)
         finally:
-            app.dependency_overrides[require_authenticated] = lambda: None
+            self.client.headers["Authorization"] = authorization
 
     def test_report_escapes_spreadsheet_formulas(self):
         from app.routers.piece_history_report import _csv_value

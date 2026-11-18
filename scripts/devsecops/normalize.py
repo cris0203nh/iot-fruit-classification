@@ -10,9 +10,66 @@ import argparse
 import json
 import re
 import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 RANK = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "MODERATE": 2, "HIGH": 3, "CRITICAL": 4}
+NPM_EXCEPTION = 'GHSA-fc5q-39xc-vjpf'
+NPM_EXCEPTION_EXPIRES = date(2026, 12, 1)
+
+
+def except_npm_dev(report: dict, raw: dict, lock: dict, *, today: date | None = None) -> None:
+    """Excepción única: todas las causas deben terminar en picomatch dev 4.0.7.
+
+    Un ciclo, referencia ausente, nodo productivo o advisory diferente conserva
+    el bloqueo. No elimina hallazgos ni cambia sus severidades.
+    """
+    packages = _items(_items(lock, 'lockfile', dict).get('packages'), 'lock packages', dict)
+    if lock.get('lockfileVersion') != 3:
+        raise ValueError('Excepción npm requiere lockfile v3')
+    active = (today or datetime.now(timezone.utc).date()) < NPM_EXCEPTION_EXPIRES
+    vulnerabilities = raw['vulnerabilities']
+
+    def eligible(name, visiting):
+        if name in visiting or name not in vulnerabilities:
+            return False
+        item = vulnerabilities[name]
+        if item.get('name') != name or item.get('severity') != 'high':
+            return False
+        nodes = item.get('nodes')
+        instances = {path: dep for path, dep in packages.items()
+                     if path.endswith('/node_modules/' + name) or path == 'node_modules/' + name}
+        for dep in instances.values():
+            _items(dep, 'lock package', dict)
+        if (not isinstance(nodes, list) or not nodes or not instances
+                or any(node not in instances for node in nodes)
+                or any(dep.get('dev') is not True for dep in instances.values())):
+            return False
+        via = item.get('via')
+        if not isinstance(via, list) or not via:
+            return False
+        for cause in via:
+            if isinstance(cause, str):
+                if not eligible(cause, visiting | {name}):
+                    return False
+            elif isinstance(cause, dict):
+                if (name != 'picomatch' or cause.get('name') != name
+                        or cause.get('dependency') != name or cause.get('severity') != 'high'
+                        or cause.get('url') != 'https://github.com/advisories/' + NPM_EXCEPTION
+                        or any(dep.get('version') != '4.0.7' for dep in instances.values())):
+                    return False
+            else:
+                return False
+        return True
+
+    count = 0
+    for finding in report['findings']:
+        if active and eligible(finding['package'], set()):
+            finding['exception'] = NPM_EXCEPTION
+            count += 1
+    report['exception'] = {'id': NPM_EXCEPTION, 'cve': 'CVE-2026-112366',
+                           'expires_utc': NPM_EXCEPTION_EXPIRES.isoformat(),
+                           'active': active, 'excepted_count': count}
 
 
 def _items(value, key, kind):
@@ -89,14 +146,23 @@ def normalize(tool: str, raw: object) -> dict:
 
 
 def evaluate(report: dict, gate: str) -> int:
+    policy = report.get('exception', {})
+    exception_active = (report.get('tool') == 'npm-audit' and policy.get('id') == NPM_EXCEPTION
+                        and policy.get('active') is True
+                        and policy.get('expires_utc') == NPM_EXCEPTION_EXPIRES.isoformat())
+    findings = [f for f in report['findings']
+                if not (exception_active and f.get('exception') == NPM_EXCEPTION)]
     if gate == 'ANY':
-        return 1 if report['finding_count'] else 0
+        return 1 if findings else 0
     return 1 if any(RANK.get(f.get('severity', ''), -1) >= RANK[gate]
-                    for f in report['findings']) else 0
+                    for f in findings) else 0
 
 
-def run(*, tool: str, source: Path, output: Path, exit_code: int, gate: str) -> int:
+def run(*, tool: str, source: Path, output: Path, exit_code: int, gate: str,
+        npm_dev_exception_lock: Path | None = None) -> int:
     try:
+        if npm_dev_exception_lock is not None and tool != 'npm-audit':
+            raise ValueError('Excepción exclusiva de npm')
         allowed = (0, 1, 2) if tool == 'zap' else (0, 1)
         if exit_code not in allowed:
             raise ValueError('Escáner no completó su ejecución')
@@ -111,10 +177,15 @@ def run(*, tool: str, source: Path, output: Path, exit_code: int, gate: str) -> 
             raise ValueError('Resultado contradictorio: exit 0 con hallazgos')
         if tool != 'zap' and exit_code == 1 and not report['finding_count']:
             raise ValueError('Resultado contradictorio: exit 1 sin hallazgos')
+        if npm_dev_exception_lock is not None:
+            except_npm_dev(report, raw, json.loads(npm_dev_exception_lock.read_text(encoding='utf-8')))
+            print(f"npm audit: {report['exception']['excepted_count']} hallazgos exceptuados "
+                  f"por {NPM_EXCEPTION}; vence {NPM_EXCEPTION_EXPIRES} UTC.")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         return evaluate(report, gate)
     except (OSError, ValueError, TypeError, KeyError) as exc:
+        output.unlink(missing_ok=True)
         print(f'{tool}: escaneo o informe inválido: {type(exc).__name__}', file=sys.stderr)
         return 2
     finally:
@@ -128,8 +199,11 @@ def main() -> int:
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--exit-code', required=True, type=int)
     parser.add_argument('--gate', required=True, choices=('ANY','MEDIUM','HIGH','CRITICAL'))
+    parser.add_argument('--npm-dev-exception-lock', type=Path,
+                        help='Validar excepción temporal picomatch solo en auditoría npm completa')
     a = parser.parse_args()
-    code = run(tool=a.tool, source=a.input, output=a.output, exit_code=a.exit_code, gate=a.gate)
+    code = run(tool=a.tool, source=a.input, output=a.output, exit_code=a.exit_code, gate=a.gate,
+               npm_dev_exception_lock=a.npm_dev_exception_lock)
     if code:
         print(f'{a.tool}: control de seguridad no aprobado (código {code}).', file=sys.stderr)
     else:

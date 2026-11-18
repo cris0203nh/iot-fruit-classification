@@ -104,7 +104,17 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
-      - name: Escanear lockfile de frontend
+      - name: Auditar producción sin excepciones
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          npm audit --prefix frontend --omit=dev --json --audit-level=low > reports/npm-production-raw.json
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize.py --tool npm-audit --input reports/npm-production-raw.json --output reports/npm-production.json --exit-code "$code" --gate ANY
+      - name: Auditar lockfile completo (incluye desarrollo)
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           mkdir -p reports
@@ -112,13 +122,15 @@ jobs:
           npm audit --prefix frontend --json --audit-level=low > reports/npm-raw.json
           code=$?
           set -e
-          python3 scripts/devsecops/normalize.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code" --gate HIGH
+          python3 scripts/devsecops/normalize.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code" --gate HIGH --npm-dev-exception-lock frontend/package-lock.json
       - name: Publicar solo reporte normalizado
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: seg04-npm-sca
-          path: reports/npm.json
+          path: |
+            reports/npm.json
+            reports/npm-production.json
           if-no-files-found: ignore
           retention-days: 7
 

@@ -1,13 +1,14 @@
-name: Pesaje ESP32 y pruebas de software
+name: AgroScan CI - IoT y pesaje ESP32
+
 on:
-  push:
-    paths: ['firmware/agroscan_scale/**', 'firmware/tools/**', 'firmware/weight_simulator.py', 'tests/**', 'backend/**', '.github/workflows/pesaje.yml']
-  pull_request:
-    paths: ['firmware/agroscan_scale/**', 'firmware/tools/**', 'firmware/weight_simulator.py', 'tests/**', 'backend/**', '.github/workflows/pesaje.yml']
+  workflow_call:
+
 permissions:
   contents: read
+
 jobs:
   software:
+    name: Pruebas de puente e IoT autenticado
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -17,33 +18,37 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Instalar dependencias necesarias para todas las pruebas de tests/
-        run: |
-          python -m pip install -r backend/requirements.txt
-          # Las pruebas I03 usan OpenCV con ArUco; la variante contrib es necesaria.
-          python -m pip install opencv-contrib-python-headless==4.12.0.88 Pillow==12.3.0
-      - name: Preparar entorno efímero sin datos ni claves reales
+      - name: Instalar dependencias API para las pruebas de IoT
+        run: python -m pip install -r backend/requirements.txt
+      - name: Preparar datos y JWT efímeros
         shell: bash
         run: |
-          test_dir="$(mktemp -d)"
-          printf 'AGROSCAN_DATA_DIR=%s\n' "$test_dir" >> "$GITHUB_ENV"
+          echo "AGROSCAN_DATA_DIR=$(mktemp -d)" >> "$GITHUB_ENV"
           python - <<'PYSECRET'
           import os
           import secrets
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
-              env_file.write('AGROSCAN_JWT_SECRET=' + secrets.token_hex(32) + '\n')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as out:
+              out.write('AGROSCAN_JWT_SECRET=' + secrets.token_hex(32) + '\n')
           PYSECRET
-      - name: Verificar la dependencia ArUco
-        run: python -c 'import cv2; assert hasattr(cv2, "aruco"), "OpenCV contrib requiere ArUco"'
-      - name: Probar núcleo de pesaje
+      - name: Probar ScaleCore sin hardware
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror -pedantic tests/test_scale_core.cpp -o /tmp/test_scale_core
           /tmp/test_scale_core
-      - name: Probar puente, IoT autenticado y geometría
+      - name: Probar integración IoT SaaS-07
         env:
-          PYTHONPATH: backend
-        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
+          PYTHONPATH: .:backend
+        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_iot_firmware_integration.py' -v
+      - name: Probar puente serie
+        env:
+          PYTHONPATH: .:backend
+        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_serial_bridge.py' -v
+      - name: Probar simulador de pesaje
+        env:
+          PYTHONPATH: .:backend
+        run: python -W error::ResourceWarning -m unittest discover -s tests -p 'test_weight_simulator.py' -v
+
   compile-esp32:
+    name: Compilar ESP32 real y simulado
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

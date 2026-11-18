@@ -153,4 +153,13 @@ jobs:
           RESULT_INTEGRACION: ${{ needs.integracion.result }}
           RESULT_DAST: ${{ needs.dast.result }}
           RESULT_SEGURIDAD: ${{ needs.seguridad.result }}
+          CI_REPORT_PATH: reports/ci-global.json
         run: python scripts/ci/check_gate.py
+      - name: Conservar informe global sin datos sensibles
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: agroscan-ci-global
+          path: reports/ci-global.json
+          if-no-files-found: error
+          retention-days: 14

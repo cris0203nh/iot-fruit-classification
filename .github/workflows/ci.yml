@@ -1,0 +1,89 @@
+name: AgroScan CI - pipeline segmentado
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agroscan-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preparacion:
+    name: Preparación - validar estructura
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Comprobar componentes versionados
+        run: |
+          test -f backend/requirements.txt
+          test -f frontend/package-lock.json
+          test -f firmware/agroscan_scale/agroscan_scale.ino
+          test -d vision/tests
+          test -f .github/workflows/pesaje.yml
+          test -f .github/workflows/backend.yml
+          test -f .github/workflows/frontend.yml
+          test -f .github/workflows/vision.yml
+
+  backend:
+    name: Backend - API y SQLite
+    needs: preparacion
+    uses: ./.github/workflows/backend.yml
+
+  frontend:
+    name: Frontend - React y TypeScript
+    needs: preparacion
+    uses: ./.github/workflows/frontend.yml
+
+  iot:
+    name: IoT - firmware y puente
+    needs: preparacion
+    uses: ./.github/workflows/pesaje.yml
+
+  vision:
+    name: Visión - contratos y geometría
+    needs: preparacion
+    uses: ./.github/workflows/vision.yml
+
+  ci:
+    name: CI - validación global
+    if: ${{ always() }}
+    needs: [preparacion, backend, frontend, iot, vision]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Consolidar resultados sin ocultar fallos ni omisiones
+        shell: bash
+        env:
+          PREPARACION: ${{ needs.preparacion.result }}
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          IOT: ${{ needs.iot.result }}
+          VISION: ${{ needs.vision.result }}
+        run: |
+          {
+            echo '## AgroScan CI — resultado consolidado'
+            echo '| Apartado | Resultado |'
+            echo '|---|---|'
+            echo "| Preparación | $PREPARACION |"
+            echo "| Backend | $BACKEND |"
+            echo "| Frontend | $FRONTEND |"
+            echo "| IoT | $IOT |"
+            echo "| Visión | $VISION |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for result in "$PREPARACION" "$BACKEND" "$FRONTEND" "$IOT" "$VISION"; do
+            if [ "$result" != success ]; then
+              echo 'CI bloqueado: algún apartado falló, se canceló o no llegó a ejecutarse.' >&2
+              exit 1
+            fi
+          done
+          echo 'Todos los apartados obligatorios aprobaron.'

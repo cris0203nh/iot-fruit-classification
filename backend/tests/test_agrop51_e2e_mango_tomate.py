@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_memberships, seed_scale
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Measurement, Role, User
@@ -35,9 +36,10 @@ class AG043E2ETests(unittest.TestCase):
         )
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
         self.sequence = 0
         with self.Session() as db:
+            seed_company(db)
             self.users = {}
             for role in ('operador', 'revisor'):
                 user = User(username='ag043_'+role, full_name='AG043 '+role,
@@ -46,6 +48,8 @@ class AG043E2ETests(unittest.TestCase):
                 db.add(user)
                 db.flush()
                 self.users[role] = user.id
+                seed_memberships(db, user)
+            seed_scale(db, 'sensor-SIMULADO')
             db.commit()
 
         def isolated_db():

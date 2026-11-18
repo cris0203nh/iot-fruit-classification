@@ -11,6 +11,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 import cv2
 import numpy as np
@@ -18,10 +19,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from saas_fixtures import seed_company, seed_memberships, seed_scale
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Measurement, Review, Role, User
-from app.routers import evaluations, images, uncertainty as gate_router
+from app.routers import evaluations, images, review_decisions, uncertainty as gate_router
 from app.security import create_access_token, hash_password
 from app.uncertainty import GateResult
 from app.vision_assessment_models import VisionAssessment
@@ -43,11 +45,12 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
         )
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False, info={"organization_id": 1})
 
         now = datetime.now(timezone.utc)
         self.users = {}
         with self.Session() as db:
+            seed_company(db)
             for role_name in ("administrador", "operador", "revisor"):
                 user = User(
                     username=f"sim_{role_name}",
@@ -59,6 +62,8 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
                 db.add(user)
                 db.flush()
                 self.users[role_name] = user.id
+                seed_memberships(db, user)
+            seed_scale(db, 'sensor-SIM-no-hardware')
             lot = Lot(code="AG037-LOTE-SIM", product="mango", status="open")
             db.add(lot)
             db.flush()
@@ -90,6 +95,7 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
             (images, "IMAGES_DIR", self.data_root / "images"),
             (evaluations, "DATA_DIR", self.data_root),
             (gate_router, "DATA_DIR", self.data_root),
+            (review_decisions, "DATA_DIR", self.data_root),
         ):
             p = patch.object(obj, attribute, replacement)
             p.start()
@@ -182,6 +188,25 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
                   "reason": "Inspección de fotografía de prueba y verificación del estado visual"},
         )
 
+    def review_each_photo(self, outcome):
+        # El contrato actual exige dictamen trazable para ambas capturas.
+        detail = self.client.get(f'/api/evaluations/{self.evaluation_id}',
+                                 headers=self.auth('revisor')).json()
+        state = self.client.get(f'/api/evaluations/{self.evaluation_id}/review-decisions',
+                                headers=self.auth('revisor')).json()
+        revision = state['revisionId']
+        for index, photo in enumerate(detail['evidence']):
+            action = 'no_evaluable' if outcome == 'no_evaluable' else 'initial_label' if index == 0 else 'confirm'
+            result = self.client.post(f'/api/evaluations/{self.evaluation_id}/review-decisions',
+                headers=self.auth('revisor'), json={
+                    'action': action, 'imageId': photo['id'], 'newValue': outcome,
+                    'expectedReviewId': revision, 'requestId': str(uuid4()),
+                    'reason': 'Dictamen de software sobre fotografia sintetica de ensayo.'})
+            self.assertEqual(result.status_code, 201, result.text)
+            self.assertEqual(result.json()['imageSha256'], self.photo_hash)
+            revision = result.json()['id']
+        return result
+
     def test_uncertain_result_to_review_and_resume_with_original_intact(self):
         self.confirmed_acquisition()
         prediction = (
@@ -203,10 +228,9 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
 
         unauthorized = self.resolve("E1", role="operador")
         self.assertEqual(unauthorized.status_code, 403)
-        accepted = self.resolve("E1")
-        self.assertEqual(accepted.status_code, 200, accepted.text)
-        self.assertEqual(accepted.json()["reviewOutcome"], "E1")
-        self.assertTrue(accepted.json()["originalPreserved"])
+        self.assertEqual(self.resolve("E1").status_code, 409)
+        accepted = self.review_each_photo("E1")
+        self.assertEqual(accepted.json()["newValue"], "E1")
 
         detail = self.client.get(
             f"/api/evaluations/{self.evaluation_id}", headers=self.auth("revisor")
@@ -247,7 +271,7 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
                 self.assertEqual(
                     db.scalar(select(VisionAssessment)).image_sha256, self.photo_hash
                 )
-                self.assertEqual(len(db.scalars(select(Review)).all()), 2)
+                self.assertEqual(len(db.scalars(select(Review)).all()), 3)
         finally:
             separate_engine.dispose()
 
@@ -256,9 +280,9 @@ class AG037FlujoIntegralSimuladoTests(unittest.TestCase):
         gate = self.gate((GateResult(True, "sin_deteccion", None, 0), []))
         self.assertEqual(gate.status_code, 200, gate.text)
         self.assertEqual(gate.json()["reason"], "sin_deteccion")
-        resolved = self.resolve("no_evaluable")
-        self.assertEqual(resolved.status_code, 200, resolved.text)
-        self.assertEqual(resolved.json()["reviewOutcome"], "no_evaluable")
+        self.assertEqual(self.resolve("no_evaluable").status_code, 409)
+        resolved = self.review_each_photo("no_evaluable")
+        self.assertEqual(resolved.json()["newValue"], "no_evaluable")
         with self.Session() as db:
             evaluation = db.get(Evaluation, self.evaluation_pk)
             self.assertIsNone(evaluation.visual_category)

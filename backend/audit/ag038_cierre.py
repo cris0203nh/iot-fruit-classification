@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.organization_models import Organization, OrganizationMembership
 from app.database import Base, get_db
 from app.decision_models import ReviewDecisionEvidence
 from app.main import app
@@ -55,7 +56,8 @@ def audit(output: Path) -> dict:
         raise ValueError('La evidencia debe guardarse fuera del repositorio Git.')
     with tempfile.TemporaryDirectory(prefix='ag038-auditoria-') as temporary:
         root = Path(temporary)
-        source = root / 'prueba_rgb.jpg'
+        (root / 'images').mkdir()
+        source = root / 'images/prueba_rgb.jpg'
         # Test-only synthetic JPEG: no photographs of a real fruit.
         try:
             import cv2
@@ -72,9 +74,11 @@ def audit(output: Path) -> dict:
         dbfile = root / 'ag038_simulada.sqlite'
         engine = create_engine(f'sqlite:///{dbfile.as_posix()}', connect_args={'check_same_thread':False, 'timeout':5})
         Base.metadata.create_all(engine)
-        maker = sessionmaker(bind=engine, expire_on_commit=False)
+        maker = sessionmaker(bind=engine, expire_on_commit=False, info={"organization_id": 1})
         try:
             with maker() as db:
+                db.add(Organization(id=1, name="Synthetic audit company"))
+                db.flush()
                 users = {}
                 for role in ('revisor', 'operador'):
                     user = User(username='ag038_sim_' + role, full_name='Cuenta de prueba ' + role,
@@ -83,6 +87,7 @@ def audit(output: Path) -> dict:
                     db.add(user)
                     db.flush()
                     users[role] = user.id
+                    db.add(OrganizationMembership(organization_id=1, user_id=user.id, role_id=user.roles[0].id))
                 lot = Lot(code='AG038-AUDITORIA-SIM', product='mango', status='open')
                 db.add(lot)
                 db.flush()
@@ -96,7 +101,7 @@ def audit(output: Path) -> dict:
                                     status=status, visual_category=initial)
                     db.add(ev)
                     db.flush()
-                    img = Image(evaluation_id=ev.id, view='vista-1', relative_path='prueba_rgb.jpg',
+                    img = Image(evaluation_id=ev.id, view='vista-1', relative_path='images/prueba_rgb.jpg',
                                 content_type='image/jpeg', size_bytes=len(original_bytes))
                     db.add(img)
                     db.flush()

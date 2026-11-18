@@ -1,0 +1,175 @@
+name: AgroScan CI - seguridad DevSecOps
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validacion-reportes:
+    name: Contratos de informes de seguridad
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+      - name: Probar normalización y privacidad de los informes
+        run: python -m unittest discover -s scripts/devsecops -p 'test_*.py' -v
+
+  sast:
+    name: SAST - Bandit Python (HIGH/CRITICAL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+      - name: Instalar Bandit
+        run: python -m pip install bandit==1.9.4
+      - name: Escanear código productivo (sin pruebas)
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          bandit -r backend/app backend/dataset firmware/tools vision/src vision/ag055 -f json -o reports/bandit-raw.json
+          code=$?
+          set -e
+          python scripts/devsecops/normalize.py --tool bandit --input reports/bandit-raw.json --output reports/bandit.json --exit-code "$code" --gate HIGH
+      - name: Publicar solo resumen normalizado
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: seg04-bandit
+          path: reports/bandit.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sca-python:
+    name: SCA - dependencias Python (advisories)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+      - name: Instalar pip-audit
+        run: python -m pip install pip-audit==2.10.1
+      - name: Auditar backend
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          pip-audit --no-deps -r backend/requirements.txt --format=json --output=reports/pip-backend-raw.json --progress-spinner=off
+          code=$?
+          set -e
+          python scripts/devsecops/normalize.py --tool pip-audit --input reports/pip-backend-raw.json --output reports/pip-backend.json --exit-code "$code" --gate ANY
+      - name: Auditar dependencias del puente serial
+        shell: bash
+        run: |
+          set +e
+          pip-audit --no-deps -r firmware/tools/requirements.txt --format=json --output=reports/pip-iot-raw.json --progress-spinner=off
+          code=$?
+          set -e
+          python scripts/devsecops/normalize.py --tool pip-audit --input reports/pip-iot-raw.json --output reports/pip-iot.json --exit-code "$code" --gate ANY
+      - name: Publicar solo reportes normalizados
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: seg04-python-sca
+          path: |
+            reports/pip-backend.json
+            reports/pip-iot.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sca-node:
+    name: SCA - npm audit (HIGH/CRITICAL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '22'
+      - name: Auditar producción sin excepciones
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          npm audit --prefix frontend --omit=dev --json --audit-level=low > reports/npm-production-raw.json
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize.py --tool npm-audit --input reports/npm-production-raw.json --output reports/npm-production.json --exit-code "$code" --gate ANY
+      - name: Auditar lockfile completo (incluye desarrollo)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          npm audit --prefix frontend --json --audit-level=low > reports/npm-raw.json
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize.py --tool npm-audit --input reports/npm-raw.json --output reports/npm.json --exit-code "$code" --gate HIGH --npm-dev-exception-lock frontend/package-lock.json
+      - name: Publicar solo reporte normalizado
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: seg04-npm-sca
+          path: |
+            reports/npm.json
+            reports/npm-production.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  secretos:
+    name: Secretos - Gitleaks commits nuevos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bloquear nuevas credenciales expuestas
+        shell: bash
+        env:
+          BASE_REV: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p reports
+          # Los hallazgos históricos previos al PR no se declaran saneados.
+          if [[ "$BASE_REV" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$BASE_REV^{commit}"; then
+            base="$BASE_REV"
+          else
+            base="$(git rev-parse HEAD^)"
+          fi
+          echo "Rango de commits examinado: ${base:0:12}..HEAD"
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD:/repo:ro" -v "$PWD/reports:/out" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact=100 --log-opts="$base..HEAD" --report-format=json --report-path=/out/gitleaks-raw.json /repo
+          code=$?
+          set -e
+          python3 scripts/devsecops/normalize.py --tool gitleaks --input reports/gitleaks-raw.json --output reports/gitleaks.json --exit-code "$code" --gate ANY
+      - name: Publicar exclusivamente reporte sin secretos
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: seg04-gitleaks
+          path: reports/gitleaks.json
+          if-no-files-found: ignore
+          retention-days: 7

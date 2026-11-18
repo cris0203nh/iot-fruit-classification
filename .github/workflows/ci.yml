@@ -33,6 +33,10 @@ jobs:
           test -f .github/workflows/backend.yml
           test -f .github/workflows/frontend.yml
           test -f .github/workflows/vision.yml
+          test -f .github/workflows/devsecops.yml
+          test -f .github/workflows/dast.yml
+          test -f scripts/devsecops/normalize.py
+          test -f scripts/devsecops/dast_smoke.py
 
   backend:
     name: Backend - API y SQLite
@@ -54,10 +58,20 @@ jobs:
     needs: preparacion
     uses: ./.github/workflows/vision.yml
 
+  seguridad:
+    name: Seguridad - SAST, SCA y secretos
+    needs: preparacion
+    uses: ./.github/workflows/devsecops.yml
+
+  dast:
+    name: DAST - API local y ZAP pasivo
+    needs: preparacion
+    uses: ./.github/workflows/dast.yml
+
   ci:
     name: CI - validación global
     if: ${{ always() }}
-    needs: [preparacion, backend, frontend, iot, vision]
+    needs: [preparacion, backend, frontend, iot, vision, seguridad, dast]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -69,6 +83,8 @@ jobs:
           FRONTEND: ${{ needs.frontend.result }}
           IOT: ${{ needs.iot.result }}
           VISION: ${{ needs.vision.result }}
+          SEGURIDAD: ${{ needs.seguridad.result }}
+          DAST: ${{ needs.dast.result }}
         run: |
           {
             echo '## AgroScan CI — resultado consolidado'
@@ -79,8 +95,10 @@ jobs:
             echo "| Frontend | $FRONTEND |"
             echo "| IoT | $IOT |"
             echo "| Visión | $VISION |"
+            echo "| Seguridad SAST/SCA/secretos | $SEGURIDAD |"
+            echo "| DAST API | $DAST |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$PREPARACION" "$BACKEND" "$FRONTEND" "$IOT" "$VISION"; do
+          for result in "$PREPARACION" "$BACKEND" "$FRONTEND" "$IOT" "$VISION" "$SEGURIDAD" "$DAST"; do
             if [ "$result" != success ]; then
               echo 'CI bloqueado: algún apartado falló, se canceló o no llegó a ejecutarse.' >&2
               exit 1

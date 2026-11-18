@@ -1,0 +1,80 @@
+name: AgroScan CI - DAST API
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: OWASP ZAP pasivo - API aislada
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+      - name: Instalar dependencias de la API aislada
+        run: |
+          python -m pip install -r backend/requirements.txt
+          python -m pip install opencv-contrib-python-headless==4.12.0.88 Pillow==12.3.0
+      - name: Arrancar FastAPI temporal, validar HTTP y analizar ZAP sin ataque activo
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          isolated="$(mktemp -d)"
+          mkdir -p reports
+          chmod 0777 reports # Solo directorio de reportes en runner descartable; el contenedor escribe aquí
+          server_pid=''
+          cleanup() {
+            if [ -n "$server_pid" ]; then
+              kill "$server_pid" 2>/dev/null || true
+              wait "$server_pid" 2>/dev/null || true
+            fi
+            rm -rf -- "$isolated"
+            rm -f reports/zap-raw.json
+          }
+          trap cleanup EXIT
+          export PYTHONPATH=".:backend"
+          export AGROSCAN_DATA_DIR="$isolated"
+          export AGROSCAN_JWT_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          # NO cargar .env, SQLite ni imágenes reales. La base de test se crea en /tmp.
+          python - <<'PYDB'
+          from app.main import app  # Registra los modelos necesarios del backend
+          from app.database import Base, engine
+          Base.metadata.create_all(engine)
+          PYDB
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --no-access-log > "$isolated/server.log" 2>&1 &
+          server_pid=$!
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/api/health >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'No arrancó la API temporal para DAST.' >&2
+            exit 1
+          fi
+          python scripts/devsecops/dast_smoke.py
+          set +e
+          docker run --rm --network host -v "$PWD/reports:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef \
+            zap-api-scan.py -t http://127.0.0.1:8765/openapi.json -f openapi -S -T 5 -s -J zap-raw.json
+          code=$?
+          set -e
+          python scripts/devsecops/normalize.py --tool zap --input reports/zap-raw.json --output reports/zap.json --exit-code "$code" --gate HIGH
+      - name: Publicar solo informe ZAP sanitizado
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: seg04-zap
+          path: reports/zap.json
+          if-no-files-found: ignore
+          retention-days: 7

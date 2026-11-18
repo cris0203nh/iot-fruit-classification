@@ -155,6 +155,9 @@ jobs:
           RESULT_SEGURIDAD: ${{ needs.seguridad.result }}
           CI_REPORT_PATH: reports/ci-global.json
         run: python scripts/ci/check_gate.py
+      - name: Verificar integridad del informe CI
+        if: ${{ always() }}
+        run: python scripts/ci/verify_evidence.py --file reports/ci-global.json
       - name: Conservar informe global sin datos sensibles
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

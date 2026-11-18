@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "scope": "CI tests and gates; does not certify hardware, production or model accuracy",
+  "context": {
+    "run_id": "44227059987",
+    "sha": "f914864826b9fe8334149fd2ea8a91e3d0b45dc3",
+    "event": "pull_request"
+  },
+  "decision": "approved",
+  "counts": {
+    "mandatory": 3,
+    "selected_modules": 6,
+    "expected_skips": 0,
+    "noncompliant": 0
+  },
+  "checks": [
+    {
+      "component": "preparacion",
+      "selection": "mandatory",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "cambios",
+      "selection": "mandatory",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "seguridad",
+      "selection": "mandatory",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "backend",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "frontend",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "iot",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "vision",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "integracion",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    },
+    {
+      "component": "dast",
+      "selection": "selected",
+      "expected": "success",
+      "result": "success",
+      "compliant": true
+    }
+  ],
+  "violations": []
+}

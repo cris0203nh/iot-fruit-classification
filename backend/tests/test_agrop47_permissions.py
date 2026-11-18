@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot, Role, User
@@ -34,7 +35,8 @@ class AGROP47PermissionTests(unittest.TestCase):
         )
 
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        seed_company(self.db)
 
         self.client = TestClient(app)
 
@@ -59,6 +61,7 @@ class AGROP47PermissionTests(unittest.TestCase):
             self.db.add(user)
             self.users[role_name] = user
 
+        seed_memberships(self.db, *self.users.values())
         lot = Lot(
             code="LOTE-AGROP47",
             product="mango",
@@ -74,6 +77,7 @@ class AGROP47PermissionTests(unittest.TestCase):
 
     def tearDown(self):
         app.dependency_overrides.clear()
+        self.client.close()
         self.db.close()
         self.engine.dispose()
 

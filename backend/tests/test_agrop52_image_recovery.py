@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from saas_fixtures import seed_company, seed_actor
+from app.security import create_access_token
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Image, Lot
@@ -35,9 +37,12 @@ class AGROP52ImageRecoveryTests(unittest.TestCase):
         self.addCleanup(self.engine.dispose)
 
         Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+        self.Session = sessionmaker(bind=self.engine, info={"organization_id": 1})
 
         with self.Session() as db:
+            seed_company(db)
+            actor = seed_actor(db)
+            self.auth_headers = {"Authorization": "Bearer "+create_access_token(actor.id)}
             lot = Lot(
                 code="LOTE-AGROP52-IMG",
                 product="mango",
@@ -69,26 +74,6 @@ class AGROP52ImageRecoveryTests(unittest.TestCase):
             lambda: app.dependency_overrides.pop(get_db, None)
         )
 
-        app.dependency_overrides[images.require_operator] = lambda: None
-        app.dependency_overrides[images.require_authenticated] = lambda: None
-        app.dependency_overrides[evaluations.require_authenticated] = lambda: None
-
-        self.addCleanup(
-            lambda: app.dependency_overrides.pop(
-                images.require_operator, None
-            )
-        )
-        self.addCleanup(
-            lambda: app.dependency_overrides.pop(
-                images.require_authenticated, None
-            )
-        )
-        self.addCleanup(
-            lambda: app.dependency_overrides.pop(
-                evaluations.require_authenticated, None
-            )
-        )
-
         self.data_patch = patch.object(
             images, "DATA_DIR", self.root
         )
@@ -104,7 +89,7 @@ class AGROP52ImageRecoveryTests(unittest.TestCase):
 
         (self.root / "images").mkdir()
 
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=self.auth_headers)
         self.addCleanup(self.client.close)
 
         self.idempotency_key = "c" * 64

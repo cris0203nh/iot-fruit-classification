@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from saas_fixtures import seed_company, seed_memberships
 from app.database import Base, get_db
 from app.main import app
 from app.models import Evaluation, Lot, Role, User
@@ -26,14 +27,18 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
         )
 
         Base.metadata.create_all(self.engine)
-        self.db = Session(self.engine)
+        self.db = Session(self.engine, info={"organization_id": 1})
+        seed_company(self.db)
         self.client = TestClient(app)
 
+        self.original_data_dir = images_router.DATA_DIR
         self.original_images_dir = images_router.IMAGES_DIR
         self.temp_dir = tempfile.TemporaryDirectory(
-            dir=str(images_router.DATA_DIR)
+            prefix="agrop47-images-"
         )
-        images_router.IMAGES_DIR = Path(self.temp_dir.name)
+        )
+        images_router.DATA_DIR = Path(self.temp_dir.name)
+        images_router.IMAGES_DIR = images_router.DATA_DIR / "images"
 
         def override_get_db():
             yield self.db
@@ -56,6 +61,7 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
             self.db.add(user)
             self.users[name] = user
 
+        seed_memberships(self.db, *self.users.values())
         self.db.add(
             Lot(
                 code="LOTE-AGROP27",
@@ -79,9 +85,11 @@ class AGROP27MultipleViewsTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
+        self.client.close()
         self.db.close()
         self.engine.dispose()
 
+        images_router.DATA_DIR = self.original_data_dir
         images_router.IMAGES_DIR = self.original_images_dir
         self.temp_dir.cleanup()
 

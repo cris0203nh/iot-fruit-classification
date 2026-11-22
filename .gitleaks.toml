@@ -1,0 +1,49 @@
+title = "AgroScan: default detection with exact synthetic-test exceptions"
+
+[extend]
+useDefault = true
+
+# Reviewed 22/11/2026: these literals are request deduplication keys in isolated
+# tests, not authentication credentials. BOTH the file and complete assignment
+# must match. Other values, variables, files and detector rules remain blocking.
+[[allowlists]]
+description = "COM02 synthetic request idempotency literal"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)frontend/tests/com02-applications\.test\.mjs$''']
+regexTarget = "match"
+regexes = ['''^idempotencyKey:\s*'synthetic-idempotency-com02'$''']
+
+[[allowlists]]
+description = "COM04 synthetic invitation retry/revocation keys, five findings"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)backend/tests/test_com04_initial_admin\.py$''']
+regexTarget = "match"
+regexes = ['''^idempotencyKey='(?:replacement-synthetic-[12]|revocation-synthetic-1)'$''']
+
+[[allowlists]]
+description = "COM07 synthetic catalog idempotency literal"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)backend/tests/test_com07_catalog\.py$''']
+regexTarget = "match"
+regexes = ['''^idempotencyKey='second-plan-key-00001'$''']
+
+# Four additional historical findings survive removal of the private files.
+# These are existing isolated-test literals, never production credentials.
+[[allowlists]]
+description = "Historical backup integration fixture deduplication key"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)backend/tests/test_agrop53_backup_integration\.py$''']
+regexTarget = "match"
+regexes = ['''^idempotency_key="ag045-prueba-integral"$''']
+
+[[allowlists]]
+description = "Historical temporary SQLite user-management test password"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)backend/tests/test_agrop47_user_management\.py$''']
+regexTarget = "match"
+regexes = ['''^password":\s*"ClaveSegura12345"$''']

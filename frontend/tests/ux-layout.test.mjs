@@ -65,14 +65,16 @@ test('AG043/AG056: los tres roles presentan 5, 4 y 5 enlaces sin privilegios adi
     const body = src.split(signature)[1].split(']')[0]
     return [...body.matchAll(/\{ path: '([^']+)'/g)].map((item) => item[1])
   }
-  assert.deepEqual(links('operatorNavigation'), ['/', '/evaluacion', '/lotes', '/historial', '/trazabilidad'])
-  assert.deepEqual(links('reviewerNavigation'), ['/', '/revisiones', '/historial', '/trazabilidad'])
-  assert.deepEqual(links('administratorNavigation'), ['/', '/revisiones', '/usuarios', '/trazabilidad', '/estadisticas'])
+  assert.deepEqual(links('operatorNavigation'), ['/app', '/evaluacion', '/lotes', '/historial', '/trazabilidad'])
+  assert.deepEqual(links('reviewerNavigation'), ['/app', '/revisiones', '/historial', '/trazabilidad'])
+  assert.deepEqual(links('administratorNavigation'), ['/app', '/revisiones', '/usuarios', '/trazabilidad', '/estadisticas', '/suscripcion'])
 })
 
 test('AG043: la sesión distingue explícitamente al administrador', () => {
   const src = css('src/features/auth/AuthGate.tsx')
-  assert.match(src, /getSessionRole\(\) === 'administrador' \? 'administrador' : 'operador'/)
+  const layout = css('src/components/layout/AppLayout.tsx')
+  assert.match(layout, /administrator \? 'Administrador empresarial' : reviewer \? 'Revisor \(consulta\)' : 'Operador'/)
+  assert.match(src, /SidebarSessionContext.Provider/)
   assert.match(src, /if \(role === 'revisor'\) navigate\('\/historial'/)
 })
 

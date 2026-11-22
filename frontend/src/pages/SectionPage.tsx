@@ -59,7 +59,7 @@ export function SectionPage({ section }: { section: SectionKey }) {
         </ol>
       </section>
 
-      <Link to="/" className="seccion__link">Volver al inicio <Icon name="arrow-right" size={15} /></Link>
+      <Link to="/app" className="seccion__link">Volver al inicio <Icon name="arrow-right" size={15} /></Link>
     </div>
   )
 }
@@ -72,7 +72,7 @@ export function NotFoundPage() {
         <h1 className="seccion__title">Página no encontrada</h1>
         <p className="seccion__lede">La dirección solicitada no pertenece a una sección de AgroScan.</p>
       </header>
-      <Link to="/" className="action-button action-button--primary">Volver al inicio</Link>
+      <Link to="/app" className="action-button action-button--primary">Volver al inicio</Link>
     </div>
   )
 }

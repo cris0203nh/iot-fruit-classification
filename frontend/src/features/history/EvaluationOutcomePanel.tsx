@@ -7,7 +7,10 @@ import {
   type QualityProposal, type ReviewDecisionLedger,
 } from '../../services/agroscanApi'
 import { summarizeEvaluation } from './evaluationOutcomePolicy.ts'
-import { EvaluationEvidenceSnapshot } from './EvaluationEvidenceSnapshot.tsx'
+import {
+  EvaluationEvidenceSnapshot,
+  type DimensionCardRow,
+} from './EvaluationEvidenceSnapshot.tsx'
 import './EvaluationOutcomePanel.css'
 
 type Sources = {
@@ -21,6 +24,10 @@ export function EvaluationOutcomePanel({ evaluation }: { evaluation: EvaluationD
   const [sources, setSources] = useState<Sources>({
     loading: true, ledger: null, qualityStatus: null, proposals: null,
   })
+
+  const [dimensions, setDimensions] = useState<
+    readonly DimensionCardRow[]
+  >([])
 
   useEffect(() => {
     let active = true
@@ -77,15 +84,34 @@ export function EvaluationOutcomePanel({ evaluation }: { evaluation: EvaluationD
             <small>Lectura asociada a esta evaluación.</small>
           </div>
           <div className="agroscan-outcome__metric">
-            <span>Dimensiones</span>
-            <strong>{summary.dimensions}</strong>
-            <small>Las medidas aproximadas no sustituyen una medición física verificada.</small>
+            <span>Dimensiones estimadas</span>
+
+            {dimensions.length > 0 ? (
+              dimensions.map(row => (
+                <strong key={row.imageId}>
+                  {row.view}: Largo ≈ {row.lengthCm.toFixed(2)} cm
+                  {' · '}
+                  Ancho ≈ {row.widthCm.toFixed(2)} cm
+                </strong>
+              ))
+            ) : (
+              <strong>Sin estimaciones en cm registradas</strong>
+            )}
+
+            <small>
+              Estimaciones ópticas 2D mediante ArUco.
+              La precisión física todavía no está validada.
+            </small>
           </div>
         </div>
       )}
       {!sources.loading && (
-        <EvaluationEvidenceSnapshot evaluationId={evaluation.id} evidence={evaluation.evidence}
-          proposals={sources.proposals} />
+        <EvaluationEvidenceSnapshot
+          evaluationId={evaluation.id}
+          evidence={evaluation.evidence}
+          proposals={sources.proposals}
+                    onDimensionsLoaded={setDimensions}
+        />
       )}
       <div className="agroscan-outcome__actions">
         <Link to={`/trazabilidad/${encodeURIComponent(evaluation.id)}`}>Ver fotografías, registrar revisión y consultar trazabilidad</Link>

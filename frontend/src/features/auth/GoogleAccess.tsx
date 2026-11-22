@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { googleChallenge, googleConfiguration, linkGoogle } from '../../services/agroscanApi'
 import { loadGoogleSdk } from './googleGis'
+import './GoogleAccess.css'
 
 export function GoogleAccessButton({ onCredential }: { onCredential: (credential: string) => Promise<void> }) {
   const element = useRef<HTMLDivElement>(null)
@@ -62,16 +63,43 @@ export function GoogleLinkAccount() {
   const [open, setOpen] = useState(false)
   const [password, setPassword] = useState('')
   const [linked, setLinked] = useState(false)
-  return <details open={open} onToggle={(event) => { setOpen(event.currentTarget.open); if (!event.currentTarget.open) setPassword('') }}>
-    <summary>Vincular Google a mi cuenta</summary>
-    {open && <div className="users-field">
-      <label htmlFor="google-link-password">Confirma la contraseña de tu cuenta actual</label>
-      <input id="google-link-password" type="password" value={password} maxLength={128} autoComplete="current-password"
-        onChange={(event) => setPassword(event.target.value)} />
-      {password && !linked && <GoogleAccessButton onCredential={async (credential) => {
-        await linkGoogle(credential, password); setPassword(''); setLinked(true)
-      }} />}
-      {linked && <p role="status">Cuenta Google vinculada. Tus roles se conservan.</p>}
-    </div>}
-  </details>
+  const [confirmed, setConfirmed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (open && !dialog.current?.open) dialog.current?.showModal() }, [open])
+  useEffect(() => {
+    if (!open) return
+    if (linked) dialog.current?.querySelector<HTMLButtonElement>('footer button')?.focus()
+    else if (confirmed) dialog.current?.querySelector<HTMLElement>('section[aria-label]')?.focus()
+  }, [open, confirmed, linked])
+  function close() {
+    if (busy) return
+    dialog.current?.close()
+  }
+  return <>
+    <button ref={trigger} type="button" className="google-link-trigger" aria-haspopup="dialog" onClick={() => { setPassword(''); setConfirmed(false); setOpen(true) }}>Vincular Google a mi cuenta</button>
+    <dialog ref={dialog} className="google-link-dialog" aria-labelledby="google-link-title" aria-describedby="google-link-description"
+      onCancel={event => { if (busy) event.preventDefault() }} onClose={() => { setOpen(false); setPassword(''); setConfirmed(false); trigger.current?.focus() }}>
+      {open && <><header><span className="google-link-eyebrow">Seguridad de tu cuenta</span><h2 id="google-link-title">Accede también con Google</h2>
+        <p id="google-link-description">Vincula una cuenta Google para iniciar sesión con ella en AgroScan. Tus empresas, roles y permisos se conservan.</p></header>
+        {linked ? <div className="google-link-success" role="status"><strong>Cuenta Google vinculada</strong><p>Ya puedes usar esa cuenta para iniciar sesión. Tu acceso con usuario y contraseña sigue disponible.</p></div>
+          : <><ol className="google-link-steps" aria-label="Pasos de vinculación"><li aria-current={!confirmed ? 'step' : undefined}>1. Confirma tu identidad</li><li aria-current={confirmed ? 'step' : undefined}>2. Elige tu cuenta Google</li></ol>
+            {!confirmed ? <form onSubmit={event => { event.preventDefault(); if (password) setConfirmed(true) }}><label htmlFor="google-link-password">Contraseña actual de AgroScan</label>
+              <input id="google-link-password" type="password" value={password} required maxLength={128} autoComplete="current-password"
+                onChange={event => setPassword(event.target.value)} aria-describedby="google-link-help" />
+              <p id="google-link-help">La contraseña y tu identidad Google se comprobarán juntas antes de vincularlas.</p>
+              <button className="action-button action-button--primary" disabled={!password}>Confirmar y elegir cuenta Google</button>
+            </form> : <section tabIndex={-1} aria-label="Confirmar cuenta Google"><p>Continúa con la cuenta Google que deseas vincular. Al seleccionarla, autorizas expresamente esta vinculación.</p>
+              <GoogleAccessButton onCredential={async credential => {
+                setBusy(true)
+                try { await linkGoogle(credential, password); setPassword(''); setLinked(true) }
+                finally { setBusy(false) }
+              }} />
+              <button type="button" disabled={busy} onClick={() => { setConfirmed(false); setPassword('') }}>Volver a la contraseña</button>
+            </section>}</>}
+        <footer><p>No se vinculan cuentas automáticamente por coincidencia de correo.</p><button type="button" className="action-button action-button--secondary" disabled={busy} onClick={close}>{linked ? 'Cerrar' : 'Cancelar'}</button></footer>
+      </>}
+    </dialog>
+  </>
 }

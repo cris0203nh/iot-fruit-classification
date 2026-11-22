@@ -1,13 +1,15 @@
 import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiConnectionError, ApiResponseError, OrganizationSelectionRequiredError, clearOperatorSession,
-  getBackendHealth, getSessionOrganizationId, getSessionOrganizations, getSessionRole,
+  getBackendHealth, getSessionOrganizationId, getSessionOrganizations,
   isAgroscanAuthenticated, isPlatformOwner, loginAgroscan, loginGoogle, selectOrganization,
+  logoutAgroscan, restoreAgroscanSession,
   type AgroScanRole } from '../../services/agroscanApi'
 import { GoogleAccessButton, GoogleLinkAccount } from './GoogleAccess'
 import { InvitationAcceptance } from './InvitationAcceptance'
 import { forgetInvitation, invitationFromLocation } from './googleGis'
-import { PlatformDashboard } from '../../pages/PlatformDashboard'
+import { OwnerWorkspace } from '../../pages/OwnerWorkspace'
+import { SidebarSessionContext } from '../../components/layout/sidebarSession'
 import './AuthGate.css'
 
 /** Barras decorativas del código de estación; puro ornamento de la etiqueta. */
@@ -29,10 +31,12 @@ function StationClock() {
   )
 }
 
-/** Sesión por rol limitada a la pestaña. No persiste credenciales en el navegador. */
+/** Sesion validada por la API; credenciales persistentes solo en cookie HttpOnly. */
 export function AuthGate({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [authenticated, setAuthenticated] = useState(isAgroscanAuthenticated)
+  const [restoring, setRestoring] = useState(() => typeof document !== 'undefined' && !isAgroscanAuthenticated())
   const [organizations, setOrganizations] = useState(getSessionOrganizations)
   const [activeOrganization, setActiveOrganization] = useState(getSessionOrganizationId)
   const [choosingOrganization, setChoosingOrganization] = useState(false)
@@ -45,6 +49,49 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [api, setApi] = useState<'checking' | 'online' | 'offline'>('checking')
+
+  useEffect(() => {
+    let active = true
+    const synchronize = () => {
+      if (!active) return
+      setAuthenticated(isAgroscanAuthenticated())
+      setOrganizations(getSessionOrganizations())
+      setActiveOrganization(getSessionOrganizationId())
+    }
+    const restore = async (renew = false) => {
+      try { await restoreAgroscanSession(renew) }
+      catch (failure) {
+        if (active && failure instanceof OrganizationSelectionRequiredError) {
+          setChoosingOrganization(true); setSelectedOrganization('')
+        } else if (active) setError('No se pudo validar la sesion. Reintenta el acceso.')
+      } finally { if (active) { synchronize(); setRestoring(false) } }
+    }
+    window.addEventListener('agroscan-session-changed', synchronize)
+    if (!isAgroscanAuthenticated()) void restore()
+    const timer = window.setInterval(() => { if (isAgroscanAuthenticated()) void restore(true) }, 5 * 60 * 1000)
+    const focus = () => { if (isAgroscanAuthenticated()) void restore() }
+    window.addEventListener('focus', focus)
+    return () => {
+      active = false; window.clearInterval(timer)
+      window.removeEventListener('agroscan-session-changed', synchronize)
+      window.removeEventListener('focus', focus)
+    }
+  }, [])
+
+  async function endSession() {
+    if (working) return
+    setWorking(true)
+    setError(null)
+    try {
+      await logoutAgroscan()
+      forgetInvitation(); setInvitationToken(null)
+      setAuthenticated(false); setPassword(''); setShowPassword(false)
+      setOrganizations([]); setActiveOrganization(null); setChoosingOrganization(false)
+      navigate('/acceso', { replace: true })
+    } catch {
+      setError('No se pudo cerrar la sesion en el servidor. Reintenta para completarlo.')
+    } finally { setWorking(false) }
+  }
 
   useEffect(() => {
     const receive = () => {
@@ -77,6 +124,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setActiveOrganization(getSessionOrganizationId())
       if (role === 'revisor') navigate('/historial', { replace: true })
       if (role === 'superadmin') navigate('/plataforma', { replace: true })
+      if (!invitationToken && location.pathname === '/acceso' && (role === 'administrador' || role === 'operador')) navigate('/app', { replace: true })
     } catch (failure) {
       if (failure instanceof OrganizationSelectionRequiredError) {
         setPassword('')
@@ -105,7 +153,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setActiveOrganization(getSessionOrganizationId())
       setChoosingOrganization(false)
       setAuthenticated(true)
-      navigate(role === 'revisor' ? '/historial' : '/', { replace: true })
+      navigate(role === 'revisor' ? '/historial' : '/app', { replace: true })
     } catch (failure) {
       clearOperatorSession()
       setAuthenticated(false)
@@ -123,7 +171,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthenticated(true)
     setOrganizations(getSessionOrganizations())
     setActiveOrganization(getSessionOrganizationId())
-    navigate(role === 'superadmin' ? '/plataforma' : role === 'revisor' ? '/historial' : '/', { replace: true })
+    if (role === 'administrador' && location.pathname === '/suscripcion') return
+    navigate(role === 'superadmin' ? '/plataforma' : role === 'revisor' ? '/historial' : '/app', { replace: true })
   }
 
   async function googleLogin(credential: string) {
@@ -135,6 +184,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }
 
+  if (restoring) return <main aria-busy="true"><p role="status">Validando sesion segura…</p></main>
+
+  if (error && authenticated) return <main><p role="alert">{error}</p>
+    <button type="button" disabled={working} onClick={() => { void endSession() }}>Reintentar cierre de sesion</button>
+    <button type="button" onClick={() => setError(null)}>Volver</button></main>
+
   if (invitationToken && (authenticated || !invitationLogin) && !choosingOrganization) {
     return <InvitationAcceptance key={invitationToken} token={invitationToken} authenticated={authenticated}
       onSuccess={(role) => sessionReady(role, true)} onExisting={() => setInvitationLogin(true)}
@@ -142,17 +197,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (authenticated && isPlatformOwner()) {
-    return <main className="platform-shell">
-      <div className="agroscan-session">
-        <span>Propietario de AgroScan</span>
-        <GoogleLinkAccount />
-        <button type="button" onClick={() => {
-          clearOperatorSession(); setAuthenticated(false); setPassword(''); setError(null)
-          navigate('/', { replace: true })
-        }}>Cerrar sesión</button>
-      </div>
-      <PlatformDashboard />
-    </main>
+    return <OwnerWorkspace sessionActions={<GoogleLinkAccount />} onLogout={() => { void endSession() }} />
   }
 
   if (choosingOrganization && !authenticated) {
@@ -173,7 +218,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             {working ? 'Verificando…' : 'Continuar'}
           </button>
           <button type="button" disabled={working} onClick={() => {
-            clearOperatorSession(); setChoosingOrganization(false); setOrganizations([])
+            void endSession()
           }}>Cancelar</button>
         </form>
       </main>
@@ -181,24 +226,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (authenticated) {
-    return (
-      <>
-        <div className="agroscan-session">
-          <span>Sesión de {getSessionRole() === 'revisor' ? 'revisor (consulta)' : getSessionRole() === 'administrador' ? 'administrador' : 'operador'} activa</span>
-          <GoogleLinkAccount />
-          {organizations.length > 1 && <label className="agroscan-company-selector" htmlFor="agroscan-company-active">
-            Empresa
-            <select id="agroscan-company-active" value={activeOrganization ?? ''} disabled={working}
-              onChange={(event) => { void changeOrganization(Number(event.target.value)) }}>
-              {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-            </select>
-          </label>}
-          <button type="button" onClick={() => { clearOperatorSession(); setAuthenticated(false); setPassword(''); setShowPassword(false); setError(null); setOrganizations([]); setActiveOrganization(null) }}>Cerrar sesión</button>
-        </div>
-        {working ? <p role="status">Cambiando empresa…</p>
-          : <Fragment key={activeOrganization ?? 'single'}>{children}</Fragment>}
-      </>
-    )
+    return <SidebarSessionContext.Provider value={{
+      actions: <><GoogleLinkAccount /><button type="button" className="owner-logout" disabled={working} onClick={() => { void endSession() }}>Cerrar sesión</button></>,
+      organizationSelector: organizations.length > 1 ? <label className="agroscan-company-selector" htmlFor="agroscan-company-active">
+        Empresa activa
+        <select id="agroscan-company-active" value={activeOrganization ?? ''} disabled={working}
+          onChange={event => { void changeOrganization(Number(event.target.value)) }}>
+          {organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+        </select>
+      </label> : organizations.find(organization => organization.id === activeOrganization) && <div className="sidebar-active-company">
+        <span>Empresa activa</span>
+        <strong>{organizations.find(organization => organization.id === activeOrganization)?.name}</strong>
+      </div>,
+    }}>
+      {working ? <p role="status">Actualizando sesión…</p> : <Fragment key={activeOrganization ?? 'single'}>{children}</Fragment>}
+    </SidebarSessionContext.Provider>
   }
 
   const apiLabel = api === 'online' ? 'en línea' : api === 'offline' ? 'sin enlace' : 'consultando'
@@ -320,7 +362,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 : <><span>Entrar a la estación</span><span className="agroscan-login__arrow" aria-hidden="true">→</span></>}
             </button>
 
-            <p className="agroscan-login__note">La sesión vive solo en esta pestaña y se cierra al recargar. No compartas tus credenciales.</p>
+            <p className="agroscan-login__note">Tu sesión se conserva al recargar mientras siga vigente. Cierra sesión al terminar en un equipo compartido. No compartas tus credenciales.</p>
             <GoogleAccessButton onCredential={googleLogin} />
           </form>
         </div>

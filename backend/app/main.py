@@ -15,8 +15,20 @@ from .routers import auth, evaluations, images, iot, lots, users, uncertainty, r
 from .routers import platform
 from .routers import auth_identity, invitations
 from .routers import iot_admin, organization_export
+from .routers import commercial
+from .routers import applications
+from .services.browser_sessions import COOKIE as SESSION_COOKIE, protect_browser_request
 
-app = FastAPI(title="AgroScan API")
+app = FastAPI(title="AgroScan API", dependencies=[Depends(protect_browser_request)])
+app.add_middleware(applications.ApplicationBodyLimit)
+
+
+@app.middleware('http')
+async def prevent_private_session_cache(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith('/api/auth/') or SESSION_COOKIE in request.cookies:
+        response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @app.exception_handler(RequestValidationError)
@@ -79,11 +91,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
+    expose_headers=['X-AgroScan-Session-Invalid'],
 )
 
 app.include_router(auth.router)
 app.include_router(auth_identity.router)
 app.include_router(platform.router)
+app.include_router(commercial.router)
+app.include_router(commercial.owner)
+app.include_router(applications.public)
+app.include_router(applications.owner)
 operational = APIRouter(dependencies=[Depends(require_operational_context)])
 for router in (users.router, lots.router, evaluations.router, images.router,
                uncertainty.router, review_decisions.router, piece_history.router,

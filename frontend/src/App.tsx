@@ -1,5 +1,5 @@
 
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 import { AppLayout } from './components/layout/AppLayout'
@@ -31,6 +31,10 @@ import {
 } from './pages/TraceabilityPage'
 
 import './App.css'
+import './styles/workspace.css'
+import { PlansPage, SubscriptionPage } from './features/commercial/Commercial'
+import { CommercialApplicationPage } from './features/commercial/Applications'
+import { PublicEntry } from './features/commercial/PublicEntry'
 
 // ==========================================
 // PÁGINA DE INICIO SEGÚN EL ROL
@@ -88,10 +92,12 @@ function AdminRoute({ children }: { children: ReactNode }) {
 // APLICACIÓN PRINCIPAL
 // ==========================================
 
-function App() {
+export function AgroScanRoutes() {
   return (
-    <BrowserRouter>
       <Routes>
+        <Route path="/" element={<PublicEntry />} />
+        <Route path="planes" element={<PlansPage />} />
+        <Route path="solicitar" element={<CommercialApplicationPage />} />
 
         <Route
           element={
@@ -102,11 +108,10 @@ function App() {
         >
 
           {/* INICIO */}
+          <Route path="suscripcion" element={<SubscriptionPage />} />
 
-          <Route
-            index
-            element={<RoleHome />}
-          />
+          <Route path="acceso" element={<Navigate to={getSessionRole() === 'revisor' ? '/historial' : '/app'} replace />} />
+          <Route path="app" element={<RoleHome />} />
 
           {/* OPERADOR */}
 
@@ -185,8 +190,11 @@ function App() {
         </Route>
 
       </Routes>
-    </BrowserRouter>
   )
+}
+
+function App() {
+  return <BrowserRouter><AgroScanRoutes /></BrowserRouter>
 }
 
 export default App

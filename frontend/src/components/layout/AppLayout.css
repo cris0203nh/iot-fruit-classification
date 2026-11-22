@@ -77,6 +77,8 @@
   text-transform: uppercase;
 }
 
+.brand > div:not(.brand-mark) { min-width: 0; overflow-wrap: anywhere; }
+
 .brand span {
   display: block;
   margin-top: 4px;
@@ -126,6 +128,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-height: 44px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .nav-link {
@@ -175,7 +181,19 @@
   margin-top: auto;
   padding-top: 18px;
   border-top: 1px solid rgba(239, 232, 218, 0.14);
+  flex-shrink: 0;
+  max-height: 65dvh;
+  overflow-y: auto;
 }
+
+.brand, .station-context { flex-shrink: 0; }
+.layout-mobile-controls { display: none; }
+.sidebar-close { display: none; }
+.sidebar-session-status { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #d9e6ce; font: 500 .75rem/1.5 var(--sans); }
+.sidebar-session-status > span { width: 7px; height: 7px; border-radius: 50%; background: #a7d5a0; }
+.sidebar-active-company { display: grid; gap: 4px; overflow-wrap: anywhere; font: 500 .8125rem/1.5 var(--sans); }
+.sidebar-active-company span { color: #d9e6ce; }
+.sidebar-active-company strong { color: #fffef2; }
 
 .sidebar-disclaimer {
   display: flex;
@@ -204,45 +222,9 @@
   background: var(--sheet);
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  height: 62px;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--ink);
-  background: var(--sheet);
-  color: var(--ink-soft);
-  font-family: var(--mono);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
-.topbar__main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--ink);
-}
 
-.topbar__badge {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 1px;
-  background: var(--ink);
-  color: var(--sheet);
-}
 
-.topbar__context {
-  padding: 6px 10px;
-  border: 1px solid var(--rule);
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
 
 .mobile-menu-button {
   display: none;
@@ -279,12 +261,9 @@
     padding-inline: 22px;
   }
 
-  .topbar {
-    padding-inline: 22px;
-  }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 1000px) {
   .sidebar {
     position: fixed;
     z-index: 30;
@@ -292,7 +271,7 @@
     bottom: 0;
     left: 0;
     width: min(280px, 86vw);
-    min-height: 100vh;
+    min-height: 0;
     transform: translateX(-102%);
     transition: transform 180ms ease;
     box-shadow: 8px 0 0 rgba(23, 32, 27, 0.08);
@@ -324,14 +303,10 @@
     display: inline-flex;
   }
 
-  .topbar {
-    height: 56px;
-    padding: 0 15px;
-  }
+  .layout-mobile-controls { display: flex; padding: 10px 15px 0; }
+  .sidebar-close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; margin-left: auto; padding: 0; border: 1px solid #e8f3dc4d; background: transparent; color: #f3f6e9; cursor: pointer; }
 
-  .topbar__context {
-    display: none;
-  }
+
 
   .page-content {
     padding: 18px 15px 40px;
@@ -346,21 +321,8 @@
   }
 }
 
-/* En móvil se prioriza el contexto sobre el sello decorativo. */
-@media (max-width: 420px) {
-  .topbar__badge {
-    display: none;
-  }
-}
-
-@media (max-width: 360px) {
-  .topbar__main > span:last-child {
-    display: none;
-  }
-}
-
 /* La barra lateral acompaña el scroll en escritorio. */
-@media (min-width: 701px) {
+@media (min-width: 1001px) {
   .sidebar {
     position: sticky;
     top: 0;
@@ -372,15 +334,52 @@
 /* I04: el contenido de cada ruta puede recibir foco sin contorno decorativo. */
 .page-content:focus { outline: none; }
 .page-content { min-width: 0; }
-@media (max-width: 700px) {
+
+/* Propietario: mismo layout y navegación accesible, con contexto de plataforma. */
+.app-shell--owner { background: #f4f5ef; }
+.app-shell--owner .workspace { background: #f4f5ef; }
+.app-shell--owner .page-content { max-width: 1500px; margin-inline: auto; padding: clamp(20px, 3vw, 40px); }
+.owner-session, .owner-session__actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.owner-account { display: grid; gap: 3px; text-align: right; max-width: 28ch; overflow-wrap: anywhere; text-transform: none; letter-spacing: normal; }
+.owner-account strong { font-family: var(--sans); font-size: .875rem; color: var(--ink); }
+.owner-account span { font-size: .75rem; }
+.owner-session__actions button, .owner-session__actions summary { min-height: 44px; padding: 10px 14px; cursor: pointer; }
+.owner-logout { border: 1px solid #b9c7b8; border-radius: 8px; background: transparent; color: #21472f; font-family: var(--sans); }
+.app-shell--administrator .page-content { max-width: 1500px; margin-inline: auto; padding: clamp(20px, 3vw, 40px); }
+.sidebar-account-company { margin-bottom: 16px; }
+.sidebar-account-company label { display: grid; gap: 8px; font: 500 .8125rem/1.5 var(--sans); color: #edf2e5; }
+.sidebar-account-company select { max-width: 100%; color: #21372b; }
+.owner-sidebar-account { margin: 0; }
+.owner-sidebar-account__identity { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
+.owner-sidebar-avatar { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 10px; background: #eef5e51a; color: #e9f1df; }
+.owner-sidebar-account .owner-account { min-width: 0; max-width: 100%; text-align: left; gap: 5px; }
+.owner-sidebar-account .owner-account small { color: #d9e6ce; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
+.owner-sidebar-account .owner-account strong { color: #fffef2; font-size: .875rem; line-height: 1.5; }
+.owner-sidebar-account .owner-account > span { color: #d8e1d2; font-size: .75rem; }
+.owner-sidebar-account .owner-session__actions { display: grid; gap: 8px; }
+.owner-sidebar-account .owner-session__actions > button { width: 100%; font: 500 .8125rem/1.5 var(--sans); text-align: left; color: #f3f6e9; background: #e8f3dc09; border-color: #e8f3dc4d; }
+.owner-sidebar-account .owner-session__actions > button:hover { background: #e8f3dc1a; }
+@media (min-width: 1001px) {
+  .app-shell--owner .sidebar { position: sticky; top: 0; height: 100dvh; overflow-y: auto; flex-basis: 256px; width: 256px; }
+  .app-shell--administrator .sidebar { position: sticky; top: 0; height: 100dvh; overflow-y: auto; }
+}
+@media (max-width: 1000px) {
+  .owner-session { width: 100%; justify-content: space-between; }
+  .owner-account { text-align: left; }
+}
+@media (max-width: 1000px) {
+  .app-shell--administrator .page-content { padding: 22px 14px; }
+  .app-shell--owner .page-content { padding: 22px 14px; }
+  .owner-session__actions { gap: 8px; }
+  .owner-session__actions details { max-width: 100%; }
+}
+@media (max-width: 1000px) {
   .sidebar {
     height: 100dvh;
     max-height: 100dvh;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .topbar__main { min-width: 0; }
-  .topbar__main > span:last-child { overflow-wrap: anywhere; }
 }
 @media (max-width: 360px) {
   .page-content { padding-inline: 12px; }

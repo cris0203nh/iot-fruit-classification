@@ -1,0 +1,131 @@
+.public-header {
+  --public-ink: #113326;
+  --public-green: #123b2d;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  color: var(--public-ink);
+  background: rgb(250 251 247 / 93%);
+  border-bottom: 1px solid #dce5d9;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.public-header__inner {
+  max-width: 1400px;
+  min-height: 84px;
+  margin-inline: auto;
+  padding: 14px clamp(20px, 4vw, 64px);
+  display: flex;
+  gap: clamp(20px, 3vw, 44px);
+  align-items: center;
+}
+.public-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: var(--public-ink);
+}
+.public-brand__symbol {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #e8f5dc;
+  background: #164e36;
+  border-radius: 12px;
+  transform: rotate(-6deg);
+}
+.public-brand__symbol svg { transform: rotate(6deg); }
+.public-brand strong {
+  display: grid;
+  font-size: 1.4rem;
+  line-height: 1.12;
+  font-weight: 790;
+  letter-spacing: -.06em;
+}
+.public-brand small {
+  margin-top: 5px;
+  color: #66786b;
+  font-size: .66rem;
+  font-weight: 650;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.public-header__desktop { display: flex; align-items: center; gap: clamp(14px, 2vw, 30px); margin-left: auto; }
+.public-header__desktop a,
+.public-header__mobile a {
+  color: #425d4c;
+  font-size: .86rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.public-header__desktop a { display: inline-flex; align-items: center; min-height: 44px; }
+.public-header a:hover { color: #237b47; }
+.public-header__actions { display: flex; align-items: center; gap: 12px; }
+.public-access,
+.public-header__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 44px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: .86rem;
+  font-weight: 750;
+  white-space: nowrap;
+  transition: background-color .2s ease, border-color .2s ease, transform .2s ease;
+}
+.public-access { color: var(--public-ink); border: 1px solid #cbd9cd; }
+.public-header__cta { color: #fff !important; border: 1px solid #123b2d; background: #123b2d; }
+.public-header__cta:hover { background: #245c43; transform: translateY(-2px); }
+.public-header__mobile { display: none; }
+@media (max-width: 1130px) {
+  .public-header__desktop { display: none; }
+  .public-header__actions { margin-left: auto; }
+  .public-header__mobile { display: block; }
+  .public-header__mobile summary {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #cedbd0;
+    border-radius: 50%;
+    list-style: none;
+    cursor: pointer;
+    color: #133c2c;
+    background: #f7faf5;
+  }
+  .public-header__mobile summary::-webkit-details-marker { display: none; }
+  .public-header__mobile nav {
+    display: grid;
+    gap: 4px;
+    position: absolute;
+    top: calc(100% - 1px);
+    inset-inline: 0;
+    padding: 16px clamp(20px, 4vw, 64px) 22px;
+    border-bottom: 1px solid #cfddce;
+    background: #fafbf7;
+    box-shadow: 0 20px 35px rgb(9 40 27 / 10%);
+  }
+  .public-header__mobile nav a { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 8px 10px; border-radius: 9px; }
+  .public-header__mobile nav a:hover { background: #eff4eb; }
+  .public-header__mobile nav .public-header__mobile-cta { color: #fff; padding-inline: 16px; background: #123b2d; }
+}
+@media (max-width: 640px) {
+  .public-header__inner { min-height: 73px; gap: 10px; }
+  .public-brand strong { font-size: 1.25rem; }
+  .public-brand small { display: none; }
+  .public-brand__symbol { width: 37px; height: 37px; border-radius: 10px; }
+  .public-header__cta { display: none; }
+  .public-access { min-height: 40px; padding: 8px 14px; font-size: .82rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-header * { transition: none !important; }
+}
+
+@media (max-width: 390px) { .public-header__actions .public-access { display: none; } }

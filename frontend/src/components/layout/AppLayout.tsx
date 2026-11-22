@@ -1,21 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { operatorNavigation, reviewerNavigation, administratorNavigation } from '../../app/navigation'
+import { operatorNavigation, reviewerNavigation, administratorNavigation, ownerNavigation } from '../../app/navigation'
 import type { NavigationItem } from '../../app/navigation'
 import { getSessionRole } from '../../services/agroscanApi'
 import { Icon } from './Icon'
 import { menuTabTarget } from './menuFocus'
+import { AccountIdentity, SidebarAccount } from './SidebarAccount'
+import { SidebarSessionContext } from './sidebarSession'
 import './AppLayout.css'
 
-export function AppLayout() {
+export function AppLayout({ owner = false, account, actions, children }: {
+  owner?: boolean; account?: ReactNode; actions?: ReactNode; children?: ReactNode
+} = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const role = getSessionRole()
   const reviewer = role === 'revisor'
   const administrator = role === 'administrador'
-  const roleTitle = reviewer ? 'Panel de revisión' : administrator ? 'Panel administrativo' : 'Panel de operaciones'
-  const roleDescription = reviewer ? 'Control de evaluaciones' : administrator ? 'Supervisión de AgroScan' : 'Gestión de productos agrícolas'
-  const roleBadge = reviewer ? 'REVISOR' : administrator ? 'ADMINISTRADOR' : 'OPERADOR'
-  const navigation: NavigationItem[] = reviewer
+  const sidebarSession = useContext(SidebarSessionContext)
+  const roleTitle = owner ? 'Panel de plataforma' : reviewer ? 'Panel de revisión' : administrator ? 'Panel administrativo' : 'Panel de operaciones'
+  const roleDescription = owner ? 'Gestión global de AgroScan' : reviewer ? 'Control de evaluaciones' : administrator ? 'Supervisión de AgroScan' : 'Gestión de productos agrícolas'
+  const navigation: NavigationItem[] = owner ? ownerNavigation : reviewer
     ? reviewerNavigation
     : administrator ? administratorNavigation : operatorNavigation
   const { pathname } = useLocation()
@@ -40,6 +44,7 @@ export function AppLayout() {
     sidebar?.querySelector<HTMLElement>('.nav-link')?.focus()
 
     function handleKeydown(event: KeyboardEvent) {
+      if (document.querySelector('dialog.google-link-dialog[open]')) return
       if (event.key === 'Escape') {
         event.preventDefault()
         closeDestination.current = 'button'
@@ -47,7 +52,7 @@ export function AppLayout() {
         return
       }
       if (event.key !== 'Tab' || !sidebar) return
-      const links = Array.from(sidebar.querySelectorAll<HTMLElement>('a[href]'))
+      const links = Array.from(sidebar.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),select:not([disabled]),summary'))
       if (links.length === 0) return
       const target = menuTabTarget<HTMLElement>(links, document.activeElement as HTMLElement | null, event.shiftKey)
       if (target) {
@@ -72,7 +77,7 @@ export function AppLayout() {
 
   // Al regresar al tamaño de escritorio, el menú deja de ser modal.
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 701px)')
+    const desktop = window.matchMedia('(min-width: 1001px)')
     const onResize = (event: MediaQueryListEvent) => {
       if (event.matches) setMenuOpen(false)
     }
@@ -90,7 +95,7 @@ export function AppLayout() {
       <NavLink
         key={path}
         to={path}
-        end={path === '/'}
+        end={path === '/app'}
         className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}
         onClick={() => { if (menuOpen) closeDestination.current = 'content'; setMenuOpen(false) }}
       >
@@ -101,7 +106,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${owner ? ' app-shell--owner' : administrator ? ' app-shell--administrator' : ''}`}>
       <a className="skip-link" href="#main-content">Saltar al contenido</a>
 
       {menuOpen && (
@@ -126,8 +131,11 @@ export function AppLayout() {
           <div className="brand-mark"><Icon name="leaf" size={21} /></div>
           <div>
             <strong>AgroScan</strong>
-            <span>Evaluación externa</span>
+            <span>{owner ? 'Plataforma multiempresa' : 'Evaluación externa'}</span>
           </div>
+          <button type="button" className="sidebar-close" aria-label="Cerrar menú" onClick={closeMenuFromBackdrop}>
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         <div className="station-context">
@@ -143,16 +151,18 @@ export function AppLayout() {
         </nav>
 
         <div className="sidebar-bottom">
+          <SidebarAccount role={owner ? 'Propietario global' : administrator ? 'Administrador empresarial' : reviewer ? 'Revisor (consulta)' : 'Operador'}
+            identity={owner ? account : <AccountIdentity />} actions={owner ? actions : sidebarSession?.actions}
+            organizationSelector={owner ? undefined : sidebarSession?.organizationSelector} />
           <div className="sidebar-disclaimer">
             <Icon name="info" size={17} />
-            <span>Verifica la estación<br />antes de evaluar</span>
+            <span>{owner ? <>Administración global<br />Contratación solo DEMO</> : <>Verifica la estación<br />antes de evaluar</>}</span>
           </div>
         </div>
       </aside>
 
       <div className="workspace" inert={menuOpen}>
-        <header className="topbar">
-          <div className="topbar__main">
+        <div className="layout-mobile-controls">
             <button
               ref={mobileMenuButtonRef}
               className="mobile-menu-button"
@@ -164,13 +174,9 @@ export function AppLayout() {
             >
               <Icon name={menuOpen ? 'close' : 'menu'} size={22} />
             </button>
-            <span className="topbar__badge" aria-hidden="true"><Icon name="leaf" size={15} /></span>
-            <span>AgroScan / {roleBadge}</span>
-          </div>
-          <span className="topbar__context">{roleDescription}</span>
-        </header>
+        </div>
         <main id="main-content" className="page-content" ref={mainRef} tabIndex={-1}>
-          <Outlet />
+          {children ?? <Outlet />}
         </main>
       </div>
     </div>

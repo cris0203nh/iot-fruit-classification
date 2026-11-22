@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SubscriptionSummary } from '../features/commercial/Commercial'
 import { Link } from 'react-router-dom'
 import {
   getBackendHealth,
@@ -140,6 +141,7 @@ export function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
+      <SubscriptionSummary />
 
       <section className="admin-welcome">
         <div>

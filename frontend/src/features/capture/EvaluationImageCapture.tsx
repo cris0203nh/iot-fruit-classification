@@ -75,25 +75,35 @@ const [saved, setSaved] = useState<Saved[]>([])
   const [loadState, setLoadState] = useState<LoadedState>('loading')
   const [revision, setRevision] = useState(0)
   const [geometry, setGeometry] = useState<FruitGeometryResult[]>([])
-  const [geometryPending, setGeometryPending] = useState<string | null>(null)
+  const geometryRequests = useRef(new Set<string>())
+  const [geometryPending, setGeometryPending] = useState<ReadonlySet<string>>(new Set())
   const [geometryError, setGeometryError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
-    void listFruitGeometries(evaluationId).then(rows => { if (active) setGeometry(rows) })
+    void listFruitGeometries(evaluationId).then(rows => {
+      if (active) setGeometry(previous => [...rows, ...previous.filter(row =>
+        row.evaluationId === evaluationId && !rows.some(saved => saved.id === row.id))])
+    })
       .catch(() => { if (active) setGeometryError('No se pudieron consultar las mediciones guardadas.') })
     return () => { active = false }
   }, [evaluationId, revision])
 
   async function analyzeSavedImage(imageId: string) {
-    setGeometryPending(imageId)
+    const key = `${evaluationId}:${imageId}`
+    if (geometryRequests.current.has(key)) return
+    geometryRequests.current.add(key)
+    setGeometryPending(previous => new Set([...previous, imageId]))
     setGeometryError(null)
     try {
       const result = await analyzeFruitGeometry(evaluationId, imageId)
       setGeometry(previous => [...previous.filter(row => row.id !== result.id), result])
     } catch (cause) {
       setGeometryError(cause instanceof Error ? `No se pudo analizar la geometría: ${cause.message}` : 'No se pudo analizar la geometría.')
-    } finally { setGeometryPending(null) }
+    } finally {
+      geometryRequests.current.delete(key)
+      setGeometryPending(previous => new Set([...previous].filter(id => id !== imageId)))
+    }
   }
 
   const [error, setError] = useState<string | null>(null)
@@ -864,10 +874,11 @@ const [cameraOpen, setCameraOpen] = useState(false)
                   <strong>{item.view} · {item.id}</strong>
                   <GeometryOrOriginal path={item.imageUrl} alt={`Fotografía ${item.view}`}
                     result={geometry.filter(row => row.imageId === item.id).at(-1)} />
-                  {getSessionRole() === 'administrador' && !geometry.some(row => row.imageId === item.id) && (
+                  {geometryPending.has(item.id) && <p role="status">Calculando geometría en píxeles…</p>}
+                  {['administrador', 'operador'].includes(getSessionRole() ?? '') && !geometry.some(row => row.imageId === item.id) && (
                     <button type="button" className="action-button action-button--secondary"
-                      disabled={geometryPending !== null} onClick={() => void analyzeSavedImage(item.id)}>
-                      {geometryPending === item.id ? 'Analizando YOLOE…' : 'Analizar geometría de esta foto'}
+                      disabled={geometryPending.has(item.id)} onClick={() => void analyzeSavedImage(item.id)}>
+                      {geometryPending.has(item.id) ? 'Analizando YOLOE…' : 'Analizar o reintentar geometría de esta foto'}
                     </button>
                   )}
 
@@ -895,17 +906,16 @@ const [cameraOpen, setCameraOpen] = useState(false)
         />
       )}
 
-      {/* I03B: aproximación por escala sin exigir homografía completa. */}
-      {saved.length >= 2 && getSessionRole() === 'administrador' && (
-        <details className="capture__advanced">
-          <summary>Medidas aproximadas (opcional)</summary>
-        <ApproxA4Panel
-          key={`approx:${evaluationId}:${saved.map(item => item.id).join('|')}`}
-          evaluationId={evaluationId}
-          evidence={saved}
-        />
-        </details>
-      )}
+      {/* Estimación automática A4 para operador y administrador. */}
+      {saved.length >= 2 &&
+        (getSessionRole() === 'operador' ||
+          getSessionRole() === 'administrador') && (
+          <ApproxA4Panel
+            key={`approx:${evaluationId}:${saved.map(item => item.id).join('|')}`}
+            evaluationId={evaluationId}
+            evidence={saved}
+          />
+        )}
 
       {/* La homografía A4 estricta permanece disponible como herramienta avanzada. */}
       {saved.length >= 2 && getSessionRole() === 'administrador' && (

@@ -36,7 +36,7 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, session_id: str | None = None) -> str:
     """Generar token JWT para un usuario autenticado."""
     now = datetime.now(timezone.utc)
 
@@ -45,6 +45,8 @@ def create_access_token(user_id: int) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=ACCESS_TOKEN_MINUTES),
     }
+    if session_id is not None:
+        payload['sid'] = session_id
 
     return jwt.encode(
         payload,
@@ -53,7 +55,7 @@ def create_access_token(user_id: int) -> str:
     )
 
 
-def decode_access_token(token: str) -> int:
+def decode_access_claims(token: str) -> dict:
     """Validar JWT y recuperar el identificador del usuario."""
     try:
         payload = jwt.decode(
@@ -67,8 +69,11 @@ def decode_access_token(token: str) -> int:
 
         if user_id <= 0:
             raise ValueError("Identificador inválido.")
+        if 'sid' in payload and (not isinstance(payload['sid'], str) or len(payload['sid']) != 64
+                                 or any(c not in '0123456789abcdef' for c in payload['sid'])):
+            raise ValueError('Sesion invalida.')
 
-        return user_id
+        return payload
 
     except (jwt.InvalidTokenError, ValueError, TypeError, KeyError):
         from fastapi import HTTPException, status
@@ -78,3 +83,7 @@ def decode_access_token(token: str) -> int:
             detail="Token inválido o expirado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def decode_access_token(token: str) -> int:
+    return int(decode_access_claims(token)['sub'])

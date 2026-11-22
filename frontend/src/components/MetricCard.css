@@ -1,0 +1,10 @@
+.executive-metric { --metric-accent: #376c49; --metric-wash: #edf4eb; position: relative; min-width: 0; padding: 22px; border: 1px solid #dce3d8; border-radius: 14px; background: #fffefb; box-shadow: 0 3px 12px #17382205; }
+.executive-metric--blue { --metric-accent: #42647b; --metric-wash: #edf2f6; }
+.executive-metric--amber { --metric-accent: #856227; --metric-wash: #f7f1e6; }
+.executive-metric::before { content: ''; position: absolute; top: 22px; bottom: 22px; left: 0; width: 3px; background: var(--metric-accent); border-radius: 0 3px 3px 0; }
+.executive-metric__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.executive-metric__head > span:first-child { color: #4b5d50; font-size: .8125rem; font-weight: 650; line-height: 1.5; }
+.executive-metric__icon { display: inline-flex; flex: 0 0 38px; width: 38px; height: 38px; align-items: center; justify-content: center; color: var(--metric-accent); background: var(--metric-wash); border-radius: 11px; }
+.executive-metric > strong { display: block; margin: 8px 0 6px; color: #1b3525; font-size: clamp(1.65rem, 2.5vw, 2rem); font-weight: 750; line-height: 1.15; letter-spacing: -.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.executive-metric > p { margin: 0; font-size: .75rem; color: #5a685e; line-height: 1.5; }
+@media (max-width: 700px) { .executive-metric { padding: 18px; } .executive-metric__head { gap: 8px; } .executive-metric__icon { flex-basis: 32px; width: 32px; height: 32px; } }

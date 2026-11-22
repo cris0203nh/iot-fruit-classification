@@ -5,6 +5,9 @@ from sqlalchemy.orm import Mapped, Session, mapped_column, with_loader_criteria
 
 # Relaciones a recursos empresariales. Los usuarios son identidades compartidas.
 TENANT_LINKS = {
+    'commercial_onboarding_orders': {'order_id': 'commercial_orders', 'subscription_id': 'commercial_subscriptions'},
+    'commercial_subscriptions': {}, 'commercial_orders': {},
+    'commercial_transactions': {'order_id': 'commercial_orders'},
     'iot_stations': {}, 'iot_devices': {'station_id': 'iot_stations'},
     'organization_invitations': {},
     'lots': {}, 'measurements': {},

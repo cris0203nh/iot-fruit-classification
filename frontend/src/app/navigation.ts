@@ -7,9 +7,16 @@ export type NavigationItem = {
   icon: IconName
 }
 
+export const ownerNavigation: NavigationItem[] = [
+  { path: '/plataforma/solicitudes', label: 'Solicitudes comerciales', icon: 'clipboard' },
+  { path: '/plataforma/empresas', label: 'Empresas', icon: 'boxes' },
+  { path: '/plataforma/administradores', label: 'Administradores', icon: 'user' },
+  { path: '/plataforma/planes', label: 'Planes y contrataciones DEMO', icon: 'chart' },
+]
+
 // Funciones exclusivas del operador
 export const operatorNavigation: NavigationItem[] = [
-  { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/app', label: 'Inicio', icon: 'home' },
   { path: '/evaluacion', label: 'Nueva evaluación', icon: 'scan' },
   { path: '/lotes', label: 'Mis lotes', icon: 'boxes' },
   { path: '/historial', label: 'Historial', icon: 'history' },
@@ -18,7 +25,7 @@ export const operatorNavigation: NavigationItem[] = [
 
 // Funciones exclusivas del revisor
 export const reviewerNavigation: NavigationItem[] = [
-  { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/app', label: 'Inicio', icon: 'home' },
   { path: '/revisiones', label: 'Revisiones pendientes', icon: 'clipboard' },
   { path: '/historial', label: 'Evaluaciones', icon: 'history' },
   { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
@@ -26,9 +33,10 @@ export const reviewerNavigation: NavigationItem[] = [
 
 // Funciones administrativas existentes
 export const administratorNavigation: NavigationItem[] = [
-  { path: '/', label: 'Inicio', icon: 'home' },
+  { path: '/app', label: 'Inicio', icon: 'home' },
   { path: '/revisiones', label: 'Revisiones pendientes', icon: 'clipboard' },
   { path: '/usuarios', label: 'Gestión de usuarios', icon: 'user' },
   { path: '/trazabilidad', label: 'Trazabilidad', icon: 'network' },
   { path: '/estadisticas', label: 'Estadísticas', icon: 'chart' },
+  { path: '/suscripcion', label: 'Plan y suscripción', icon: 'chart' },
 ]

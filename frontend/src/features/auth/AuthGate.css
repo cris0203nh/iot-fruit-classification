@@ -514,52 +514,6 @@
   color: var(--ink-soft);
 }
 
-/* --- Barra de sesión activa (después de entrar) ------------------------ */
-
-.agroscan-session {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
-  padding: 8px 18px;
-  border-bottom: 1px solid #c9c0ad;
-  background: #ece4d4;
-  color: #3f473e;
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: var(--fs-label);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.agroscan-session span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.agroscan-session span::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: #2c6a4c;
-  animation: live 2.4s steps(1, end) infinite;
-}
-
-.agroscan-session button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.agroscan-session button:hover {
-  color: #bf3f2a;
-}
-
 /* --- Animaciones ------------------------------------------------------- */
 
 @keyframes sheet-in {
@@ -700,8 +654,7 @@
 @media (prefers-reduced-motion: reduce) {
   .agroscan-login *,
   .agroscan-login *::before,
-  .agroscan-login *::after,
-  .agroscan-session span::before {
+  .agroscan-login *::after {
     animation: none !important;
     transition: none !important;
   }
@@ -719,7 +672,6 @@
 /* I04: foco accesible y legibilidad del acceso en pantallas pequeñas. */
 .google-access { margin-top: 16px; }
 .google-access p { font-size: var(--fs-label, 13px); }
-.agroscan-session details { max-width: 320px; }
 .agroscan-company-selector { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .agroscan-company-selector select, #agroscan-company-login {
   max-width: 100%; padding: 8px; font: inherit; color: inherit; background: var(--paper, #fff);
@@ -728,7 +680,6 @@
   outline: 2px solid currentColor; outline-offset: 3px;
 }
 @media (max-width: 620px) {
-  .agroscan-session { flex-wrap: wrap; }
   .agroscan-company-selector { width: 100%; }
 }
 .agroscan-login__line:focus-within {
@@ -742,3 +693,4 @@
   .agroscan-login__status li { font-size: var(--fs-label); }
   .agroscan-login__foot { font-size: 11px; letter-spacing: 0.05em; }
 }
+.agroscan-login__form .users-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 16px; }

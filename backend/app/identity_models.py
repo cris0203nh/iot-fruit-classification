@@ -17,6 +17,18 @@ class GoogleIdentity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BrowserSession(Base):
+    __tablename__ = 'browser_sessions'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    password_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey('organizations.id'), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GoogleChallenge(Base):
     __tablename__ = 'google_challenges'
     cookie_hash: Mapped[str] = mapped_column(String(64), primary_key=True)

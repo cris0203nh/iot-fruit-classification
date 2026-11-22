@@ -57,6 +57,8 @@ const DEFAULT_API_TIMEOUT_MS = API_BASE.startsWith('https://') ? 30000 : 8000
 // Token de sesión exclusivamente en memoria; nunca se guarda en localStorage ni en URL.
 export type AgroScanRole = 'administrador' | 'operador' | 'revisor'
 let sessionToken: string | null = null
+let sessionCsrf: string | null = null
+let restoration: Promise<AgroScanRole | 'superadmin' | null> | null = null
 let sessionRole: AgroScanRole | null = null
 let sessionPlatformOwner = false
 export type SessionOrganization = { id: number; name: string; roles: AgroScanRole[] }
@@ -74,12 +76,47 @@ export class OrganizationSelectionRequiredError extends Error {
 
 export function clearOperatorSession(): void {
   sessionToken = null
+  sessionCsrf = null
   sessionRole = null
   sessionPlatformOwner = false
   sessionOrganizationId = null
   sessionOrganizations = []
   sessionEpoch += 1
   organizationSwitching = false
+}
+
+function notifySessionChanged(): void {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new Event('agroscan-session-changed'))
+  }
+}
+
+export async function logoutAgroscan(): Promise<void> {
+  await request('/api/auth/logout', { method: 'POST' })
+  clearOperatorSession()
+  notifySessionChanged()
+}
+
+/** La cookie HttpOnly es la unica persistencia; todos los permisos se revalidan. */
+export function restoreAgroscanSession(renew = false): Promise<AgroScanRole | 'superadmin' | null> {
+  if (restoration) return restoration
+  const attempt = sessionEpoch
+  restoration = (async () => {
+    try {
+      const login = await request(renew ? '/api/auth/session/refresh' : '/api/auth/session',
+        renew ? { method: 'POST' } : undefined)
+      return await completeAuthentication(login, attempt, ['administrador', 'operador', 'revisor'], true, true)
+    } catch (error) {
+      if (error instanceof OrganizationSelectionRequiredError) throw error
+      if (attempt === sessionEpoch) clearOperatorSession()
+      if (error instanceof ApiResponseError && (error.status === 401 || error.status === 403)) return null
+      throw error
+    } finally {
+      notifySessionChanged()
+      restoration = null
+    }
+  })()
+  return restoration
 }
 
 export function getSessionRole(): AgroScanRole | null {
@@ -157,7 +194,7 @@ function detailMessage(body: unknown): string | null {
   return null
 }
 
-async function request(
+export async function request(
   path: string,
   options?: RequestInit,
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
@@ -171,11 +208,14 @@ async function request(
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response: Response
   try {
-    const headers = sessionToken ? new Headers(options?.headers) : options?.headers
-    if (sessionToken && headers instanceof Headers) headers.set('Authorization', `Bearer ${sessionToken}`)
+    const headers = new Headers(options?.headers)
+    if (sessionToken && !sessionCsrf) headers.set('Authorization', `Bearer ${sessionToken}`)
+    if (sessionCsrf && !['GET', 'HEAD', 'OPTIONS'].includes(options?.method?.toUpperCase() ?? 'GET')) headers.set('X-CSRF-Token', sessionCsrf)
+    if (['/api/auth/login', '/api/auth/google/login', '/api/auth/google/accept-invitation',
+      '/api/auth/google/challenge', '/api/auth/invitations/register', '/api/auth/invitations/accept'].includes(path)) headers.set('X-AgroScan-Session', 'browser')
     const organizationId = organizationOverride ?? sessionOrganizationId
     if (organizationId !== null && headers instanceof Headers) headers.set('X-Organization-ID', String(organizationId))
-    response = await fetch(`${API_BASE}${path}`, { ...options, ...(headers ? { headers } : {}), signal: controller.signal })
+    response = await fetch(`${API_BASE}${path}`, { ...options, credentials: 'include', cache: 'no-store', headers, signal: controller.signal })
   } catch {
     throw new ApiConnectionError()
   } finally {
@@ -194,7 +234,12 @@ async function request(
     throw new ApiDataError()
   }
   if (epoch !== sessionEpoch) throw new ApiResponseError(409, 'La empresa activa cambió. Repite la consulta.')
-  if (!response.ok) throw new ApiResponseError(response.status, detailMessage(body) || `La API devolvió el estado HTTP ${response.status}.`)
+  if (!response.ok) {
+    if (sessionToken && (response.status === 401 || response.headers?.get('X-AgroScan-Session-Invalid') === '1')) {
+      clearOperatorSession(); notifySessionChanged()
+    }
+    throw new ApiResponseError(response.status, detailMessage(body) || `La API devolvió el estado HTTP ${response.status}.`)
+  }
   return body
 }
 
@@ -635,14 +680,24 @@ async function authenticateWithRoles(
 }
 
 async function completeAuthentication(login: unknown, attempt: number,
-  allowedRoles: readonly AgroScanRole[], allowPlatform = true): Promise<AgroScanRole | 'superadmin'> {
+  allowedRoles: readonly AgroScanRole[], allowPlatform = true, restoring = false): Promise<AgroScanRole | 'superadmin'> {
   if (attempt !== sessionEpoch) throw new ApiResponseError(409, 'La sesión cambió. Repite el acceso.')
-  clearOperatorSession()
+  const previousContext = `${sessionPlatformOwner}:${sessionRole}:${sessionOrganizationId}`
+  const preserve = restoring && sessionToken !== null && sessionCsrf !== null
+    && object(login) && login.csrf_token === sessionCsrf
+  if (!preserve) clearOperatorSession()
   attempt = sessionEpoch
   if (!object(login) || typeof login.access_token !== 'string' || !login.access_token || login.token_type !== 'bearer') {
     throw new ApiDataError()
   }
   sessionToken = login.access_token
+  if (login.csrf_token !== undefined) {
+    if (typeof login.csrf_token !== 'string' || !/^[a-f0-9]{64}$/.test(login.csrf_token)) {
+      clearOperatorSession()
+      throw new ApiDataError()
+    }
+    sessionCsrf = login.csrf_token
+  }
   try {
     if (allowPlatform && login.is_superadmin === true) {
       const profile = await request('/api/platform/me')
@@ -651,6 +706,10 @@ async function completeAuthentication(login: unknown, attempt: number,
         throw new ApiDataError()
       }
       sessionPlatformOwner = true
+      sessionRole = null
+      sessionOrganizationId = null
+      sessionOrganizations = []
+      if (preserve && previousContext !== `${sessionPlatformOwner}:${sessionRole}:${sessionOrganizationId}`) sessionEpoch += 1
       return 'superadmin'
     }
     const preferred = login.organization_id
@@ -665,6 +724,8 @@ async function completeAuthentication(login: unknown, attempt: number,
       if (me.organizations !== undefined) sessionOrganizations = parseOrganizations(me.organizations)
     }
     sessionRole = role
+    sessionPlatformOwner = false
+    if (preserve && previousContext !== `${sessionPlatformOwner}:${sessionRole}:${sessionOrganizationId}`) sessionEpoch += 1
     return role
   } catch (error) {
     if (attempt === sessionEpoch && error instanceof ApiResponseError && error.status === 409) {
@@ -698,6 +759,7 @@ export async function selectOrganization(organizationId: number): Promise<AgroSc
     const me = await request('/api/auth/me', undefined, DEFAULT_API_TIMEOUT_MS, organizationId)
     if (!object(me) || me.organizationId !== organizationId) throw new ApiDataError()
     const role = profileRole(me, ['administrador', 'operador', 'revisor'])
+    if (sessionCsrf) await request('/api/auth/session/organization', { method: 'PUT' }, DEFAULT_API_TIMEOUT_MS, organizationId)
     sessionOrganizations = parseOrganizations(me.organizations)
     if (!sessionOrganizations.some((organization) => organization.id === organizationId)) throw new ApiDataError()
     sessionOrganizationId = organizationId
@@ -881,13 +943,18 @@ export async function loadProtectedEvidence(path: string, signal?: AbortSignal):
   const epoch = sessionEpoch
   let response: Response
   try {
-    response = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}`,
+    response = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { ...(!sessionCsrf ? { Authorization: `Bearer ${sessionToken}` } : {}),
       ...(sessionOrganizationId !== null ? { 'X-Organization-ID': String(sessionOrganizationId) } : {}) }, signal })
   } catch (error) {
     if (signal?.aborted) throw error
     throw new ApiConnectionError()
   }
-  if (!response.ok) throw new ApiResponseError(response.status, `No se pudo obtener la fotografía (HTTP ${response.status}).`)
+  if (!response.ok) {
+    if (response.status === 401 || response.headers?.get('X-AgroScan-Session-Invalid') === '1') {
+      clearOperatorSession(); notifySessionChanged()
+    }
+    throw new ApiResponseError(response.status, `No se pudo obtener la fotografía (HTTP ${response.status}).`)
+  }
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim()
   if (contentType !== 'image/jpeg' && contentType !== 'image/png') throw new ApiDataError()
   const blob = await response.blob()

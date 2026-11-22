@@ -6,6 +6,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, event, pool
 
 from app.database import Base, DATABASE_URL
+from app import commercial_models  # noqa: F401
+from app import application_models  # noqa: F401
 from app import models, auto_registration_models, fruit_geometry_models, planar_calibration_models, board_calibration_models, quality_prediction_models  # Registra todos los modelos
 
 

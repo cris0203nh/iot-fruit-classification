@@ -9,19 +9,31 @@ from .database import get_db
 from .models import User, Role, Evaluation, Image, Lot
 from .organization_models import Organization, OrganizationMembership
 from .platform_models import PlatformOwner
-from .security import decode_access_token
+from .security import decode_access_claims
+from .services.browser_sessions import cookie_session, valid_session
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 BUSINESS_ROLES = ('administrador', 'operador', 'revisor')
 
 
 def get_authenticated_identity(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
 
-    user_id = decode_access_token(token)
+    if token is None:
+        row, user = cookie_session(db, request)
+        db.info['browser_session'] = row
+        return user
+    claims = decode_access_claims(token)
+    user_id = int(claims['sub'])
+    if 'sid' in claims:
+        row, user = valid_session(db, claims['sid'])
+        if row.user_id != user_id:
+            raise HTTPException(401, 'Sesion no valida.')
+        db.info['browser_session'] = row
     user = db.get(User, user_id)
 
     if user is None or not user.is_active:
@@ -39,6 +51,9 @@ def get_current_user(
     db: Session = Depends(get_db),
     organization_header: str | None = Header(default=None, alias='X-Organization-ID'),
 ) -> User:
+    if organization_header is None and db.info.get('browser_session') is not None:
+        selected = db.info['browser_session'].organization_id
+        organization_header = str(selected) if selected is not None else None
     memberships = db.execute(
         select(OrganizationMembership.organization_id, Role.name, Organization.name.label('organization_name'))
         .join(Role, OrganizationMembership.role_id == Role.id)
@@ -51,7 +66,8 @@ def get_current_user(
     if organization_header is None:
         if len(allowed) != 1:
             raise HTTPException(403 if not allowed else 409,
-                                'Selecciona una organización con membresía activa.')
+                                'Selecciona una organización con membresía activa.',
+                                headers={'X-AgroScan-Session-Invalid': '1'} if not allowed else None)
         organization_id = next(iter(allowed))
     else:
         try:
@@ -59,7 +75,7 @@ def get_current_user(
         except ValueError:
             raise HTTPException(400, 'Organización inválida.') from None
         if organization_id not in allowed:
-            raise HTTPException(403, 'No tienes acceso a esa organización.')
+            raise HTTPException(403, 'No tienes acceso a esa organización.', headers={'X-AgroScan-Session-Invalid': '1'})
     previous = db.info.get('organization_id')
     if previous is not None and previous != organization_id:
         raise HTTPException(403, 'No se permite cambiar organización en una solicitud.')
@@ -77,7 +93,7 @@ def require_superadmin(user: User = Depends(get_authenticated_identity), db: Ses
     # El JWT y las membresías nunca conceden autoridad global.
     owner = db.get(PlatformOwner, 1, populate_existing=True)
     if owner is None or owner.user_id != user.id:
-        raise HTTPException(403, 'Se requiere el propietario de la plataforma.')
+        raise HTTPException(403, 'Se requiere el propietario de la plataforma.', headers={'X-AgroScan-Session-Invalid': '1'})
     return user
 
 
@@ -94,6 +110,7 @@ def require_roles(*allowed_roles: str):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No tienes permisos para realizar esta operación.",
+                headers={'X-AgroScan-Session-Invalid': '1'},
             )
 
         return current_user

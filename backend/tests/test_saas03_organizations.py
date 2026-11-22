@@ -1,6 +1,7 @@
 """Aislamiento HTTP/ORM/SQLite con dos organizaciones y evidencia sintética."""
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -35,6 +36,8 @@ class OrganizationIsolationTests(unittest.TestCase):
         cls.hashed = hash_password(cls.password)
 
     def setUp(self):
+        smtp = patch.dict(os.environ, {'AGROSCAN_SMTP_ENABLED': 'false'})
+        smtp.start(); self.addCleanup(smtp.stop)
         temporary = tempfile.TemporaryDirectory(prefix='saas03-isolation-')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -192,6 +195,13 @@ class OrganizationIsolationTests(unittest.TestCase):
                 with self.subTest(path=path, method=method):
                     response = self.client.request(method, url, json={})
                     expected = 503 if path.startswith('/api/admin/backups') else 401
+                    if path == '/api/commercial/plans' and method == 'get':
+                        # Catálogo público explícito: nunca incluye datos empresariales.
+                        expected = 200
+                        self.assertEqual(set(response.json()), {'plans', 'simulatorEnabled', 'notice'})
+                    if path == '/api/commercial/applications' and method == 'post':
+                        expected = 422  # Captación pública explícita; cuerpo vacío inválido.
+                        self.assertEqual(set(response.json()), {'detail'})
                     self.assertEqual(response.status_code, expected, response.text)
                     protected += 1
         self.assertGreater(protected, 50)

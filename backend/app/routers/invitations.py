@@ -10,7 +10,7 @@ from ..identity_models import OrganizationInvitation
 from ..models import Role, User
 from ..user_schemas import RoleName
 from ..services.google_identity import normalized_email
-from ..services.invitations import aware, digest, now
+from ..services.invitations import aware, digest, now, initial_binding
 
 router = APIRouter(prefix='/api/invitations', tags=['invitaciones'], dependencies=[Depends(require_admin)])
 
@@ -57,6 +57,8 @@ def revoke_invitation(invitation_id: int, db: Session = Depends(get_db)):
     item = db.get(OrganizationInvitation, invitation_id)
     if item is None:
         raise HTTPException(404, 'Invitación no encontrada.')
+    if initial_binding(db, invitation_id) is not None:
+        raise HTTPException(403, 'La invitación inicial se gestiona desde la solicitud por el propietario.')
     if item.accepted_at is not None:
         raise HTTPException(409, 'La invitación ya fue aceptada. Gestiona su membresía.')
     item.revoked_at = now()

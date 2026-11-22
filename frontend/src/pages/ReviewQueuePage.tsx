@@ -144,7 +144,7 @@ export function ReviewQueuePage() {
   if (!authorized) return <section className="review-queue" aria-label="Acceso restringido">
     <h1>Revisiones · acceso restringido</h1>
     <p>Solo los revisores y administradores pueden acceder a la bandeja de intervención humana.</p>
-    <Link to="/">Volver al inicio</Link>
+    <Link to="/app">Volver al inicio</Link>
   </section>
 
   const data = state.status === 'ready' ? state.data : undefined

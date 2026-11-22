@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { tsxUrl } from './support/load-tsx.mjs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import ts from 'typescript'
 import { ApiDataError, ApiResponseError, clearOperatorSession, createPlatformAdministrator,
   createPlatformOrganization, designatePlatformAdministrator, getSessionRole, isAgroscanAuthenticated,
   isOperatorAuthenticated, isPlatformOwner, listPlatformAdministrators, loadPlatformOverview,
@@ -111,14 +110,7 @@ test('SaaS-05: cuenta nueva recibe solo administrador empresarial y no autoridad
 })
 
 test('SaaS-05: resumen React presenta los conteos proporcionados por el servidor', async () => {
-  const source=readFileSync(new URL('../src/pages/PlatformDashboard.tsx',import.meta.url),'utf8')
-  let code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext,
-    target:ts.ScriptTarget.ES2022}}).outputText.replace(/^import\s+["'].*\.css["'];?$/gm,'')
-  for(const [name,url] of [['react',import.meta.resolve('react')],['react/jsx-runtime',import.meta.resolve('react/jsx-runtime')],
-    ['../services/agroscanApi',new URL('../src/services/agroscanApi.ts',import.meta.url).href]]) {
-    code=code.replaceAll(`from "${name}"`,`from ${JSON.stringify(url)}`).replaceAll(`from '${name}'`,`from ${JSON.stringify(url)}`)
-  }
-  const {PlatformSummary}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
+  const {PlatformSummary}=await import(tsxUrl(new URL('../src/pages/PlatformDashboard.tsx',import.meta.url)))
   const html=renderToStaticMarkup(createElement(PlatformSummary,{metrics}))
   assert.match(html,/<strong>2<\/strong>/)
   assert.match(html,/<strong>5<\/strong>/)

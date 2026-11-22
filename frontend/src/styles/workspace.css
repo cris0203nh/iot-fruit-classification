@@ -1,0 +1,15 @@
+/* Refinamiento compartido: conserva el lenguaje editorial y todos los controles. */
+.platform-shell { max-width: 1480px; margin-inline: auto; padding: clamp(12px, 2.5vw, 32px); }
+.platform-dashboard > .section-heading { padding-bottom: 20px; border-bottom: 1px solid var(--rule); }
+.section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.section-heading h1, .section-heading h2 { letter-spacing: -.035em; }
+.commerce-workspace-nav { display: flex; gap: 12px; flex-wrap: wrap; padding-block: 12px; }
+.commerce-workspace-nav a { padding: 10px 16px; border: 1px solid var(--rule); border-radius: 24px; color: var(--ok); background: var(--card); text-decoration: none; font-weight: 650; }
+[id$="-heading"] { scroll-margin-top: 20px; }
+.panel { border-radius: 14px; }
+.agroscan-session { gap: 12px; flex-wrap: wrap; }
+.agroscan-company-selector select { min-height: var(--tap); max-width: min(100%, 280px); }
+.users-form input, .users-form select { min-height: var(--tap); }
+.users-message { overflow-wrap: anywhere; }
+.commerce-admin-link { margin-block: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--card); }
+@media (max-width: 700px) { .platform-shell { padding: 12px; } .section-heading > .action-button { width: 100%; } }

@@ -13,6 +13,7 @@ from ..platform_models import PlatformOwner
 from ..security import create_access_token, hash_password, verify_password
 from ..services.google_identity import client_id, verify_google_token
 from ..services.invitations import aware, digest, grant_invitation, invitation_for_token, now
+from ..services.browser_sessions import issue_browser_session
 from ..user_schemas import UserCreate
 
 router = APIRouter(prefix='/api/auth', tags=['identidad-e-invitaciones'])
@@ -66,7 +67,10 @@ class GoogleInvitation(GoogleCredential):
     token: str = Field(pattern=r'^[A-Za-z0-9_-]{43}$')
 
 
-def payload(db, user, organization_id=None):
+def payload(db, user, request, response, organization_id=None):
+    persisted = issue_browser_session(db, user, request, response, organization_id)
+    if persisted is not None:
+        return persisted
     owner = db.get(PlatformOwner, 1)
     result = {'access_token': create_access_token(user.id), 'token_type': 'bearer',
               'is_superadmin': owner is not None and owner.user_id == user.id}
@@ -138,7 +142,7 @@ def google_login(body: GoogleCredential, request: Request, response: Response, d
     identity.email = claims['email']
     db.commit()
     response.delete_cookie(COOKIE, path=COOKIE_PATH)
-    return payload(db, user)
+    return payload(db, user, request, response)
 
 
 @router.post('/google/link')
@@ -161,24 +165,26 @@ def google_link(body: GoogleLink, request: Request, response: Response, db: Sess
 
 
 @router.post('/invitations/preview')
-def invitation_preview(body: TokenBody, db: Session = Depends(get_db)):
+def invitation_preview(body: TokenBody, response: Response, db: Session = Depends(get_db)):
     row, organization, role = invitation_for_token(db, body.token)
+    response.headers['Cache-Control'] = 'no-store'
     return {'email': row['email'], 'organizationName': organization.name, 'role': role.name,
             'expiresAt': aware(row['expires_at']).isoformat()}
 
 
 @router.post('/invitations/accept')
-def invitation_accept(body: InvitationAccept, db: Session = Depends(get_db), user: User = Depends(get_authenticated_identity)):
+def invitation_accept(body: InvitationAccept, request: Request, response: Response, db: Session = Depends(get_db), user: User = Depends(get_authenticated_identity)):
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(401, 'Confirma la contraseña de tu cuenta actual.')
     begin(db)
     organization_id = grant_invitation(db, body.token, user)
     db.commit()
-    return payload(db, user, organization_id)
+    response.headers['Cache-Control'] = 'no-store'
+    return payload(db, user, request, response, organization_id)
 
 
 @router.post('/invitations/register', status_code=201)
-def invitation_register(body: InvitationRegister, db: Session = Depends(get_db)):
+def invitation_register(body: InvitationRegister, request: Request, response: Response, db: Session = Depends(get_db)):
     # Reutiliza normalización y validaciones locales; el rol proviene exclusivamente de la invitación.
     invitation_for_token(db, body.token)
     hashed = hash_password(body.password)
@@ -191,7 +197,8 @@ def invitation_register(body: InvitationRegister, db: Session = Depends(get_db))
     db.flush()
     organization_id = grant_invitation(db, body.token, user)
     db.commit()
-    return payload(db, user, organization_id)
+    response.headers['Cache-Control'] = 'no-store'
+    return payload(db, user, request, response, organization_id)
 
 
 @router.post('/google/accept-invitation')
@@ -223,4 +230,5 @@ def google_accept_invitation(body: GoogleInvitation, request: Request, response:
     organization_id = grant_invitation(db, body.token, user)
     db.commit()
     response.delete_cookie(COOKIE, path=COOKIE_PATH)
-    return payload(db, user, organization_id)
+    response.headers['Cache-Control'] = 'no-store'
+    return payload(db, user, request, response, organization_id)

@@ -245,3 +245,8 @@ backend/dataset/salidas/
 vision/evaluation/agrop42/revisiones_dataset.template.csv
 docs/ag046/runs/
 docs/agroscan-i05/runs/
+.agroscan-qa/
+
+# Configuración privada de equipo y credenciales protegidas por Windows.
+/comandos.txt
+*.clixml

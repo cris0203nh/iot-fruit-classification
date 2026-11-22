@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { tsxUrl } from './support/load-tsx.mjs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import ts from 'typescript'
 import { ApiResponseError, acceptInvitation, clearOperatorSession, createInvitation, getSessionOrganizationId,
   getSessionRole, googleChallenge, googleConfiguration, isAgroscanAuthenticated, linkGoogle, listInvitations,
   loginAgroscan, loginGoogle, previewInvitation, registerInvitation, revokeInvitation } from '../src/services/agroscanApi.ts'
@@ -172,14 +171,7 @@ test('SaaS-06: Google invitado transmite ambos comprobantes solo por POST',async
 })
 
 test('SaaS-06: botón React incluye Continuar con Google sin rediseñar el acceso',async()=>{
-  const source=readFileSync(new URL('../src/features/auth/GoogleAccess.tsx',import.meta.url),'utf8')
-  let code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
-  for(const [name,url]of[['react',import.meta.resolve('react')],['react/jsx-runtime',import.meta.resolve('react/jsx-runtime')],
-    ['../../services/agroscanApi',new URL('../src/services/agroscanApi.ts',import.meta.url).href],
-    ['./googleGis',new URL('../src/features/auth/googleGis.ts',import.meta.url).href]]){
-    code=code.replaceAll(`from "${name}"`,`from ${JSON.stringify(url)}`).replaceAll(`from '${name}'`,`from ${JSON.stringify(url)}`)
-  }
-  const{GoogleAccessButton}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
+  const {GoogleAccessButton}=await import(tsxUrl(new URL('../src/features/auth/GoogleAccess.tsx',import.meta.url)))
   const html=renderToStaticMarkup(createElement(GoogleAccessButton,{onCredential:async()=>{}}))
   assert.match(html,/Continuar con Google/)
   assert.match(html,/disabled/)

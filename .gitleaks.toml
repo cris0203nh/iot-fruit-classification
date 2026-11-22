@@ -47,3 +47,11 @@ condition = "AND"
 paths = ['''(^|/)backend/tests/test_agrop47_user_management\.py$''']
 regexTarget = "match"
 regexes = ['''^password":\s*"ClaveSegura12345"$''']
+
+[[allowlists]]
+description = "Regression assertions containing the exact reviewed synthetic samples"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)scripts/devsecops/test_gitleaks_config\.py$''']
+regexTarget = "match"
+regexes = ['''^(?:idempotencyKey|api_key)='replacement-synthetic-1'$''', '''^password":\s*"ClaveSegura12345"$''']

@@ -18,7 +18,7 @@ class GitleaksConfigurationTests(unittest.TestCase):
     def test_default_rules_and_all_conjunctive_scopes(self):
         self.assertTrue(self.config['extend']['useDefault'])
         self.assertNotIn('disabledRules', self.config['extend'])
-        self.assertEqual(len(self.config['allowlists']), 5)
+        self.assertEqual(len(self.config['allowlists']), 6)
         for rule in self.config['allowlists']:
             self.assertEqual(rule['condition'], 'AND')
             self.assertEqual(rule['targetRules'], ['generic-api-key'])

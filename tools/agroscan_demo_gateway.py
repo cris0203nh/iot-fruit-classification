@@ -109,9 +109,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(411, "Content-Length requerido")
         try:
             data = self.rfile.read(size) if size else None
-            headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP_HEADERS and not k.lower().startswith("cf-")}
+
+            # Recuperar el protocolo original validado por Cloudflare.
+            cf_visitor = self.headers.get("CF-Visitor", "")
+            try:
+                visitor = json.loads(cf_visitor)
+            except (TypeError, json.JSONDecodeError):
+                visitor = {}
+
+            original_scheme = visitor.get("scheme")
+
+            headers = {
+                k: v for k, v in self.headers.items()
+                if k.lower() not in HOP_HEADERS
+                and not k.lower().startswith("cf-")
+            }
+
             headers["Host"] = f"127.0.0.1:{UPSTREAM_PORT}"
             headers["Connection"] = "close"
+
+            if original_scheme == "https":
+                headers["X-Forwarded-Proto"] = "https"
             conn = http.client.HTTPConnection("127.0.0.1", UPSTREAM_PORT, timeout=120)
             try:
                 conn.request(self.command, self.path, body=data, headers=headers)

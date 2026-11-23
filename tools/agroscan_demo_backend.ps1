@@ -23,5 +23,13 @@ if (Test-Path -LiteralPath $qualityModels -PathType Container) { $env:AGROSCAN_Q
 Write-Host 'FastAPI en 127.0.0.1:8000, usando COPIA PRIVADA de SQLite/fotos.'
 Write-Host 'Los modelos originales permanecen en su carpeta y solo se leen.'
 Push-Location (Join-Path $root 'backend')
-try { & $python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 }
-finally { Pop-Location }
+try {
+    & $python -m uvicorn app.main:app `
+        --host 127.0.0.1 `
+        --port 8000 `
+        --proxy-headers `
+        --forwarded-allow-ips 127.0.0.1
+}
+finally {
+    Pop-Location
+}

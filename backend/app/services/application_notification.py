@@ -1,7 +1,9 @@
-"""SMTP opcional y acotado; como máximo un intento por solicitud, sin reenvío ambiguo."""
+"""Transporte SMTP reutilizable y compatibilidad con avisos c013 anteriores al outbox."""
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import EmailMessage
+from email.headerregistry import Address
+from email.errors import HeaderParseError
 import json
 import logging
 import os
@@ -41,7 +43,7 @@ class Configuration:
     password: str
 
 
-def configuration():
+def configuration(recipient=None):
     if not enabled():
         raise ValueError('SMTP not enabled')
     host = os.getenv('AGROSCAN_SMTP_HOST', '').strip()
@@ -52,8 +54,19 @@ def configuration():
             or security not in ('starttls','ssl','plain') or bool(username) != bool(password)
             or (security == 'plain' and host not in ('localhost','127.0.0.1','::1'))):
         raise ValueError('Invalid SMTP configuration')
-    return Configuration(host, port, security, normalized_email(os.getenv('AGROSCAN_SMTP_FROM', '')),
-        normalized_email(os.getenv('AGROSCAN_COMMERCIAL_OWNER_EMAIL', '')), username, password)
+    sender = normalized_email(os.getenv('AGROSCAN_SMTP_FROM', ''))
+    destination = normalized_email(recipient if recipient is not None else os.getenv('AGROSCAN_COMMERCIAL_OWNER_EMAIL', ''))
+    try:
+        for email in (sender, destination):
+            if any(char in email for char in ',;<>'):
+                raise ValueError('Invalid SMTP address')
+            Address(addr_spec=email)
+    except HeaderParseError:
+        raise ValueError('Invalid SMTP address') from None
+    display = os.getenv('AGROSCAN_SMTP_FROM_NAME', 'AgroScan').strip()
+    if len(display) > 100 or '\r' in display or '\n' in display:
+        raise ValueError('Invalid sender name')
+    return Configuration(host, port, security, sender, destination, username, password)
 
 
 def message_for(item, config):
@@ -73,7 +86,10 @@ def message_for(item, config):
 
 def send(config, message):
     context = ssl.create_default_context()
-    transport = smtplib.SMTP_SSL(config.host, config.port, timeout=5, context=context) if config.security == 'ssl' else smtplib.SMTP(config.host, config.port, timeout=5)
+    timeout = int(os.getenv('AGROSCAN_SMTP_TIMEOUT_SECONDS', '5'))
+    if not 1 <= timeout <= 30:
+        raise ValueError('Invalid SMTP timeout')
+    transport = smtplib.SMTP_SSL(config.host, config.port, timeout=timeout, context=context) if config.security == 'ssl' else smtplib.SMTP(config.host, config.port, timeout=timeout)
     with transport as smtp:
         if config.security == 'starttls':
             smtp.ehlo(); smtp.starttls(context=context); smtp.ehlo()
@@ -84,6 +100,22 @@ def send(config, message):
 
 
 async def notify_once(db, item):
+    # Nuevas solicitudes usan el outbox; la tabla c013 conserva su proyección API.
+    from . import commercial_notifications as queue
+    from ..notification_models import CommercialNotification
+    queued = db.scalar(select(CommercialNotification.id).where(
+        CommercialNotification.event_key == 'application_received:' + item.id + ':owner'))
+    if queued:
+        current = status(db, item.id)
+        if current != 'pending':
+            return current
+        try:
+            await run_in_threadpool(queue.process_one, db, queued)
+        except SQLAlchemyError:
+            db.rollback()
+            logger.warning('commercial_notification_processing_unavailable')
+            return 'sending'
+        return status(db, item.id)
     # La solicitud y este registro ya están confirmados. Una reclamación durable
     # precede a cualquier I/O: ni un timeout ni un reinicio permiten repetir SMTP.
     try:

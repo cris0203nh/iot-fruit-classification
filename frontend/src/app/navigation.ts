@@ -9,6 +9,7 @@ export type NavigationItem = {
 
 export const ownerNavigation: NavigationItem[] = [
   { path: '/plataforma/solicitudes', label: 'Solicitudes comerciales', icon: 'clipboard' },
+  { path: '/plataforma/notificaciones', label: 'Notificaciones', icon: 'info' },
   { path: '/plataforma/empresas', label: 'Empresas', icon: 'boxes' },
   { path: '/plataforma/administradores', label: 'Administradores', icon: 'user' },
   { path: '/plataforma/planes', label: 'Planes y contrataciones DEMO', icon: 'chart' },

@@ -43,7 +43,8 @@ class ApplicationTests(unittest.TestCase):
     def protected(self):
         with closing(sqlite3.connect(self.root/'test.db')) as db:
             tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                      if not r[0].startswith(('commercial_application','sqlite_'))]
+                      if not r[0].startswith(('commercial_application','sqlite_'))
+                      and r[0] != 'commercial_notification_outbox']
             return {t: db.execute(f'SELECT * FROM "{t}" ORDER BY rowid').fetchall() for t in tables}
 
     def submit(self, **changes):

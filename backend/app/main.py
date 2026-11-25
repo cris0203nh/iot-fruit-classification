@@ -17,6 +17,7 @@ from .routers import auth_identity, invitations
 from .routers import iot_admin, organization_export
 from .routers import commercial
 from .routers import applications
+from .routers import notifications
 from .services.browser_sessions import COOKIE as SESSION_COOKIE, protect_browser_request
 
 app = FastAPI(title="AgroScan API", dependencies=[Depends(protect_browser_request)])
@@ -101,6 +102,7 @@ app.include_router(commercial.router)
 app.include_router(commercial.owner)
 app.include_router(applications.public)
 app.include_router(applications.owner)
+app.include_router(notifications.router)
 operational = APIRouter(dependencies=[Depends(require_operational_context)])
 for router in (users.router, lots.router, evaluations.router, images.router,
                uncertainty.router, review_decisions.router, piece_history.router,

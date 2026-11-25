@@ -36,6 +36,8 @@ from vision.ag055.uncertainty import assess, load_policy  # noqa: E402
 from vision.ag055.review import private, review_history, save_review_sample  # noqa: E402
 from vision.ag055.pilot117 import load_models as load_pilot_models, predict as predict_pilot, VERSION as PILOT_VERSION  # noqa: E402
 from vision.ag055.v2 import load_models as load_v2_models, predict as predict_v2  # noqa: E402
+from vision.ag055.v2 import decode_image, abstain as abstain_v2, UnsupportedImageSize, INFERENCE_POLICY_VERSION as V2_POLICY_VERSION  # noqa: E402
+from PIL import UnidentifiedImageError, Image as PILImage
 
 router = APIRouter(prefix='/api/evaluations', tags=['AG-055 · calidad externa experimental'])
 MODEL_DIR = DATA_DIR / 'quality_models'
@@ -278,6 +280,35 @@ def exploratory_analyze(evaluation_id: str, db: Session=Depends(get_db),
     return _analyze_experimental_models(ev,db,_exploratory_models(ev.product))
 
 
+def _predict_v2_view(model,raw):
+    # Detect identity first, but keep the exact full-frame descriptor used in training.
+    try:
+        frame=cv2.cvtColor(np.asarray(decode_image(raw)),cv2.COLOR_RGB2BGR)
+    except UnsupportedImageSize:
+        return abstain_v2(model,raw,'unsupported_image_size')
+    except (UnidentifiedImageError,OSError,PILImage.DecompressionBombError):
+        return abstain_v2(model,raw,'image_decode_failed')
+    try:
+        candidates=_infer_products(frame)
+    except Exception:
+        # Transient detector failure is not an immutable no-evaluable prediction.
+        raise HTTPException(503,'Detector YOLOE no disponible. Reintenta cuando se recupere; no se guardó una clasificación.') from None
+    if not candidates:
+        return abstain_v2(model,raw,'fruit_not_detected')
+    if len(candidates)!=1:
+        return abstain_v2(model,raw,'ambiguous_fruit_detection')
+    candidate=candidates[0]
+    if candidate['product']!=model['product'] or candidate['confidence']<MIN_CONFIDENCE:
+        return abstain_v2(model,raw,'incompatible_or_uncertain_detection')
+    if len(candidate['polygon'])<3:
+        return abstain_v2(model,raw,'detector_mask_unavailable')
+    result=predict_v2(model,raw)
+    result['detection']={'product':candidate['product'],'confidence':candidate['confidence'],
+                         'box':candidate['box'],'modelVersion':YOLOE_VERSION,
+                         'roiUsedForClassifier':False}
+    return result
+
+
 def _analyze_experimental_models(ev,db,models,pilot=False,v2=False):
     if ev.status in ('cancelled', 'error'):
         raise HTTPException(409, 'Esta evaluación no permite inferencias nuevas')
@@ -292,6 +323,8 @@ def _analyze_experimental_models(ev,db,models,pilot=False,v2=False):
     for model,digest in models:
         policy=None if pilot or v2 else load_policy(os.getenv('AGROSCAN_UNCERTAINTY_POLICY_PATH'),model['task'],digest,model['dataVersion'])
         context={'version':model['version'] if pilot or v2 else 'ag055-review-routing-v1','policy':policy}
+        if v2:
+            context['inferencePolicyVersion']=V2_POLICY_VERSION
         fingerprint = hashlib.sha256(json.dumps({'sources':sources,'analysisContext':context},sort_keys=True).encode()).hexdigest()
         existing = db.scalar(select(QualityPrediction).where(
             QualityPrediction.evaluation_id==ev.id,
@@ -300,7 +333,7 @@ def _analyze_experimental_models(ev,db,models,pilot=False,v2=False):
         if existing:
             result.append(_snapshot_out(existing)); continue
         try:
-            predictor=predict_v2 if v2 else predict_pilot if pilot else predict_exploratory
+            predictor=_predict_v2_view if v2 else predict_pilot if pilot else predict_exploratory
             predictions = [{'imageId':f'I-{img.id:06d}', **predictor(model,raw)} for img,raw in images]
             if not (pilot or v2):
                 for prediction in predictions:
@@ -314,6 +347,7 @@ def _analyze_experimental_models(ev,db,models,pilot=False,v2=False):
             proposed_grade=None, details_json=json.dumps({'task':'PILOT117_V2' if v2 else 'PILOT117' if pilot else model['task'], 'sources':sources,
                 'perView':predictions, 'experimental':True, 'labelSpace':'pilot_declared_e0e1e2_v2' if v2 else 'pilot_declared_e0e1e2' if pilot else 'original_source_labels',
                 'limitations':model['limitations'], 'dataVersion':model['dataVersion'],
+                **({'inferencePolicyVersion':V2_POLICY_VERSION} if v2 else {}),
                 'independentTestMetrics':None,'humanReviewRequired':True}, ensure_ascii=False,allow_nan=False))
         db.add(record)
         try:
@@ -373,7 +407,8 @@ def _v2_models(product):
 def v2_status(evaluation_id: str,db: Session=Depends(get_db),_user: User=Depends(require_authenticated)):
     ev=_evaluation(db,evaluation_id)
     return {'evaluationId':evaluation_id,'experimental':True,'independentTestMetrics':None,
-        'models':[{'task':'PILOT117_V2','labels':model['labels'],'modelVersion':model['version'],'modelSha256':digest}
+        'models':[{'task':'PILOT117_V2','labels':model['labels'],'modelVersion':model['version'],'modelSha256':digest,
+                   'inferencePolicyVersion':V2_POLICY_VERSION}
                   for model,digest in _v2_models(ev.product)],
         'reason':'V2 experimental: segmentación heurística; sin validación externa ni evidencia Kent'}
 

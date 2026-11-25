@@ -13,7 +13,8 @@ $environment = @{
     AGROSCAN_DATABASE_URL=('sqlite:///' + $dev.Replace('\','/') + '/data/agroscan.db')
     AGROSCAN_JWT_SECRET=([PSCredential]::new('dev',(Import-Clixml -LiteralPath $secret))).GetNetworkCredential().Password
     AGROSCAN_SESSION_ALLOW_LOOPBACK_HTTP='true'; AGROSCAN_ENVIRONMENT='demo'
-    AGROSCAN_SUBSCRIPTION_SIMULATOR='true'; AGROSCAN_SMTP_ENABLED='false'
+    AGROSCAN_SUBSCRIPTION_SIMULATOR='true'
+    AGROSCAN_SMTP_ENABLED=$(if ($env:AGROSCAN_SMTP_ENABLED -ceq 'true') { 'true' } else { 'false' })
     AGROSCAN_GOOGLE_CLIENT_ID=$env:AGROSCAN_GOOGLE_CLIENT_ID; AGROSCAN_DEMO_ORIGINS=''; VITE_API_BASE_URL=''
     PYTHONIOENCODING='utf-8'; PYTHONDONTWRITEBYTECODE='1'
     YOLO_CONFIG_DIR=(Join-Path $dev 'runtime\ultralytics')

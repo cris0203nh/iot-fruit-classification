@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..commercial_models import CommercialOrder, CommercialPlan, CommercialSubscription, CommercialTransaction, CommercialOnboardingOrder
 from ..services import commercial_onboarding as onboarding
+from ..services import commercial_notifications as notifications
 from ..database import get_db
 from ..dependencies import require_admin
 from ..models import User
@@ -335,6 +336,10 @@ def confirm(order_id: str, body: ConfirmInput, user: User = Depends(require_admi
     db.add(CommercialTransaction(order_id=order.id, actor_id=user.id, outcome=outcome,
                                 amount_cents=order.amount_cents if outcome == 'demo_approved' else 0,
                                 created_at=now()))
+    if outcome == 'demo_approved':
+        notifications.organization_event(db, order.organization_id,
+            {'subscribe': 'subscription_activated', 'renew': 'subscription_renewed', 'change': 'subscription_changed'}[order.action],
+            order.id, json.loads(order.snapshot_json), sub.starts_at, sub.ends_at)
     db.commit()
     return order_output(order)
 
@@ -350,6 +355,8 @@ def cancel_subscription(user: User = Depends(require_admin), enabled=Depends(req
         sub.status = 'cancelled'
         db.add(CommercialTransaction(order_id=None, actor_id=user.id, outcome='subscription_cancelled',
                                     amount_cents=0, created_at=now()))
+        notifications.organization_event(db, sub.organization_id, 'subscription_cancelled',
+            f'{sub.id}:{sub.starts_at.isoformat()}:{sub.ends_at.isoformat()}', json.loads(sub.snapshot_json), sub.starts_at, sub.ends_at)
     db.commit()
     return subscription_output(sub)
 

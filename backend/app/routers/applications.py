@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse
 
 from ..application_models import CommercialApplication, CommercialApplicationAttempt, CommercialApplicationDecision, CommercialApplicationInvitation, CommercialApplicationNotification
 from ..services import application_notification
+from ..services import commercial_notifications as notifications
 from ..services import commercial_onboarding
 from ..identity_models import OrganizationInvitation
 from ..commercial_models import CommercialPlan
@@ -153,6 +154,7 @@ async def submit(request: Request, response: Response, db: Session = Depends(get
     try:
         # La FK requiere persistir la solicitud antes de su registro auxiliar (sin relación ORM).
         db.flush([item])
+        notifications.application_event(db, item, 'application_received')
         db.commit()
     except SQLAlchemyError:
         db.rollback()
@@ -293,6 +295,8 @@ def decide(application_id: str, body: DecisionInput, response: Response,
             actor_user_id=user.id, created_at=now(), organization_id=organization.id if organization else None,
             organization_identity=identity, idempotency_hash=key, payload_hash=payload_hash))
         item.status = {'review': 'under_review', 'approve': 'approved', 'reject': 'rejected'}[body.action]
+        if body.action in ('approve', 'reject'):
+            notifications.application_event(db, item, 'application_approved' if body.action == 'approve' else 'application_rejected', organization.id if organization else None)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -379,6 +383,8 @@ def initial_administrator_invitation(application_id: str, body: InitialInvitatio
             db.flush()
             db.add(CommercialApplicationInvitation(invitation_id=invitation.id, application_id=item.id,
                 organization_id=company.id, issued_key_hash=key, request_hash=payload_hash, is_current=True))
+            notifications.enqueue(db, 'administrator_invited', str(invitation.id), item.contact_email,
+                organization_id=company.id, name=item.contact_name, plan=json.loads(item.plan_snapshot_json))
         db.commit()
     except HTTPException:
         db.rollback()

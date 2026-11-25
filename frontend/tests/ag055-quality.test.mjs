@@ -6,11 +6,44 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import { exploratoryViews } from '../src/features/quality/exploratoryPolicy.ts'
 import { pilotViews } from '../src/features/quality/pilotPolicy.ts'
-import { v2Views } from '../src/features/quality/v2Policy.ts'
+import { v2Views, v2Reason, v2ReviewMessage } from '../src/features/quality/v2Policy.ts'
+import { analyzeStoredV2, summarizeCaptureV2 } from '../src/features/quality/autoV2Preview.ts'
 import { getExploratoryQualityStatus, analyzeExploratoryQuality, ApiDataError,
   loginOperator, clearOperatorSession, getQualityReviewQueue, getV2QualityStatus, analyzeV2Quality } from '../src/services/agroscanApi.ts'
 const api=readFileSync(new URL('../src/services/agroscanApi.ts',import.meta.url),'utf8')
 const panel=readFileSync(new URL('../src/features/quality/QualityProposalPanel.tsx',import.meta.url),'utf8')
+
+test('AG055: segmentation failures describe each reason and never claim disagreeing grades', () => {
+  const views = ['I-000041','I-000042'].map(imageId => ({imageId, evaluable:false, reason:'insufficient_fruit_area_in_frame'}))
+  const message = v2ReviewMessage(views)
+  assert.match(message,/I-000041/); assert.match(message,/I-000042/)
+  assert.match(message,/menos área/); assert.doesNotMatch(message,/discrepan/)
+  assert.match(v2ReviewMessage([{...views[0],evaluable:true,reason:null},views[1]]),/menos área/)
+  assert.match(v2ReviewMessage(views.map((view,index)=>({...view,evaluable:true,reason:null,label:index?'E2':'E0'}))),/discrepan/)
+  assert.doesNotMatch(v2ReviewMessage(views.map(view=>({...view,evaluable:true,reason:null,label:'E0'}))),/discrepan/)
+  for (const reason of ['fruit_not_detected','image_decode_failed','incompatible_features','partial_fruit_coverage','unsupported_image_size']) assert.ok(v2Reason(reason).length>20)
+})
+
+test('AG055: new inference policy refreshes cache without erasing historical snapshots', async () => {
+  const evidence=[{id:'I-000041',view:'front'},{id:'I-000042',view:'back'}]
+  const perView=evidence.map(item=>({imageId:item.id,modelVersion:'v2',experimental:true,proposedGrade:null,
+    confidenceCalibrated:false,independentPerformanceEvaluated:false,sampleUse:'unseen_photo_independence_unverified',
+    roi:[0,0,160,160],evaluable:false,label:null,confidence:null,status:'no_evaluable',
+    reason:'insufficient_fruit_area_in_frame',scoresUncalibrated:{}}))
+  const original={id:1,status:'experimental_e0e1e2_v2',modelSha256:'same-model',modelVersion:'v2',proposedGrade:null,automaticallyFinalized:false,
+    details:{sources:evidence.map(item=>({imageId:item.id})),labelSpace:'pilot_declared_e0e1e2_v2',perView}}
+  const current={...original,id:2,details:{...original.details,inferencePolicyVersion:'current-policy'}}
+  let calls=0
+  const result=await analyzeStoredV2('E-000041',evidence,{
+    getV2QualityStatus:async()=>({models:[{task:'PILOT117_V2',modelSha256:'same-model',modelVersion:'v2',inferencePolicyVersion:'current-policy'}]}),
+    getQualityProposals:async()=>[original],analyzeV2Quality:async()=>{calls++;return [current]},
+  })
+  assert.equal(calls,1);assert.equal(result.grade,null)
+  assert.doesNotMatch(result.message,/discrepan/)
+  assert.equal(original.details.inferencePolicyVersion,undefined)
+  assert.equal(summarizeCaptureV2([original],evidence,'same-model','current-policy'),null)
+  assert.ok(summarizeCaptureV2([original],evidence,'same-model')) // History remains readable.
+})
 
 test('AG055 V2: mask rejection has no fabricated grade or confidence and stays reviewable', () => {
   const view={imageId:'I-000001',roi:[0,0,160,160],modelVersion:'ag055-v2-masked-svc-v1',experimental:true,

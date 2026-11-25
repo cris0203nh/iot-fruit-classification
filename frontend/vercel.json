@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://reporters-rachel-advantage-transparency.trycloudflare.com/api/:path*"
+      "destination": "https://manufactured-onto-reached-resumes.trycloudflare.com/api/:path*"
     },
     {
       "source": "/(.*)",

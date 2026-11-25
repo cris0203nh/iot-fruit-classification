@@ -447,7 +447,8 @@ def _v2_models(product):
 def v2_status(evaluation_id: str,db: Session=Depends(get_db),_user: User=Depends(require_authenticated)):
     ev=_evaluation(db,evaluation_id)
     return {'evaluationId':evaluation_id,'experimental':True,'independentTestMetrics':None,
-        'models':[{'task':'PILOT117_V2','labels':model['labels'],'modelVersion':model['version'],'modelSha256':digest}
+        'models':[{'task':'PILOT117_V2','labels':model['labels'],'modelVersion':model['version'],'modelSha256':digest,
+                   'inferencePolicyVersion':V2_POLICY_VERSION}
                   for model,digest in _v2_models(ev.product)],
         'reason':'V2 experimental: segmentación heurística; sin validación externa ni evidencia Kent'}
 

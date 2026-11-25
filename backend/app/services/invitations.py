@@ -99,4 +99,8 @@ def grant_invitation(db, token, user):
     if changed.rowcount != 1:
         raise HTTPException(410, 'La invitación ya no está disponible.')
     db.add(OrganizationMembership(organization_id=organization.id, user_id=user.id, role_id=role.id))
+    if role.name == 'administrador':
+        from .commercial_notifications import enqueue
+        enqueue(db, 'administrator_activated', str(row['id']), row['email'],
+            organization_id=organization.id, user_id=user.id, name=user.full_name)
     return organization.id

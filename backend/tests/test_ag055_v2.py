@@ -3,15 +3,64 @@ import os
 import unittest
 from unittest.mock import patch
 
-from app.models import Evaluation
+from app.models import Evaluation, Image
+from app.quality_prediction_models import QualityPrediction
 from app.routers import quality_prediction as router
 from vision.tests.test_ag055_v2 import artifact
 import test_ag055_i04 as previous
 
 
 class V2APITests(unittest.TestCase):
-    setUp=previous.I04Tests.setUp
+    def setUp(self):
+        previous.I04Tests.setUp(self)
+        detector=patch.object(router,'_infer_products',return_value=[{'product':'tomate','confidence':.95,
+            'polygon':[[20,20],[120,20],[120,120]],'box':[20,20,120,120]}])
+        detector.start();self.addCleanup(detector.stop)
     auth=previous.I04Tests.auth
+
+    def test_detection_gate_distinguishes_absence_ambiguity_product_and_missing_mask(self):
+        raw=(self.dir/'images/1.jpg').read_bytes()
+        valid={'product':'tomate','confidence':.95,'polygon':[[20,20],[120,20],[120,120]],'box':[20,20,120,120]}
+        for candidates,reason in (([],'fruit_not_detected'),([valid,valid],'ambiguous_fruit_detection'),
+                ([{**valid,'product':'mango'}],'incompatible_or_uncertain_detection'),
+                ([{**valid,'confidence':.2}],'incompatible_or_uncertain_detection'),
+                ([{**valid,'polygon':[]}],'detector_mask_unavailable')):
+            with patch.object(router,'_infer_products',return_value=candidates),patch.object(router,'predict_v2') as classify:
+                result=router._predict_v2_view(artifact(),raw)
+                self.assertEqual(result['reason'],reason);self.assertIsNone(result['label']);classify.assert_not_called()
+
+    def test_detector_outage_is_retryable_and_never_cached_as_a_grade(self):
+        path=f'/api/evaluations/{self.eid}/vision/quality/v2/analyze'
+        with patch.object(router,'_v2_models',return_value=[(artifact(),'a'*64)]):
+            with patch.object(router,'_infer_products',side_effect=RuntimeError('synthetic detector unavailable')):
+                self.assertEqual(self.client.post(path,headers=self.auth()).status_code,503)
+            with self.Session() as db:self.assertEqual(db.query(QualityPrediction).count(),0)
+            self.assertEqual(self.client.post(path,headers=self.auth()).status_code,200)
+
+    def test_invalid_view_does_not_discard_other_view_or_write_human_grade(self):
+        (self.dir/'images/2.jpg').write_bytes(b'invalid synthetic photo')
+        with self.Session() as db:
+            db.get(Image,2).size_bytes=len(b'invalid synthetic photo')
+            db.commit()
+        path=f'/api/evaluations/{self.eid}/vision/quality/v2/analyze'
+        with patch.object(router,'_v2_models',return_value=[(artifact(),'a'*64)]):
+            result=self.client.post(path,headers=self.auth())
+        self.assertEqual(result.status_code,200,result.text)
+        views=result.json()[0]['details']['perView']
+        self.assertEqual(len(views),2);self.assertEqual(views[1]['reason'],'image_decode_failed')
+        self.assertIsNone(result.json()[0]['proposedGrade'])
+        with self.Session() as db:self.assertIsNone(db.query(Evaluation).first().visual_category)
+
+    def test_new_policy_appends_snapshot_and_keeps_old_prediction_immutable(self):
+        path=f'/api/evaluations/{self.eid}/vision/quality/v2/analyze'
+        with patch.object(router,'_v2_models',return_value=[(artifact(),'a'*64)]):
+            with patch.object(router,'V2_POLICY_VERSION','previous-test-policy'):
+                previous_row=self.client.post(path,headers=self.auth()).json()[0]
+            current=self.client.post(path,headers=self.auth()).json()[0]
+            repeated=self.client.post(path,headers=self.auth()).json()[0]
+        self.assertNotEqual(previous_row['id'],current['id']);self.assertEqual(current['id'],repeated['id'])
+        stored=self.client.get(f'/api/evaluations/{self.eid}/vision/quality/proposals',headers=self.auth()).json()
+        self.assertEqual(stored[0],previous_row)
 
     def test_installed_model_directory_and_explicit_override(self):
         with patch.dict(os.environ, {'AGROSCAN_V2_MODELS_PATH': ''}), \

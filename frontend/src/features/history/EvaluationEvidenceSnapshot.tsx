@@ -11,6 +11,7 @@ import {
   type QualityProposal,
 } from '../../services/agroscanApi.ts'
 import { runAutoApproxA4 } from '../geometry/autoApproxA4Runner.ts'
+import { v2Reason } from '../quality/v2Policy.ts'
 import {
   summarizeEvidenceI04,
   type EvidenceI04,
@@ -282,6 +283,7 @@ export function EvaluationEvidenceSnapshot({
                               ? `${predicted.grade} · preliminar`
                               : 'No evaluable'
                             : 'Sin propuesta'}
+                        {predicted && !predicted.evaluable && <small>{v2Reason(predicted.reason)}</small>}
                       </td>
 
                       <td>

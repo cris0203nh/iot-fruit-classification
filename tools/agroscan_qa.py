@@ -9,7 +9,7 @@ from contextlib import closing
 
 ROOT = Path(__file__).resolve().parents[1]
 QA_ROOT = ROOT / '.agroscan-qa'
-HEAD = 'c017catalog'
+HEAD = 'c018notifications'
 OPERATIONAL = ('lots', 'pieces', 'evaluations', 'images', 'measurements', 'reviews',
                'vision_assessments', 'vision_prechecks', 'fruit_geometries',
                'ag054_board_calibrations', 'ag054_planar_calibrations',

@@ -18,6 +18,7 @@ async function component(file, stubs = {}) {
     '../../services/agroscanApi': new URL('../src/services/agroscanApi.ts', import.meta.url).href,
     '../../services/agroscanApi.ts': new URL('../src/services/agroscanApi.ts', import.meta.url).href,
     './autoV2Preview.ts': new URL('../src/features/quality/autoV2Preview.ts', import.meta.url).href,
+    './v2Policy.ts': new URL('../src/features/quality/v2Policy.ts', import.meta.url).href,
     ...stubs,
   }
   for (const [name, url] of Object.entries(modules)) {

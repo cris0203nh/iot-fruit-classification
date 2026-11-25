@@ -1,6 +1,7 @@
 /** AgroScan I01: lectura operativa. Nunca convierte estados de registro en precisión acreditada. */
 import type { EvaluationStatus } from './historyService.ts'
 import { summarizeV2Proposals } from '../quality/automaticQuality.ts'
+import { v2Views, v2ReviewMessage } from '../quality/v2Policy.ts'
 
 type Ledger = { currentValue: string | null; decisions: readonly unknown[] }
 type QualityStatus = { modelAvailable: boolean }
@@ -60,7 +61,7 @@ export function summarizeEvaluation({ status, ledger, qualityStatus, proposals, 
       aiNote = 'Las vistas coinciden. No es dictamen: requiere revisión humana y su precisión comercial no está validada.'
     } else if (v2Rows.length > 0) {
       ai = 'Clasificación requiere revisión'
-      aiNote = 'No todas las fotografías obtuvieron un grado concordante y evaluable.'
+      aiNote = v2ReviewMessage(v2Views(v2Rows.at(-1)?.details))
     } else if (suggested) {
       ai = `Sugerencia ${suggested.proposedGrade}`
       aiNote = 'Resultado preliminar guardado, sin confirmación y con precisión comercial sin validar.'

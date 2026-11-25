@@ -1885,7 +1885,7 @@ export type QualityModelStatus = {
 
 export type ExploratoryStatus = {
   evaluationId: string; experimental: true
-  models: { task: string; labels: string[]; modelVersion: string; modelSha256: string }[]
+  models: { task: string; labels: string[]; modelVersion: string; modelSha256: string; inferencePolicyVersion?: string }[]
   reason: string
 }
 
@@ -1933,7 +1933,8 @@ export async function getV2QualityStatus(evaluationId: string): Promise<Explorat
   if (!object(v) || v.evaluationId !== evaluationId || v.experimental !== true || v.independentTestMetrics !== null
     || typeof v.reason !== 'string' || !Array.isArray(v.models) || !v.models.every(m => object(m)
       && m.task === 'PILOT117_V2' && JSON.stringify(m.labels) === JSON.stringify(['E0','E1','E2'])
-      && typeof m.modelVersion === 'string' && typeof m.modelSha256 === 'string')) throw new ApiDataError()
+      && typeof m.modelVersion === 'string' && typeof m.modelSha256 === 'string'
+      && (m.inferencePolicyVersion === undefined || typeof m.inferencePolicyVersion === 'string'))) throw new ApiDataError()
   return v as ExploratoryStatus
 }
 export async function analyzeV2Quality(evaluationId: string): Promise<QualityProposal[]> {

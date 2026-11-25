@@ -1,6 +1,7 @@
 """Guardas del desarrollo local, siempre con SQLite temporal."""
 from contextlib import closing
 import hashlib
+import json
 import os
 from pathlib import Path
 import secrets
@@ -13,6 +14,48 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import agroscan_dev as dev
+
+
+class DevelopmentSmtpLauncherTests(unittest.TestCase):
+    def test_launcher_preserves_explicit_smtp_opt_in_and_defaults_disabled(self):
+        # Evalúa los bloques originales del lanzador y ejecuta un hijo real.
+        # No invoca prepare/serve, no usa secretos reales ni abre SQLite/SMTP.
+        script = (dev.ROOT / 'tools/agroscan_dev.ps1').as_posix().replace("'", "''")
+        python = sys.executable.replace("'", "''")
+        harness = r'''
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile('__SCRIPT__', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'Launcher syntax error' }
+$assignment = $ast.Find({param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$environment'}, $true)
+$outer = @($ast.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.TryStatementAst] })[0]
+function Import-Clixml { ConvertTo-SecureString ('x' * 48) -AsPlainText -Force }
+$dev = 'C:\synthetic-dev'; $secret = 'unused-synthetic.clixml'
+$before = [Environment]::GetEnvironmentVariable('AGROSCAN_SMTP_ENABLED', 'Process')
+$previous = @{}
+Invoke-Expression $assignment.Extent.Text
+Invoke-Expression $outer.Body.Statements[0].Extent.Text
+$probe = 'import os,json;print(json.dumps({"enabled":os.getenv("AGROSCAN_SMTP_ENABLED"),"hostInherited":os.getenv("AGROSCAN_SMTP_HOST")=="smtp.example.test","passwordInherited":os.getenv("AGROSCAN_SMTP_PASSWORD")=="synthetic-only","fromInherited":os.getenv("AGROSCAN_SMTP_FROM")=="sender@example.test","timeoutInherited":os.getenv("AGROSCAN_SMTP_TIMEOUT_SECONDS")=="15"}))'
+$probe | & '__PYTHON__' -B -
+if ($LASTEXITCODE -ne 0) { throw 'Child probe failed' }
+foreach ($statement in $outer.Finally.Statements) { Invoke-Expression $statement.Extent.Text }
+if ([Environment]::GetEnvironmentVariable('AGROSCAN_SMTP_ENABLED', 'Process') -cne $before) { throw 'Environment not restored' }
+'''.replace('__SCRIPT__', script).replace('__PYTHON__', python)
+        for value, expected in ((None, 'false'), ('false', 'false'), ('true', 'true'), ('TRUE', 'false')):
+            with self.subTest(enabled=value):
+                environment = {**os.environ, 'AGROSCAN_SMTP_HOST':'smtp.example.test',
+                    'AGROSCAN_SMTP_FROM':'sender@example.test', 'AGROSCAN_SMTP_PASSWORD':'synthetic-only',
+                    'AGROSCAN_SMTP_TIMEOUT_SECONDS':'15'}
+                environment.pop('AGROSCAN_SMTP_ENABLED', None)
+                if value is not None:
+                    environment['AGROSCAN_SMTP_ENABLED'] = value
+                result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', harness],
+                                        env=environment, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                status = json.loads(result.stdout)
+                self.assertEqual(status, {'enabled':expected, 'hostInherited':True,
+                                         'passwordInherited':True, 'fromInherited':True, 'timeoutInherited':True})
+                self.assertNotIn('synthetic-only', result.stdout)
 
 
 class DevelopmentTests(unittest.TestCase):

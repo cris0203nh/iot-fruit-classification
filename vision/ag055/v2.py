@@ -10,7 +10,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .experimental import sha
 from .pilot117 import LABELS, decision
@@ -18,15 +18,27 @@ from .pilot117 import LABELS, decision
 VERSION = 'ag055-v2-masked-svc-v1'
 FEATURE_VERSION = 'fruit-mask-s40-solidity094-128-hsv-s32-robust-floor005-v1'
 DIMENSIONS = 128
+INFERENCE_POLICY_VERSION = 'ag055-v2-detection-input-guards-v2'
 _lock = threading.Lock()
 
 
-def segment(raw):
+class UnsupportedImageSize(ValueError):
+    pass
+
+
+def decode_image(raw):
+    """Same orientation/colors in detection and features; check before decoding pixels."""
     with Image.open(io.BytesIO(raw)) as source:
+        w,h=source.size
+        if min(w,h)<32 or w*h>40_000_000:
+            raise UnsupportedImageSize('Unsupported image size')
         image = ImageOps.exif_transpose(source).convert('RGB')
+    return image
+
+
+def segment(raw):
+    image=decode_image(raw)
     w, h = image.size
-    if min(w,h)<32 or w*h>40_000_000:
-        raise ValueError('Unsupported image size')
     image.thumbnail((320,320),Image.Resampling.LANCZOS)
     rgb=np.asarray(image).copy(); hh,ww=rgb.shape[:2]
     mask=np.zeros((hh,ww),np.uint8)
@@ -47,8 +59,11 @@ def segment(raw):
     binary=cv2.morphologyEx(binary,cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))
     count,components,stats,_=cv2.connectedComponentsWithStats(binary,8)
     sizes=stats[1:,cv2.CC_STAT_AREA]
-    if not len(sizes) or sizes.max()<ww*hh*.08:
+    if not len(sizes):
         return rgb,None,{'reason':'fruit_not_separated','roi':[0,0,w,h]}
+    if sizes.max()<ww*hh*.08:
+        return rgb,None,{'reason':'insufficient_fruit_area_in_frame','roi':[0,0,w,h],
+            'largestComponentFraction':float(sizes.max()/(ww*hh)), 'minimumComponentFraction':.08}
     largest=int(sizes.argmax())+1
     if sum(s>sizes.max()*.15 for s in sizes)>1:
         return rgb,None,{'reason':'multiple_objects_or_uncertain_mask','roi':[0,0,w,h]}
@@ -125,20 +140,38 @@ def validate(artifact,product=None):
         raise ValueError('Invalid V2 provenance')
 
 
-def predict(artifact,raw):
-    validate(artifact)
-    vector,roi=features(raw)
-    result={'experimental':True,'proposedGrade':None,'confidenceCalibrated':False,
+def _result(artifact,raw,roi):
+    return {'experimental':True,'proposedGrade':None,'confidenceCalibrated':False,
             'modelVersion':VERSION,'featureVersion':FEATURE_VERSION,'task':'PILOT117_V2',
+            'inferencePolicyVersion':INFERENCE_POLICY_VERSION,
             'roi':roi['roi'],'roiMethod':roi.get('roiMethod','segmentation_failed'),
             'roiHumanVerified':False,'segmentation':roi,'kentVerified':False,
             'independentPerformanceEvaluated':False,
             'sampleUse':'training_photo' if sha(raw) in artifact['trainingImageHashes'] else 'unseen_photo_independence_unverified',
             'uncertainty':{'priority':'priority','reasons':['experimental_v2_no_external_validation'],
                            'humanReviewRequired':True,'operationalUseAllowed':False}}
+
+
+def abstain(artifact,raw,reason,roi=None):
+    validate(artifact)
+    roi={**(roi or {'roi':[0,0,0,0]}),'reason':reason}
+    return {**_result(artifact,raw,roi),'label':None,'confidence':None,'scoresUncalibrated':{},
+            'evaluable':False,'status':'no_evaluable','reason':reason}
+
+
+def predict(artifact,raw):
+    validate(artifact)
+    try:
+        vector,roi=features(raw)
+    except UnsupportedImageSize:
+        return abstain(artifact,raw,'unsupported_image_size')
+    except (UnidentifiedImageError,OSError,Image.DecompressionBombError):
+        return abstain(artifact,raw,'image_decode_failed')
     if vector is None:
-        return {**result,'label':None,'confidence':None,'scoresUncalibrated':{},'evaluable':False,
-                'status':'no_evaluable','reason':roi['reason']}
+        return abstain(artifact,raw,roi['reason'],roi)
+    if np.asarray(vector).shape!=(DIMENSIONS,) or not np.isfinite(vector).all():
+        return abstain(artifact,raw,'incompatible_features',roi)
+    result=_result(artifact,raw,roi)
     label,ovr,pairs=decision(artifact,vector)
     scores=np.exp(ovr-ovr.max());scores/=scores.sum()
     return {**result,'label':label,'evaluable':True,'status':'experimental_proposal','reason':None,

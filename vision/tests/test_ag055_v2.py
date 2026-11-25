@@ -29,6 +29,47 @@ def photo(color=(220,40,20)):
 
 
 class V2Tests(unittest.TestCase):
+    def test_small_fruit_at_different_positions_abstains_without_lowering_area_guard(self):
+        for center in ((35,35),(80,80),(125,110)):
+            image=Image.new('RGB',(160,160),'white')
+            x,y=center;ImageDraw.Draw(image).ellipse((x-12,y-12,x+12,y+12),fill=(220,40,20))
+            stream=io.BytesIO();image.save(stream,format='PNG')
+            result=predict(artifact(),stream.getvalue())
+            self.assertFalse(result['evaluable']);self.assertIsNone(result['label'])
+            self.assertEqual(result['reason'],'insufficient_fruit_area_in_frame')
+            self.assertLess(result['segmentation']['largestComponentFraction'],.08)
+            self.assertEqual(result['segmentation']['minimumComponentFraction'],.08)
+
+    def test_valid_translations_keep_exact_descriptor_and_illumination_does_not_force_rejection(self):
+        vectors=[]
+        for offset in (0,15):
+            image=Image.new('RGB',(160,160),'white')
+            ImageDraw.Draw(image).ellipse((35+offset,30,125+offset,130),fill=(220,40,20))
+            stream=io.BytesIO();image.save(stream,format='PNG')
+            vector,_=features(stream.getvalue());self.assertIsNotNone(vector);vectors.append(vector)
+        np.testing.assert_array_equal(*vectors)
+        for color in ((180,35,20),(240,180,20),(40,160,50)):
+            self.assertTrue(predict(artifact(),photo(color))['evaluable'])
+
+    def test_bad_image_sizes_and_corrupt_bytes_are_explicit_per_view_abstentions(self):
+        self.assertEqual(predict(artifact(),b'not a photograph')['reason'],'image_decode_failed')
+        stream=io.BytesIO();Image.new('RGB',(16,16),'red').save(stream,format='PNG')
+        self.assertEqual(predict(artifact(),stream.getvalue())['reason'],'unsupported_image_size')
+
+    def test_incompatible_vectors_never_reach_svc(self):
+        for vector,info,reason in ((np.zeros(127),{'roi':[0,0,160,160]},'incompatible_features'),
+                (np.full(128,np.nan),{'roi':[0,0,160,160]},'incompatible_features')):
+            with patch('vision.ag055.v2.features',return_value=(vector,info)),patch('vision.ag055.v2.decision') as svc:
+                result=predict(artifact(),photo())
+                self.assertEqual(result['reason'],reason);self.assertIsNone(result['label']);svc.assert_not_called()
+
+    def test_software_grade_mapping_e0_e1_e2_preserves_review_requirement(self):
+        for grade in ('E0','E1','E2'):
+            with patch('vision.ag055.v2.decision',return_value=(grade,np.array([1.,1.,1.]),[0.,0.,0.])):
+                result=predict(artifact(),photo())
+            self.assertEqual(result['label'],grade);self.assertIsNone(result['proposedGrade'])
+            self.assertTrue(result['uncertainty']['humanReviewRequired'])
+
     def test_deterministic_fruit_only_descriptor(self):
         a,info=features(photo());b,_=features(photo())
         self.assertIsNotNone(a);np.testing.assert_array_equal(a,b)

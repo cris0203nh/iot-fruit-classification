@@ -53,9 +53,10 @@ class NotificationTests(unittest.TestCase):
         self.assertEqual(result.status_code,201,result.text);self.assertEqual(result.json()['ownerNotification'],'sent')
         message=smtp.send_message.call_args.args[0]
         self.assertEqual(str(message['To']),ENV['AGROSCAN_COMMERCIAL_OWNER_EMAIL'])
-        self.assertEqual(str(message['From']),ENV['AGROSCAN_SMTP_FROM'])
+        self.assertEqual(message['From'].addresses[0].addr_spec,ENV['AGROSCAN_SMTP_FROM'])
+        self.assertEqual(message['From'].addresses[0].display_name,'AgroScan')
         for expected in (self.body['companyName'],self.body['contactName'],self.body['contactEmail'],self.plan['name'],result.json()['id'],'99.00 PEN'):
-            self.assertIn(expected,message.get_content())
+            self.assertIn(expected,message.get_body(preferencelist=('plain',)).get_content())
         smtp.starttls.assert_called_once();smtp.login.assert_called_once_with(ENV['AGROSCAN_SMTP_USERNAME'],ENV['AGROSCAN_SMTP_PASSWORD'])
         self.assertEqual(factory.call_args.kwargs['timeout'],5)
         self.assertNotIn(self.body['contactEmail'],result.text)

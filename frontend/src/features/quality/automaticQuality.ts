@@ -1,7 +1,7 @@
 /** AgroScan I02: análisis automático experimental al confirmar la adquisición.
  * No crea dictámenes humanos, ni convierte las puntuaciones en probabilidades.
  */
-import { v2Views } from './v2Policy.ts'
+import { v2Views, v2ReviewMessage } from './v2Policy.ts'
 import type { QualityProposal } from '../../services/agroscanApi.ts'
 
 export type QualityGrade = 'E0' | 'E1' | 'E2'
@@ -79,7 +79,7 @@ export async function runAutomaticQuality(
       const grade = summarizeV2Proposals(predictions, evidence.map(x => x.id))
       return grade
         ? { status: 'suggested', grade, source: 'v2', message: 'Resultado preliminar; revisión humana obligatoria. Su precisión comercial no está validada.' }
-        : { status: 'needs_review', grade: null, source: 'v2', message: 'No se obtuvo una clasificación coincidente en todas las vistas. Revisa las fotografías.' }
+        : { status: 'needs_review', grade: null, source: 'v2', message: v2ReviewMessage(v2Views(predictions.at(-1)?.details)) }
     }
     const legacy = await gateway.getQualityModelStatus(evaluationId)
     if (!legacy.modelAvailable) {

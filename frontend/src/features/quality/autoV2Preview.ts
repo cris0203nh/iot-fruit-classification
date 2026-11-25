@@ -1,5 +1,5 @@
 /** Vista preliminar V2 durante captura: nunca confirma una clasificación ni sustituye el pesaje. */
-import { v2Views } from './v2Policy.ts'
+import { v2Views, v2ReviewMessage } from './v2Policy.ts'
 import type { QualityProposal } from '../../services/agroscanApi.ts'
 
 export type V2Evidence = { id: string; view: string }
@@ -7,12 +7,12 @@ export type V2Preview = {
   status: 'suggested' | 'needs_review' | 'no_model'
   grade: 'E0' | 'E1' | 'E2' | null
   modelVersion: string | null
-  views: { id: string; grade: 'E0' | 'E1' | 'E2' | null; evaluable: boolean }[]
+  views: { id: string; grade: 'E0' | 'E1' | 'E2' | null; evaluable: boolean; reason?: string | null }[]
   message: string
 }
 
 type V2Gateway = {
-  getV2QualityStatus: (id: string) => Promise<{ models: { task: string; modelSha256: string; modelVersion: string }[] }>
+  getV2QualityStatus: (id: string) => Promise<{ models: { task: string; modelSha256: string; modelVersion: string; inferencePolicyVersion?: string }[] }>
   getQualityProposals: (id: string) => Promise<QualityProposal[]>
   analyzeV2Quality: (id: string) => Promise<QualityProposal[]>
 }
@@ -27,13 +27,14 @@ const sameIds = (actual: string[], expected: string[]) =>
 /** Descarta propuestas de otro modelo, evaluación o conjunto de fotografías.
  * Comprueba todas las vistas, incluidas las que no son evaluables. */
 export function summarizeCaptureV2(
-  rows: readonly QualityProposal[], evidence: readonly V2Evidence[], modelSha: string,
+  rows: readonly QualityProposal[], evidence: readonly V2Evidence[], modelSha: string, inferencePolicyVersion?: string,
 ): V2Preview | null {
   const ids = evidence.map(x => x.id)
   const selected = [...rows].reverse().find(row => {
     if (row.status !== 'experimental_e0e1e2_v2' || row.modelSha256 !== modelSha ||
         row.automaticallyFinalized !== false || row.proposedGrade !== null ||
         !row.details || typeof row.details !== 'object' || !('sources' in row.details)) return false
+    if (inferencePolicyVersion && (!('inferencePolicyVersion' in row.details) || row.details.inferencePolicyVersion !== inferencePolicyVersion)) return false
     const sources = row.details.sources
     return Array.isArray(sources) && sameIds(sources.map((x: unknown) =>
       x && typeof x === 'object' && 'imageId' in x ? String(x.imageId) : ''), ids)
@@ -49,7 +50,7 @@ export function summarizeCaptureV2(
   }
   const views = evidence.map(item => {
     const match = parsed.find(x => x.imageId === item.id)!
-    return { id: item.id, evaluable: match.evaluable,
+    return { id: item.id, evaluable: match.evaluable, reason: match.reason,
       grade: match.evaluable ? match.label as 'E0' | 'E1' | 'E2' : null }
   })
   const labels = views.map(x => x.grade)
@@ -58,7 +59,7 @@ export function summarizeCaptureV2(
     ? { status: 'suggested', grade: labels[0], views, modelVersion: selected.modelVersion,
         message: 'Las vistas coinciden. Resultado preliminar; revisión humana obligatoria.' }
     : { status: 'needs_review', grade: null, views, modelVersion: selected.modelVersion,
-        message: 'Las vistas discrepan o alguna no es evaluable. Se requiere revisión humana.' }
+        message: v2ReviewMessage(parsed) }
 }
 
 /** Usa predicciones existentes idempotentes; si faltan, solicita V2 a FastAPI.
@@ -77,9 +78,9 @@ export async function analyzeStoredV2(
     status: 'no_model', grade: null, modelVersion: null, views: [],
     message: 'La clasificación no está habilitada para este producto. Las fotografías siguen guardadas; solicita ayuda al administrador.',
   }
-  const previous = summarizeCaptureV2(await gateway.getQualityProposals(evaluationId), evidence, model.modelSha256)
+  const previous = summarizeCaptureV2(await gateway.getQualityProposals(evaluationId), evidence, model.modelSha256, model.inferencePolicyVersion)
   if (previous) return previous
   const result = await gateway.analyzeV2Quality(evaluationId)
-  return summarizeCaptureV2(result, evidence, model.modelSha256) ??
+  return summarizeCaptureV2(result, evidence, model.modelSha256, model.inferencePolicyVersion) ??
     needsReview('No se obtuvo un análisis verificable para estas fotografías. Revisión requerida.')
 }

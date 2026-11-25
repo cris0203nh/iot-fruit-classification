@@ -1,4 +1,4 @@
-# Byte-compiled / optimized / DLL files
+﻿# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
@@ -223,7 +223,7 @@ backend/backups/
 # Datos de demostracion local aislados (nunca publicar)
 .agroscan_demo/
 
-# Preparación privada del piloto: nunca añadir respaldos o secretos al checkpoint.
+# PreparaciÃ³n privada del piloto: nunca aÃ±adir respaldos o secretos al checkpoint.
 .agroscan-checkpoints/
 .env.*
 entrada_fotos/
@@ -247,6 +247,8 @@ docs/ag046/runs/
 docs/agroscan-i05/runs/
 .agroscan-qa/
 
-# Configuración privada de equipo y credenciales protegidas por Windows.
+# ConfiguraciÃ³n privada de equipo y credenciales protegidas por Windows.
 /comandos.txt
 *.clixml
+.vercel
+.env*
